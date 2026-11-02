@@ -187,3 +187,21 @@ The chosen λ is committed before any validation run.
 **The blend replaces the blueprint as the default bot only if** it is promoted, selected,
 confirmed on every member of its family, and passes the deployment gate. Otherwise the
 blueprint stays the default and the result is reported as a null.
+
+### Amendment 2: train frontier and the chosen λ (committed before any validation run)
+
+Abstract numbers are on held-out abstract deals, in points per player-hand. Real-engine
+numbers are on the train partition, in points per tournament, with 95% paired t.
+
+| λ | blend | abstract pop. gain | exploiter gain (abstract) | worst H (vs) | eligible | train pop. vs blueprint (96) | exploiter vs blend, train (48) |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| 0 | blueprint | 0 | E1 −0.0004 ± 0.0011 | +0.002 (E1) | yes | 0 | −0.42 [−2.82, +1.98] |
+| 0.25 | B25 | +0.037 | X25 +0.075 ± 0.004 | −0.058 (X25) | yes | +3.21 [+1.09, +5.33] | +2.57 [−1.11, +6.24] |
+| 0.5 | **B50** | +0.087 | X50 +0.215 ± 0.006 | −0.138 (X50) | yes | **+5.98 [+3.83, +8.13]** | +3.76 [+0.76, +6.76] |
+| 0.7 | B70 | +0.137 | X70 +0.323 ± 0.008 | −0.185 (X70) | no | +7.84 [+5.72, +9.96] | +6.47 [+3.62, +9.33] |
+| 0.85 | B85 | +0.182 | X85 +0.415 ± 0.009 | −0.236 (X85) | no | +7.99 [+5.83, +10.15] | +2.91 [−0.35, +6.18] |
+| 0.95 | B95 | +0.214 | X95 +0.475 ± 0.010 | −0.266 (X95) | no | +9.79 [+7.53, +12.05] | +6.23 [+3.39, +9.07] |
+| 1 | C1 | +0.214 | E2 +0.643 ± 0.011 | −0.350 (E2) | no | +8.30 [+6.12, +10.47] | +0.37 [−2.67, +3.41] |
+
+**Chosen: λ = 0.5 (B50).** Its train lower bound +3.83 > 0, so validation proceeds
+as declared above, with `X_λ` = X50.
