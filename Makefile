@@ -223,7 +223,7 @@ REHEARSAL_BUDGET ?= fast
 rehearse:
 	$(UV) run python -m strategy.rehearsal run $(REVEAL_SPEC) --budget $(REHEARSAL_BUDGET) --jobs $(SEARCH_JOBS)
 
-# Every held-back announcement in turn (about an hour each at the fast budget; run on an idle machine).
+# Every held-back announcement in turn (30-40 active minutes each at the fast budget; run on an idle machine).
 rehearse-heldback:
 	for s in strategy/rehearsal/heldback/*.json; do \
 		$(UV) run python -m strategy.rehearsal run $$s --budget $(REHEARSAL_BUDGET) --jobs $(SEARCH_JOBS); done

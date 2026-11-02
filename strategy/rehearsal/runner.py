@@ -553,10 +553,11 @@ class Rehearsal:
         rep.pop("manifest", None)
         (self.out / "gates").mkdir(parents=True, exist_ok=True)
         (self.out / "gates" / f"{role}.json").write_text(json.dumps(rep, indent=1, sort_keys=True) + "\n")
-        w = rep.get("worker_wall") or {}
+        w, e = rep.get("worker_wall") or {}, rep.get("e2e") or {}
         return {"passed": rep["passed"], "decisions": rep["decisions"], "tables": rep["tables"],
                 "p50_us": w.get("p50_us"), "p99_us": w.get("p99_us"), "p999_us": w.get("p999_us"),
-                "max_us": w.get("max_us"), "fallbacks": rep["fallbacks"], "internal_fallbacks": rep["internal_fallbacks"],
+                "max_us": w.get("max_us"), "e2e_p99_us": e.get("p99_us"), "e2e_over_1ms": e.get("over_1ms"),
+                "fallbacks": rep["fallbacks"], "internal_fallbacks": rep["internal_fallbacks"],
                 "restarts": rep["restarts"], "max_state_bytes": rep["max_state_bytes"],
                 "timeout_classes": rep["timeout_classes"], "failed_checks": [k for k, ok in rep["checks"].items() if not ok],
                 "attempts": len(rep["attempts"]), "wall_s": rep["wall_s"], "report": str(self.out / "gates" / f"{role}.json")}
@@ -831,11 +832,16 @@ def render_markdown(rep: Mapping[str, Any]) -> str:
     grows += [(k, v) for k, v in steps.get("gate", {}).get("detail", {}).items()
               if isinstance(v, dict) and "passed" in v]
     if grows:
-        lines += ["", "Deployed gate:", "", "| bundle | passed | decisions | p99 us | p99.9 us | timeouts | internal fb | failed checks |",
-                  "|---|---|---|---|---|---|---|---|"]
+        lines += ["", "Deployed gate (decide = bot wall time in the worker; e2e = parent-observed round trip):", "",
+                  "| bundle | passed | attempts | decisions | decide p99 us | decide p99.9 us | e2e p99 us | timeouts "
+                  "(bot-caused / stall-like / unclassified) | internal fb | failed checks |",
+                  "|---|---|---|---|---|---|---|---|---|---|"]
         for k, v in grows:
-            lines.append(f"| {k} | {v['passed']} | {v['decisions']} | {_fmt(v['p99_us'], 0)} | {_fmt(v['p999_us'], 0)} | "
-                         f"{v['fallbacks'].get('timeout', 0)} | {v['internal_fallbacks']} | {', '.join(v['failed_checks']) or '-'} |")
+            tc = v.get("timeout_classes") or {}
+            lines.append(f"| {k} | {v['passed']} | {v.get('attempts')} | {v['decisions']} | {_fmt(v['p99_us'], 0)} | "
+                         f"{_fmt(v['p999_us'], 0)} | {_fmt(v.get('e2e_p99_us'), 0)} | {v['fallbacks'].get('timeout', 0)} "
+                         f"({tc.get('bot_caused', 0)} / {tc.get('stall_like', 0)} / {tc.get('unclassified', 0)}) | "
+                         f"{v['internal_fallbacks']} | {', '.join(v['failed_checks']) or '-'} |")
     lines += ["", "Selection rule (declared before the run): " + rep["selection_rule"], ""]
     return "\n".join(lines) + "\n"
 

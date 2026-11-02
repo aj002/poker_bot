@@ -81,7 +81,8 @@ Print this. Tick each line with the time.
 
 - [ ] `fallback` writes `bots/fallback` within about 20 s.
 - [ ] `gate_fallback` runs 50,000 sandboxed decisions against a workload-matched control
-      (about 15–20 minutes). It must pass.
+      (11–13 minutes active per attempt in the rehearsals; short deck needed a second attempt
+      after a stall-excess verdict). It must pass.
 - [ ] `submit_early` writes `submission/early/<name>-fallback-<hash>.tar.gz` and `SHA256SUMS`.
       **Upload it now.** It is the rollback for the rest of the day.
 
@@ -89,15 +90,17 @@ Print this. Tick each line with the time.
 
 - [ ] `tables` writes `reveal/tables/` (postflop always, preflop when feasible) and its
       `variant_hash` marker. It also records why push/fold was not regenerated.
-- [ ] `search` runs 6 CEM generations on the train partition from the NLHE vector (about 8–10
-      minutes). Check that `fallbacks` is 0.
-- [ ] `validation` runs three paired in-process A/B experiments on the validation partition.
-      Read the "Validation" table in `report.md`.
+- [ ] `search` runs 6 CEM generations on the train partition from the NLHE vector (4.5 minutes
+      for short deck 6-max, 10.5 for PLO5 8-max). Check that `fallbacks` is 0.
+- [ ] `validation` runs three paired in-process A/B experiments on the validation partition
+      (3–4 minutes; two when the search kept the start vector). Read the "Validation" table
+      in `report.md`.
 - [ ] `select` applies the pre-declared rule (below). Do not override it by eye.
 
 **About T+45 to T+60 min: final window**
 
-- [ ] `gate` runs the deployed gate for the selected bundle if it is not the fallback.
+- [ ] `gate` runs the deployed gate for the selected bundle if it is not the fallback
+      (7–10 minutes active).
 - [ ] `limits` checks the size (≤ 100 MB), the resident memory the bot adds, and that no
       numpy or numba is loaded. It also checks the bot was imported from its own bundle.
 - [ ] `submit` writes `submission/final/` with the selected bundle and the fallback as its
