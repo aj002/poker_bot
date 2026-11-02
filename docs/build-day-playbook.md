@@ -77,7 +77,9 @@ Print this. Tick each line with the time.
 - [ ] `load` is `ok`. A `fatal` here means the engine cannot play the variant; see below.
 - [ ] `conformance` shows metadata, ranking, differential, scoring, evaluator and smoke as `ok`.
       With antes it also shows `pokerkit` (lockstep against a plain PokerKit state with the
-      same antes) as `ok`. Fixtures show `na`, because a new variant has no fixtures. `evaluator` must show 0
+      same antes) as `ok`. Fixtures show `na` for a new variant, which has no fixtures; an
+      announced practice variant runs its fixtures, plus the six ante fixtures when there are
+      antes (42 in the NLHE ante rehearsals). `evaluator` must show 0
       disagreements. Otherwise the card layer misreads hands and only the fallback's card-blind
       mode is trustworthy.
 
@@ -85,17 +87,19 @@ Print this. Tick each line with the time.
 
 - [ ] `fallback` writes `bots/fallback` within about 20 s.
 - [ ] `gate_fallback` runs 50,000 sandboxed decisions against a workload-matched control
-      (11–13 minutes active per attempt in the rehearsals; short deck needed a second attempt
-      after a stall-excess verdict). It must pass.
+      (10–13 minutes active per attempt in the rehearsals). Short deck needed a second
+      attempt after a stall-excess verdict, and NLHE with a classic ante after a
+      `host_invalid` verdict (the control itself stalled). It must pass.
 - [ ] `submit_early` writes `submission/early/<name>-fallback-<hash>.tar.gz` and `SHA256SUMS`.
       **Upload it now.** It is the rollback for the rest of the day.
 
 **About T+20 to T+45 min: improvement path**
 
-- [ ] `tables` writes `reveal/tables/` (postflop always, preflop when feasible) and its
+- [ ] `tables` is `na` for an announced practice variant (its committed tables apply, antes
+      or not). For a new variant it writes `reveal/tables/` (postflop always, preflop when feasible) and its
       `variant_hash` marker. It also records why push/fold was not regenerated.
 - [ ] `search` runs 6 CEM generations on the train partition from the NLHE vector (4.5 minutes
-      for short deck 6-max, 10.5 for PLO5 8-max). Check that `fallbacks` is 0.
+      for short deck 6-max, 9–10.5 for the 8-max runs). Check that `fallbacks` is 0.
 - [ ] `validation` runs three paired in-process A/B experiments on the validation partition
       (3–4 minutes; two when the search kept the start vector). Read the "Validation" table
       in `report.md`.
@@ -104,7 +108,7 @@ Print this. Tick each line with the time.
 **About T+45 to T+60 min: final window**
 
 - [ ] `gate` runs the deployed gate for the selected bundle if it is not the fallback
-      (7–10 minutes active).
+      (7–11 minutes active).
 - [ ] `limits` checks the size (≤ 100 MB), the resident memory the bot adds, and that no
       numpy or numba is loaded. It also checks the bot was imported from its own bundle.
 - [ ] `submit` writes `submission/final/` with the selected bundle and the fallback as its
