@@ -497,6 +497,7 @@ class TimeoutRecord:
     worker_parse_ns: int | None = None
     worker_wall_ns: int | None = None
     worker_cpu_ns: int | None = None
+    worker_parse_cpu_ns: int | None = None
     observation: bytes | None = None
     """The request's observation JSON (only with ``timeout_inputs``, explicit state)."""
     committed: bytes | None = None
@@ -513,7 +514,8 @@ class TimeoutRecord:
                 "e2e_ns": self.e2e_ns, "outcome": self.outcome, "late_by_ns": self.late_by_ns,
                 "drained_after_ns": self.drained_after_ns,
                 "reply_kind": self.reply_kind, "worker_parse_ns": self.worker_parse_ns,
-                "worker_wall_ns": self.worker_wall_ns, "worker_cpu_ns": self.worker_cpu_ns}
+                "worker_wall_ns": self.worker_wall_ns, "worker_cpu_ns": self.worker_cpu_ns,
+                "worker_parse_cpu_ns": self.worker_parse_cpu_ns}
 
 
 @dataclass
@@ -856,8 +858,8 @@ def _note_reply(record: TimeoutRecord, frame: ReceivedFrame, drained: bool = Fal
     else:
         record.late_by_ns = frame.received_ns - record.deadline_ns
     record.reply_kind = str(m.get("t"))
-    record.worker_parse_ns, record.worker_wall_ns, record.worker_cpu_ns = (
-        m.get(k) if isinstance(m.get(k), int) else None for k in ("parse_ns", "wall_ns", "cpu_ns"))
+    record.worker_parse_ns, record.worker_wall_ns, record.worker_cpu_ns, record.worker_parse_cpu_ns = (
+        m.get(k) if isinstance(m.get(k), int) else None for k in ("parse_ns", "wall_ns", "cpu_ns", "parse_cpu_ns"))
 
 
 REPLAY_BUDGET_NS = 100_000_000

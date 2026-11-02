@@ -152,15 +152,23 @@ make bench-policy               # GC attribution by replay
 The packaged bundle is staged and played by `arena.agents.worker.WorkerSeat`, as in a
 sandboxed tournament. Only the candidate's seat is sandboxed; opponents run
 in-process. Every candidate table is followed by a **control table**: the same
-seed, seat and opponents, with the calling station sandboxed in the candidate's
-seat. The control measures the host's stall rate while the gate runs.
+seed, seat and opponents, with a workload-matched burner (`strategy.eval.burn`)
+sandboxed in the candidate's seat. The burner spends a fixed CPU time per decision,
+calibrated before the first attempt to the candidate's median decide time over 2
+tasks that no attempt plays (`--control-burn-us` fixes it). The control measures
+the host's stall rate at the candidate's workload while the gate runs.
 
-Each candidate timeout is classified (`strategy.eval.stalls`, described in
-[strategy-evaluation.md](strategy-evaluation.md)):
+Each timeout, candidate and control alike, is classified (`strategy.eval.stalls`,
+described in [strategy-evaluation.md](strategy-evaluation.md)):
 
-- *stall-like*: either the worker's own time in the late reply fitted the budget, or
-  three replays of the exact decision in a fresh worker have a median under 500 µs;
-- *bot-caused*: the replay median is 500 µs or more.
+- *bot-caused*: the decide alone ran past the budget minus the median harness
+  overhead with CPU time at least 0.9 of its wall time (`cpu_bound`), or three
+  replays of the exact decision in a fresh worker have a median of 500 µs or more;
+- *stall-like*: the worker's own time fitted (`transport`), the decide was off-CPU
+  (`descheduled`), only the harness parse was slow (`parse`), or the replay was fast.
+
+The control's bot-caused timeouts are host stalls charged to the burner's CPU clock;
+the report gives them as the rule's false-attribution floor.
 
 The gate passes, in the attempt used, when all of the following hold:
 
@@ -168,8 +176,8 @@ The gate passes, in the attempt used, when all of the following hold:
 - worker wall time p99 below 500 µs;
 - zero arena fallbacks other than timeouts, and zero restarts;
 - zero bot-caused timeouts;
-- stall-like timeouts within the control's rate (C-test, p ≥ 0.01), on a host whose
-  control is not significantly above the 0.05% ceiling;
+- stall-like timeouts within the control's stall-like rate (C-test, p ≥ 0.01), on a
+  host whose control is not significantly above the 0.05% ceiling;
 - zero internal fallbacks.
 
 A host-invalid or stall-excess attempt is rerun with the same seeds, up to 2 times

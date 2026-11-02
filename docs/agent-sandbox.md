@@ -176,15 +176,26 @@ itself out of those windows:
 - the parent's garbage collector is off from dispatch until the reply is read;
 - `play_table` freezes the existing heap for the duration of the table.
 
-Every timeout becomes a `TimeoutRecord` with the worker's own parse, decide and CPU
-times from the late reply. With `timeout_inputs` the observation and committed state
-are kept as well, so `replay_decision` can replay the exact decision in a fresh
-worker. `run_benchmark(control=..., control_every=k)` interleaves tables seated
-entirely with a no-op bot, so a run measures its own stall rate.
-`strategy.eval.stalls` builds the gate on top of these hooks:
+Every timeout becomes a `TimeoutRecord` with the worker's own times from the late
+reply: parse wall and CPU (`worker_parse_ns`, `worker_parse_cpu_ns`) and decide wall
+and CPU (`worker_wall_ns`, `worker_cpu_ns`). With `timeout_inputs` the observation
+and committed state are kept as well, so `replay_decision` can replay the exact
+decision in a fresh worker. `run_benchmark(control=..., control_every=k)` interleaves
+tables seated entirely with a control bot, so a run measures its own stall rate.
 
-- bot-caused timeouts fail;
-- stall-like timeouts are tested against the control (C-test);
+The stalls are charged to thread CPU time. A burner that spends exactly 160 µs of
+CPU per decision (6 sandboxed seats, 86,394 decisions) timed out 19 times, and
+every late reply showed CPU within 10% of wall. One decide reported 1.74 ms of wall
+and 1.74 ms of CPU for a 160 µs loop, and two parses reported 1.0–1.2 ms of CPU
+against a usual 130 µs. CPU ≈ wall therefore does not separate a host stall from bot
+computation here.
+
+`strategy.eval.stalls` builds the gate on top of these hooks, with a workload-matched
+burner (`strategy.eval.burn`) as the control:
+
+- bot-caused timeouts (a CPU-bound decide past the deadline, or a slow replay) fail;
+  the control's own bot-caused timeouts are reported as the floor of that rule;
+- stall-like timeouts are tested against the control's (C-test);
 - the control must stay under a 0.05% ceiling;
 - up to 2 reruns are allowed, and every attempt is reported.
 

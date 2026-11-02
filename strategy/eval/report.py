@@ -59,9 +59,11 @@ def _timeout_class_lines(classes: Mapping[str, Any] | None) -> list[str]:
                     for row in cell["selection"]["attempts"]]
         rows.append([arm + (" (strict)" if c["strict"] else ""), k["decisions"], k["timeouts"],
                      k["classes"]["bot_caused"], k["classes"]["stall_like"], k["classes"]["unclassified"],
-                     f"{ctl['timeouts']}/{ctl['decisions']} ({_pct3(ctl['timeout_rate'])})", c["reruns"],
+                     f"{ctl['timeouts']}/{ctl['decisions']} ({_pct3(ctl['timeout_rate'])}; "
+                     f"bot-caused {ctl['classes']['bot_caused']})", c["reruns"],
                      "; ".join(attempts[:6]) + (" ..." if len(attempts) > 6 else "")])
-    lines = ["", "Classified timeouts (candidate seat; control = interleaved no-op tables; "
+    lines = ["", "Classified timeouts (candidate seat; control = interleaved workload-matched burner tables, "
+                 "whose bot-caused timeouts are host events misattributed by the same rules; "
                  "see strategy.eval.stalls):", ""]
     lines += _table(["arm", "decisions", "timeouts", "bot-caused", "stall-like", "unclassified", "control",
                      "reruns", "attempts"], rows)

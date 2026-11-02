@@ -1,9 +1,10 @@
 import json
 import math
+import statistics
 
 import pytest
 
-from strategy.eval import stalls
+from strategy.eval import burn, stalls
 from strategy.eval.stalls import (
     assess,
     binomial_upper_tail,
@@ -41,6 +42,26 @@ def test_classify_transport_replay_and_unclassified():
     assert classify(rec(), BUDGET, None) == ("unclassified", "no_replay")
 
 
+def test_classify_uses_decide_cpu_against_wall():
+    # Allowance 780 us. A CPU-bound decide past it is the bot's, even if its replay is fast.
+    computing = rec(worker_wall_ns=900_000, worker_cpu_ns=880_000)
+    assert classify(computing, BUDGET, 220_000) == ("bot_caused", "cpu_bound")
+    assert classify({**computing, **replay(20_000)}, BUDGET, 220_000) == ("bot_caused", "cpu_bound")
+    # Off-CPU for most of the decide: descheduled; a fast replay does not change that.
+    off_cpu = rec(worker_wall_ns=900_000, worker_cpu_ns=300_000)
+    assert classify(off_cpu, BUDGET, 220_000) == ("stall_like", "descheduled")
+    assert classify({**off_cpu, **replay(20_000)}, BUDGET, 220_000) == ("stall_like", "descheduled")
+    # ...but a slow replay is still bot-caused.
+    assert classify({**off_cpu, **replay(600_000, 650_000, 700_000)}, BUDGET, 220_000) == ("bot_caused",
+                                                                                           "replay_slow")
+    # The decide fitted; the harness's parse did not.
+    slow_parse = rec(worker_parse_ns=850_000, worker_wall_ns=150_000, worker_cpu_ns=149_000)
+    assert classify(slow_parse, BUDGET, 220_000) == ("stall_like", "parse")
+    # CPU ~ wall inside the allowance is transport.
+    assert classify(rec(worker_cpu_ns=49_000), BUDGET, 220_000) == ("stall_like", "transport")
+    assert stalls.cpu_bound(rec()) is None and stalls.cpu_bound(computing) is True
+
+
 def test_tails_match_closed_forms():
     assert binomial_upper_tail(2, 2, 0.5) == pytest.approx(0.25)
     assert binomial_upper_tail(0, 5, 0.3) == 1.0 and binomial_upper_tail(6, 5, 0.3) == 0.0
@@ -71,6 +92,19 @@ def test_assess_orders_bot_then_host_then_stall():
     # Noise around the ceiling alone is not a host failure.
     assert assess(tally(), tally(12_000, 8, stall=8, exposure=2.4), strict=True)["verdict"] == "pass"
     assert assess(tally(), None, strict=True)["verdict"] == "pass"
+
+
+def test_assess_compares_stalls_with_the_controls_stalls_and_reports_its_bot_floor():
+    # Control timeouts the rules call bot-caused are host events: they count for the
+    # ceiling, not for the stall C-test, and are reported as the attribution floor.
+    control = tally(50_000, 10, bot=8, stall=2, exposure=15.0)
+    a = assess(tally(timeouts=14, stall=14, exposure=15.0), control, strict=True)
+    assert a["verdict"] == "stall_excess" and a["control_stall_like_or_unclassified"] == 2
+    b = assess(tally(timeouts=8, bot=8, exposure=15.0), control, strict=True)
+    assert b["verdict"] == "fail" and b["control_bot_caused"] == 8
+    assert b["bot_vs_control_p_value"] == pytest.approx(binomial_upper_tail(8, 16, 0.5))
+    assert "workload-matched control had 8 on 50000" in b["reason"]
+    assert assess(tally(timeouts=2, stall=2, exposure=15.0), control, strict=True)["verdict"] == "pass"
 
 
 def test_rerun_policy_uses_the_first_pass_and_reports_every_attempt():
@@ -178,3 +212,18 @@ def test_sandboxed_arms_classify_against_an_interleaved_control(tmp_path):
         [cell] = c["cells"].values()
         assert cell["selection"]["attempts"][0]["control"]["decisions"] > 0
     assert classes["B"]["strict"] and not classes["A"]["strict"]
+    calibration = cell["control_calibration"]
+    assert calibration["policy"] == "cpu_burner" and calibration["calibration_decisions"] > 0
+    assert calibration["burn_ns"] == max(0, calibration["calibration_median_ns"] - burn.BURNER_BASE_NS)
+
+
+@needs_sandbox
+def test_burner_spends_its_burn_time_per_decision(tmp_path):
+    from arena.domain.models import TournamentConfig
+
+    config = TournamentConfig(ruleset_id="practice_nlhe", initial_player_count=3, starting_stack=300, hand_cap=6)
+    policy = burn.burn_bundle(tmp_path / "burner", 200_000)
+    walls = burn.calibrate(config, [policy.entrant("sandbox")] * 3, seed="pytest-burner")
+    assert walls and 200_000 <= statistics.median(walls) < 200_000 + 4 * burn.BURNER_BASE_NS
+    assert burn.matched_burn_ns([300_000, 100_000, 290_000]) == 290_000 - burn.BURNER_BASE_NS
+    assert burn.matched_burn_ns([]) is None and burn.matched_burn_ns([5_000]) == 0

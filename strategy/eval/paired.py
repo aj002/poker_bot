@@ -18,6 +18,7 @@ Unit
 from __future__ import annotations
 
 import shutil
+import statistics
 from array import array
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
@@ -26,7 +27,7 @@ from typing import Any
 
 from arena.benchmark.runner import BenchmarkRun, RetryPolicy, run_benchmark
 from arena.domain.models import TournamentConfig
-from strategy.eval import stalls
+from strategy.eval import burn, stalls
 from strategy.eval.execution import entrant_execution, seat_timeouts
 from strategy.eval.outcomes import TableRecord, table_record
 from strategy.eval.policies import ResolvedPolicy, resolve_policy, salted_bundle
@@ -109,11 +110,14 @@ def resolve_arm(arm: Arm, work_dir: Path) -> ResolvedPolicy:
 def run_arm(cell: Cell, arm: Arm, policy: ResolvedPolicy, *, isolation: str, out_dir: Path, jobs: int = 1,
             budget_ns: int | None = None, retry: RetryPolicy | None = None, keep_histories: bool = False,
             progress: Callable[[str, int, int], None] | None = None, control_every: int = 0,
-            timeout_inputs: int = 0) -> ArmRun:
-    """``control_every`` > 0 (sandbox only) interleaves no-op control tables and
-    classifies timeouts; ``timeout_inputs`` replays that many timeouts per seat per table."""
+            timeout_inputs: int = 0, control_policy: ResolvedPolicy | None = None) -> ArmRun:
+    """``control_every`` > 0 (sandbox only) interleaves control tables of ``control_policy``
+    (default the calling station) and classifies timeouts; ``timeout_inputs`` replays
+    that many timeouts per seat per table."""
     classify = isolation == "sandbox" and control_every > 0
-    control = resolve_policy(stalls.CONTROL_POLICY).entrant(isolation, "host control") if classify else None
+    control = None
+    if classify:
+        control = (control_policy or resolve_policy(stalls.CONTROL_POLICY)).entrant(isolation, "host control")
     entrants = [policy.entrant(isolation, f"{arm.label}:{policy.name}")]
     entrants += [resolve_policy(o.policy).entrant(isolation) for o in cell.lineup.opponents]
     if len(entrants) != cell.config.initial_player_count:
@@ -156,6 +160,7 @@ def run_arm(cell: Cell, arm: Arm, policy: ResolvedPolicy, *, isolation: str, out
             "opponents": {labels[i]: stalls.tally(run.attempts, i, budget) for i in range(1, len(entrants))},
             "control": stalls.tally(run.control, len(entrants), budget),
             "control_every": control_every,
+            "control_policy": (control_policy or resolve_policy(stalls.CONTROL_POLICY)).name,
         }
     return ArmRun(arm, policy, records, execution, run.manifest.content_hash(), raw,
                   seat_timeouts(run.attempts, labels), classes)
@@ -166,24 +171,50 @@ def _attempt_row(n: int, out_dir: Path, run: ArmRun) -> dict[str, Any]:
     return {"attempt": n, "out_dir": str(out_dir), "benchmark_manifest_hash": run.benchmark_manifest_hash,
             "verdict": c["assessment"]["verdict"], "reason": c["assessment"]["reason"],
             "candidate": {k: c["candidate"][k] for k in ("decisions", "timeouts", "classes", "exposure_s")},
-            "control": {k: c["control"][k] for k in ("decisions", "timeouts", "timeout_rate", "exposure_s")}}
+            "control": {k: c["control"][k] for k in ("decisions", "timeouts", "timeout_rate", "exposure_s", "classes")}}
+
+
+def matched_control(cell: Cell, policy: ResolvedPolicy, *, out_dir: Path, budget_ns: int | None = None,
+                    burn_ns: int | None = None) -> tuple[ResolvedPolicy, dict[str, Any]]:
+    """The workload-matched burner control for ``policy`` in ``cell``
+    (:mod:`strategy.eval.burn`), calibrated on one sandboxed probe table unless
+    ``burn_ns`` is given; the calling station when the probe saw no candidate decision."""
+    info: dict[str, Any] = {"burn_ns": burn_ns, "calibration_decisions": 0, "calibration_median_ns": None}
+    if burn_ns is None:
+        entrants = [policy.entrant("sandbox")] + [resolve_policy(o.policy).entrant("sandbox")
+                                                  for o in cell.lineup.opponents]
+        walls = burn.calibrate(cell.config, entrants, seed=cell.seed, budget_ns=budget_ns)
+        burn_ns = burn.matched_burn_ns(walls)
+        info |= {"burn_ns": burn_ns, "calibration_decisions": len(walls),
+                 "calibration_median_ns": int(statistics.median(walls)) if walls else None}
+    if burn_ns is None:
+        return resolve_policy(stalls.CONTROL_POLICY), {**info, "policy": stalls.CONTROL_POLICY}
+    control = burn.burn_bundle(out_dir / "cpu_burner", burn_ns)
+    return control, {**info, "policy": control.name, "artifact_sha256": control.artifact_sha256}
 
 
 def run_arm_gated(cell: Cell, arm: Arm, policy: ResolvedPolicy, *, out_dir: Path,
                   gates: Mapping[str, Any] | None = None, **kwargs: Any) -> ArmRun:
-    """:func:`run_arm` under the classified timeout gate and its rerun policy."""
+    """:func:`run_arm` under the classified timeout gate and its rerun policy, against
+    the workload-matched control (one calibration per arm, shared by its reruns)."""
     g = dict(gates or {})
     control_every = int(g.get("control_every", stalls.CONTROL_EVERY) or 0)
     inputs = int(g.get("timeout_replays_per_seat", stalls.TIMEOUT_REPLAYS_PER_SEAT))
     max_reruns = int(g.get("max_reruns", stalls.MAX_RERUNS))
+    control, calibration = None, None
+    if kwargs.get("isolation") == "sandbox" and control_every > 0:
+        control, calibration = matched_control(cell, policy, out_dir=out_dir, budget_ns=kwargs.get("budget_ns"),
+                                               burn_ns=g.get("control_burn_ns"))
     attempts: list[ArmRun] = []
     rows: list[dict[str, Any]] = []
     while True:
         target = out_dir if not attempts else out_dir / f"rerun-{len(attempts)}"
-        run = run_arm(cell, arm, policy, out_dir=target, control_every=control_every, timeout_inputs=inputs, **kwargs)
+        run = run_arm(cell, arm, policy, out_dir=target, control_every=control_every, timeout_inputs=inputs,
+                      control_policy=control, **kwargs)
         attempts.append(run)
         if not run.timeout_classes:
             return run
+        run.timeout_classes["control_calibration"] = calibration
         run.timeout_classes["assessment"] = stalls.assess(
             run.timeout_classes["candidate"], run.timeout_classes["control"], strict=arm.label == STRICT_ARM,
             max_bot_timeouts=g.get("max_bot_timeouts", 0),

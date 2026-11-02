@@ -129,7 +129,7 @@ class Worker:
         if self.pending is not None and self.pending[0] == meta.get("commit"):
             self.cached = self.pending[1]
         self.pending = None
-        t0 = time.perf_counter_ns()
+        t0, p0 = time.perf_counter_ns(), time.thread_time_ns()
         obs = Observation.model_validate_json(blob)
         t1 = time.perf_counter_ns()
         c0 = time.thread_time_ns()
@@ -143,10 +143,10 @@ class Worker:
             c1, t2 = time.thread_time_ns(), time.perf_counter_ns()
             code = "bot_memory_error" if isinstance(exc, MemoryError) else "bot_exception"
             self.send({"t": "error", "seq": seq, "code": code, "detail": _detail(exc),
-                       "parse_ns": t1 - t0, "wall_ns": t2 - t1, "cpu_ns": c1 - c0})
+                       "parse_ns": t1 - t0, "parse_cpu_ns": c0 - p0, "wall_ns": t2 - t1, "cpu_ns": c1 - c0})
             return
         c1, t2 = time.thread_time_ns(), time.perf_counter_ns()
-        timing = {"parse_ns": t1 - t0, "wall_ns": t2 - t1, "cpu_ns": c1 - c0}
+        timing = {"parse_ns": t1 - t0, "parse_cpu_ns": c0 - p0, "wall_ns": t2 - t1, "cpu_ns": c1 - c0}
         try:
             state = encode_state(new_state) if self.mode == "explicit" else b""
             payload = action.model_dump(exclude_none=True) if isinstance(action, Action) else action

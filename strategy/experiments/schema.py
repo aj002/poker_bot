@@ -94,9 +94,12 @@ class ExecutionGates(_S):
     max_failed_tables: StrictInt | None = 0
     require_competitive: StrictBool = False
     control_every: StrictInt = Field(4, ge=0)
-    """Sandbox runs play a no-op control table before the first table and after every
+    """Sandbox runs play a control table before the first table and after every
     ``control_every`` tables of each arm, and classify timeouts against it
     (:mod:`strategy.eval.stalls`); 0 turns the classified timeout gate off."""
+    control_burn_ns: StrictInt | None = Field(None, ge=0)
+    """CPU time per decision of the workload-matched control (:mod:`strategy.eval.burn`);
+    None calibrates it per arm to the candidate's median decide time."""
     timeout_replays_per_seat: StrictInt = Field(3, ge=0)
     """Timed-out explicit-state decisions replayed per seat per table."""
     max_bot_timeouts: StrictInt | None = 0

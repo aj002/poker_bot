@@ -6,36 +6,62 @@ Why
     limit alone cannot separate those stalls from a bot that is too slow, so every
     timeout is classified and the two classes are gated differently.
 
-Classes (:func:`classify`)
-    ``stall_like``
-        * transport: the late reply reports ``parse + wall`` within the budget minus
-          the entrant's median harness overhead (``median e2e - median worker
-          wall``). The bot's own code fitted; the time was lost outside it.
-        * replay: the timed-out decision, replayed from its exact observation and
-          committed state in a fresh worker (explicit-state bots only), has a median
-          ``parse + wall`` under ``STALL_REPLAY_FRACTION`` of the budget.
+Classes (:func:`classify`, first matching rule wins)
+    The late reply carries the worker's own times: ``parse`` (observation decode,
+    harness code identical for every bot) and the bot's ``decide`` as wall time and
+    thread CPU time. ``allowance`` is the budget minus the entrant's median harness
+    overhead (``median e2e - median decide wall``, i.e. typical parse plus transport).
+
     ``bot_caused``
-        * replay median at or above that fraction, or any replay that missed even the
-          100 ms replay budget. A bot that needs half the budget is responsible for
-          the margin it leaves.
+        * cpu_bound: the decide alone exceeded the allowance and its CPU time is at
+          least ``CPU_WALL_RATIO`` (0.9) of its wall time. The bot was computing, so
+          with typical parse and transport the deadline would still have been missed.
+        * replay_timeout / replay_slow: the decision, replayed three times from its
+          exact observation and committed state in a fresh worker (explicit-state
+          bots only), missed the 100 ms replay budget or had a median ``parse +
+          decide`` of at least ``STALL_REPLAY_FRACTION`` (half) of the budget.
+    ``stall_like``
+        * transport: ``parse + decide`` fitted in the allowance; the time was lost
+          outside the worker.
+        * descheduled: the decide's CPU time is under 0.9 of its wall time; the
+          thread was off-CPU for the difference.
+        * parse: the decide fitted in the allowance but ``parse + decide`` did not;
+          the harness's own decode was slow.
+        * replay_fast: no reply timings (unresponsive), and the replay median is
+          under half the budget.
     ``unclassified``
-        * no transport evidence and no replay: instance-state bots, timeouts past
-          the per-table replay cap, or a replay that could not run. Counted with the
-          stall-like ones (never exempted).
+        * none of the above evidence: instance-state bots without a late reply,
+          timeouts past the per-table replay cap, or a replay that could not run.
+          Counted with the stall-like ones (never exempted).
+
+    Caveat. On a virtualised host a stalled vCPU's lost time is mostly charged to
+    the running thread's CPU clock (steal is not subtracted from thread time), so
+    CPU ~ wall does not prove the bot was computing. A host stall that lands in a
+    decide is then classified cpu_bound. The workload-matched control measures how
+    often that happens: its work is identical on every decision, so all of its
+    ``bot_caused`` timeouts are host events misattributed by these rules.
+
+Control
+    A workload-matched burner (:mod:`strategy.eval.burn`) that spends the candidate's
+    median decide time in CPU per decision, so it meets host events at the same rate
+    per decision. The calling station (about 20 us per decision) is the fallback
+    when no calibration is possible.
 
 Gates (:func:`assess`)
     1. Bot-caused timeouts are strict: more than ``max_bot_timeouts`` (default 0)
-       on a strict entrant fails it, with no rerun.
-    2. Host ceiling: the interleaved no-op control must not run significantly above
-       ``max_control_timeout_rate`` (0.05%): one-sided Poisson test,
+       on a strict entrant fails it, with no rerun. A timeout is a fold in
+       competition whatever its cause. The control's own bot-caused count and a
+       C-test p-value of the entrant's against it are reported alongside
+       (``control_bot_caused``, ``bot_vs_control_p_value``).
+    2. Host ceiling: the control's timeouts (all classes) must not run significantly
+       above ``max_control_timeout_rate`` (0.05%): one-sided Poisson test,
        ``P(X >= k | n * rate) < CEILING_ALPHA`` means the host was invalid.
-    3. Stall-like plus unclassified timeouts are compared with the control by a
-       conditional two-Poisson test (the C-test). Exposure is the time spent
-       waiting for replies (sum of end-to-end times), so under H0 the entrant's
-       share of the pooled count is Binomial(n, E_entrant / (E_entrant + E_control)).
-       A one-sided p-value under ``stall_p_min`` (0.01) is a stall excess. The
-       exposure model ignores that a slower decision needs a shorter stall to miss
-       the deadline, so it is strict for bots that use much of the budget.
+    3. Stall-like plus unclassified timeouts are compared with the control's
+       stall-like plus unclassified timeouts by a conditional two-Poisson test (the
+       C-test). Exposure is the time spent waiting for replies (sum of end-to-end
+       times), so under H0 the entrant's share of the pooled count is
+       Binomial(n, E_entrant / (E_entrant + E_control)). A one-sided p-value under
+       ``stall_p_min`` (0.01) is a stall excess.
 
 Reruns (:func:`select_attempt`)
     A host-invalid or stall-excess attempt is rerun with the same seeds, up to
@@ -53,7 +79,9 @@ from collections.abc import Mapping, Sequence
 from typing import Any
 
 CONTROL_POLICY = "baseline:calling_station"
+"""Fallback control when the workload-matched burner cannot be calibrated."""
 STALL_REPLAY_FRACTION = 0.5
+CPU_WALL_RATIO = 0.9
 CEILING_ALPHA = 0.01
 MAX_CONTROL_TIMEOUT_RATE = 0.0005
 STALL_P_MIN = 0.01
@@ -80,26 +108,49 @@ def _worker_ns(row: Mapping[str, Any]) -> int | None:
     return wall + (parse if isinstance(parse, int) else 0)
 
 
+def _int(row: Mapping[str, Any], key: str) -> int | None:
+    v = row.get(key)
+    return v if isinstance(v, int) else None
+
+
+def cpu_bound(record: Mapping[str, Any]) -> bool | None:
+    """Whether the decide's thread CPU time is at least ``CPU_WALL_RATIO`` of its
+    wall time; None without both."""
+    wall, cpu = _int(record, "worker_wall_ns"), _int(record, "worker_cpu_ns")
+    if wall is None or cpu is None:
+        return None
+    return cpu >= CPU_WALL_RATIO * wall
+
+
 def classify(record: Mapping[str, Any], budget_ns: int, overhead: int | None) -> tuple[str, str]:
     """``(class, rule)`` for one timeout record from ``TableResult.timeouts``."""
-    own = _worker_ns(record)
-    if record.get("outcome") == "late_reply" and own is not None and overhead is not None \
-            and own <= budget_ns - overhead:
-        return "stall_like", "transport"
-    replay = record.get("replay")
+    timed = record.get("outcome") == "late_reply" and overhead is not None
+    own, decide = _worker_ns(record), _int(record, "worker_wall_ns")
+    allowance = budget_ns - (overhead or 0)
+    bound = cpu_bound(record)
+    if timed and bound and decide is not None and decide > allowance:
+        return "bot_caused", "cpu_bound"
+    replay = record.get("replay") or {}
+    runs = replay.get("runs") or []
+    times = [t for t in (_worker_ns(r) for r in runs) if t is not None]
+    if any(r.get("fallback") == "timeout" for r in runs):
+        return "bot_caused", "replay_timeout"
+    if times and statistics.median(times) >= STALL_REPLAY_FRACTION * budget_ns:
+        return "bot_caused", "replay_slow"
+    if timed and own is not None:
+        if own <= allowance:
+            return "stall_like", "transport"
+        if bound is False:
+            return "stall_like", "descheduled"
+        if bound:
+            return "stall_like", "parse"
+    if times:
+        return "stall_like", "replay_fast"
     if not replay:
         return "unclassified", "no_replay"
     if "error" in replay:
         return "unclassified", "replay_error"
-    runs = replay.get("runs") or []
-    if any(r.get("fallback") == "timeout" for r in runs):
-        return "bot_caused", "replay_timeout"
-    times = [t for t in (_worker_ns(r) for r in runs) if t is not None]
-    if not times:
-        return "unclassified", "replay_untimed"
-    if statistics.median(times) < STALL_REPLAY_FRACTION * budget_ns:
-        return "stall_like", "replay_fast"
-    return "bot_caused", "replay_slow"
+    return "unclassified", "replay_untimed"
 
 
 def tally(attempts: Sequence[Any], entrant: int, budget_ns: int) -> dict[str, Any]:
@@ -191,20 +242,36 @@ def excess_p_value(k_entrant: int, exposure_entrant: float, k_control: int, expo
     return binomial_upper_tail(k_entrant, k_entrant + k_control, share)
 
 
+def _stall(t: Mapping[str, Any]) -> int:
+    return t["classes"]["stall_like"] + t["classes"]["unclassified"] + t.get("unrecorded", 0)
+
+
 def assess(entrant: Mapping[str, Any], control: Mapping[str, Any] | None, *, strict: bool,
            max_bot_timeouts: int | None = 0, max_control_timeout_rate: float | None = MAX_CONTROL_TIMEOUT_RATE,
            stall_p_min: float = STALL_P_MIN) -> dict[str, Any]:
     """Verdict for one entrant tally against the control tally of the same run:
     ``fail`` (bot-caused, strict entrants only), ``host_invalid``, ``stall_excess`` or ``pass``."""
     bot = entrant["classes"]["bot_caused"]
-    stall = entrant["classes"]["stall_like"] + entrant["classes"]["unclassified"] + entrant.get("unrecorded", 0)
+    stall = _stall(entrant)
     out: dict[str, Any] = {"strict": strict, "bot_caused": bot, "stall_like_or_unclassified": stall,
                            "max_bot_timeouts": max_bot_timeouts, "max_control_timeout_rate": max_control_timeout_rate,
-                           "stall_p_min": stall_p_min, "ceiling_p_value": None, "excess_p_value": None}
+                           "stall_p_min": stall_p_min, "ceiling_p_value": None, "excess_p_value": None,
+                           "control_bot_caused": None, "control_stall_like_or_unclassified": None,
+                           "bot_vs_control_p_value": None}
+    if control is not None:
+        out["control_bot_caused"] = control["classes"]["bot_caused"]
+        out["control_stall_like_or_unclassified"] = _stall(control)
+        out["bot_vs_control_p_value"] = excess_p_value(bot, entrant["exposure_s"], control["classes"]["bot_caused"],
+                                                       control["exposure_s"])
     if strict and max_bot_timeouts is not None and bot > max_bot_timeouts:
+        rules = ", ".join(f"{r} {n}" for r, n in sorted(entrant.get("rules", {}).items())
+                          if r in ("cpu_bound", "replay_slow", "replay_timeout"))
+        floor = "" if control is None else (
+            f"; the workload-matched control had {control['classes']['bot_caused']} on {control['decisions']} "
+            f"decisions by the same rules")
         return {**out, "verdict": "fail",
-                "reason": f"{bot} bot-caused timeouts (limit {max_bot_timeouts}): the bot's own decision time, "
-                          "measured by replay, used at least half the budget"}
+                "reason": f"{bot} bot-caused timeouts (limit {max_bot_timeouts}; {rules}): the bot was computing "
+                          f"past the deadline (CPU ~ wall) or its replay used at least half the budget{floor}"}
     if control is None:
         return {**out, "verdict": "pass" if stall == 0 else "stall_excess",
                 "reason": "no control run" if stall == 0 else f"{stall} stall-like timeouts and no control to test them"}
@@ -216,11 +283,12 @@ def assess(entrant: Mapping[str, Any], control: Mapping[str, Any] | None, *, str
             return {**out, "verdict": "host_invalid",
                     "reason": f"control timed out on {kc}/{nc} decisions, significantly above the "
                               f"{max_control_timeout_rate:.3%} host ceiling (p={p_ceiling:.2g})"}
-    p_excess = excess_p_value(stall, entrant["exposure_s"], kc, control["exposure_s"])
+    ks = _stall(control)
+    p_excess = excess_p_value(stall, entrant["exposure_s"], ks, control["exposure_s"])
     out["excess_p_value"] = p_excess
     if stall and (p_excess is None or p_excess < stall_p_min):
         return {**out, "verdict": "stall_excess",
-                "reason": f"{stall} stall-like or unclassified timeouts against {kc} in the control "
+                "reason": f"{stall} stall-like or unclassified timeouts against {ks} in the control "
                           f"(exposure {entrant['exposure_s']:.3g} s vs {control['exposure_s']:.3g} s, "
                           f"p={'n/a' if p_excess is None else f'{p_excess:.2g}'} < {stall_p_min})"}
     return {**out, "verdict": "pass", "reason": "within the host-stall rate of the interleaved control"}
@@ -247,6 +315,6 @@ def select_attempt(assessments: Sequence[Mapping[str, Any]], max_reruns: int = M
             "reason": f"{len(assessments)} attempts, none passed: {assessments[-1]['reason']}"}
 
 
-__all__ = ["CLASSES", "CONTROL_POLICY", "STALL_REPLAY_FRACTION", "assess", "binomial_upper_tail", "classify",
-           "excess_p_value", "merge_tallies", "needs_rerun", "overhead_ns", "poisson_upper_tail", "select_attempt",
-           "tally", "tally_samples"]
+__all__ = ["CLASSES", "CONTROL_POLICY", "CPU_WALL_RATIO", "STALL_REPLAY_FRACTION", "assess", "binomial_upper_tail",
+           "classify", "cpu_bound", "excess_p_value", "merge_tallies", "needs_rerun", "overhead_ns",
+           "poisson_upper_tail", "select_attempt", "tally", "tally_samples"]

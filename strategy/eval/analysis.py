@@ -201,7 +201,8 @@ def classified(cells: Sequence[CellResult]) -> dict[str, Any]:
             "candidate": merge_tallies([r["candidate"] for r in rows.values()]),
             "control": {k: v for k, v in merge_tallies([r["control"] for r in rows.values()]).items()
                         if k != "records"},
-            "cells": {cid: {"assessment": r["assessment"], "selection": r["selection"]} for cid, r in rows.items()},
+            "cells": {cid: {"assessment": r["assessment"], "selection": r["selection"],
+                            "control_calibration": r.get("control_calibration")} for cid, r in rows.items()},
             "reruns": sum(len(x["attempts"]) - 1 for x in sel.values()),
             "failed": [f"cell {cid}: {x['reason']}" for cid, x in sel.items() if x["action"] == "fail"],
             "invalid": [f"cell {cid}: {x['reason']}" for cid, x in sel.items() if x["action"] == "invalid"],

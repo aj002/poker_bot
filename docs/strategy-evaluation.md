@@ -135,36 +135,55 @@ never treated as independent.
   `strategy.cli experiment` exits 3. In-process runs enforce no deadline and record
   no timeouts. Set either limit to `null` to switch it off.
 - **Classified timeout gate** (sandboxed runs, `strategy.eval.stalls`): each arm
-  plays a no-op control table (the calling station in every seat) before its first
-  table and after every `gates.control_every` (4) tables. Every timeout of the
-  candidate seat is classified:
-  - *stall-like*: the late reply shows that parse plus decide fitted the budget minus
-    the median harness overhead, or a replay of the exact decision (explicit-state
-    bots, first `gates.timeout_replays_per_seat` (3) timeouts per seat per table, 3
-    repeats in a fresh worker) has a median under half the budget;
-  - *bot-caused*: the replay median is at least half the budget, or the replay misses
-    even its 100 ms budget;
-  - *unclassified*: no late-reply evidence and no replay. These count with the
-    stall-like ones.
+  plays a control table (the control in every seat) before its first table and after
+  every `gates.control_every` (4) tables. The control is a workload-matched burner
+  (`strategy.eval.burn`): a bot that spends a fixed thread-CPU time per decision and
+  then checks or calls. Before each arm, one sandboxed probe table on its own seed
+  (`<cell seed>|calibration`, never counted) measures the candidate's median decide
+  wall time, and the burn is that median minus the burner's 15 µs base cost, so the
+  control meets host events at the candidate's rate per decision.
+  `gates.control_burn_ns` fixes the burn instead. The calling station is the
+  fallback when the probe sees no candidate decision. Every timeout, candidate and
+  control alike, is classified, first matching rule first. The *allowance* is the
+  budget minus the entrant's median harness overhead (median end-to-end minus median
+  decide wall, which is typical parse plus transport):
+  - *bot-caused*: the late reply's decide alone exceeded the allowance with thread
+    CPU time at least 0.9 of its wall time (`cpu_bound`: the bot was computing); or a
+    replay of the exact decision (explicit-state bots, first
+    `gates.timeout_replays_per_seat` (3) timeouts per seat per table, 3 repeats in a
+    fresh worker) has a median of at least half the budget or misses even its 100 ms
+    budget;
+  - *stall-like*: parse plus decide fitted the allowance (`transport`); the decide
+    was off-CPU for over a tenth of its wall time (`descheduled`); the decide fitted
+    but the harness's parse did not (`parse`); or, with no reply timings, the replay
+    median is under half the budget (`replay_fast`);
+  - *unclassified*: none of that evidence. These count with the stall-like ones.
+
+  On this VM a host stall is mostly charged to the running thread's CPU clock, so
+  CPU ≈ wall does not prove the bot was computing: a stall that lands in a decide is
+  classified `cpu_bound`. The burner's work is identical on every decision, so the
+  control's own bot-caused timeouts are host events misattributed by the same rule.
+  They are reported as the floor (`control_bot_caused`, with a C-test p-value of the
+  candidate's bot-caused count against it, `bot_vs_control_p_value`).
 
   Arm B is strict. More than `gates.max_bot_timeouts` (0) bot-caused timeouts fail
-  the run with verdict `fail`. The points are still reported, and the arm is not
-  rerun. In each arm, the control must not run significantly above the
+  the run with verdict `fail`, whatever the floor: a timeout is a fold in
+  competition. The points are still reported, and the arm is not rerun. In each
+  arm, the control's timeouts (every class) must not run significantly above the
   `gates.max_control_timeout_rate` host ceiling (0.05%; one-sided Poisson test at
   0.01). Otherwise the attempt is *host-invalid*.
 
-  Stall-like and unclassified timeouts are compared with the control by a
-  conditional two-Poisson C-test. Exposure is the summed end-to-end time, and
-  p < `gates.stall_p_min` (0.01) is a *stall excess*. The exposure model ignores that
-  a slower decision needs a shorter stall to miss, so it is strict for bots that use
-  much of the budget.
+  Stall-like and unclassified timeouts are compared with the control's stall-like
+  and unclassified timeouts by a conditional two-Poisson C-test. Exposure is the
+  summed end-to-end time, and p < `gates.stall_p_min` (0.01) is a *stall excess*.
 
   A host-invalid or stall-excess arm is rerun with the same seeds under
-  `cells/<cell>/<arm>/rerun-<n>/`, up to `gates.max_reruns` (2) times. The first
-  passing attempt is used, and every attempt is listed in
-  `execution.timeout_classes`. If no attempt passes, the run is `invalid` with
-  points withheld, as for the integrity gate. `gates.control_every: 0` switches the
-  gate off. Control tables add a quarter more tables to a sandboxed run.
+  `cells/<cell>/<arm>/rerun-<n>/`, up to `gates.max_reruns` (2) times, against the
+  same calibrated control. The first passing attempt is used, and every attempt is
+  listed in `execution.timeout_classes` (with each cell's `control_calibration`). If
+  no attempt passes, the run is `invalid` with points withheld, as for the integrity
+  gate. `gates.control_every: 0` switches the gate off. Control tables add a quarter
+  more tables to a sandboxed run, plus one probe table per arm.
 - **Report**: `report.md` (concise) and `report.json` (full, including every block
   pair).
 
