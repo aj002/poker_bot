@@ -805,8 +805,16 @@ def render_markdown(rep: Mapping[str, Any]) -> str:
                   "| comparison | blocks | A mean | B mean | fair share | B - A | 95% CI |", "|---|---|---|---|---|---|---|"]
         for k, v in rows:
             ci = v.get("ci95") or [None, None]
-            lines.append(f"| {k} | {v['blocks']} | {_fmt(v['mean_points_A'])} | {_fmt(v['mean_points_B'])} | "
+            label = k + (f" (same run as {v['same_as']})" if v.get("same_as") else "")
+            lines.append(f"| {label} | {v['blocks']} | {_fmt(v['mean_points_A'])} | {_fmt(v['mean_points_B'])} | "
                          f"{_fmt(v['fair_share'])} | {_fmt(v['mean_difference'])} | [{_fmt(ci[0])}, {_fmt(ci[1])}] |")
+        for k, v in val.items():
+            if isinstance(v, dict) and v.get("skipped"):
+                lines.append(f"| {k} | - | - | - | - | {_fmt(v.get('mean_difference'))} | not run: {v['skipped']} |")
+    search = steps.get("search", {}).get("detail", {})
+    if "accepted" in search:
+        lines += ["", f"Search: {len(search.get('generations') or [])} generations, {search['accepted']} accepted, "
+                      f"incumbent {'changed' if search.get('changed') else 'unchanged (tuned = transferred)'}."]
     grows = []
     if steps.get("gate_fallback", {}).get("detail", {}).get("passed") is not None:
         grows.append(("fallback", steps["gate_fallback"]["detail"]))
