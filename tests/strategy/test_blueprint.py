@@ -139,6 +139,27 @@ def test_pack_round_trip_and_back_off(tmp_path):
     assert dense.shape == (A.NUM_KEYS, A.NUM_ACTIONS) and dense[5, 5] == pytest.approx(191 / 255)
 
 
+def test_resolved_table_matches_lookup(tmp_path):
+    rng = np.random.default_rng(0)
+    strat = np.zeros((A.NUM_KEYS, A.NUM_ACTIONS), np.float32)
+    hot = rng.choice(A.NUM_KEYS, 4000, replace=False)
+    strat[hot] = rng.random((hot.size, A.NUM_ACTIONS)) * rng.choice([1.0, 5.0, 40.0], (hot.size, 1))
+    path = tmp_path / "pack.npz"
+    write_pack(path, strat.ravel(), {"ruleset_id": "practice_nlhe"})
+    pack = PolicyPack(path)
+    table = pack.resolved()
+    probe = np.concatenate([hot[:300], hot[:300] ^ 1, rng.integers(0, A.NUM_KEYS, 300)])
+    levels = set()
+    for key in probe.tolist():
+        hit = pack.lookup(key)
+        if hit is None:
+            assert not table[key].any()
+        else:
+            levels.add(hit[1])
+            assert np.allclose(table[key], np.array(hit[0]) / 255.0)
+    assert len(levels) >= 3
+
+
 def test_pack_rejects_tampering_and_other_abstractions(tmp_path):
     path = uniform_pack(tmp_path / "u.npz")
     with np.load(path) as z:

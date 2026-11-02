@@ -123,7 +123,7 @@ class Trainer:
         ip[K.P_UPDATE_AVG] = 1
         ip[K.P_PRUNE] = 1 if prune else 0
         ip[K.P_FLOOR_ZERO] = 1 if self.cfg.variant == "cfr+" else 0
-        fp = np.array([self.cfg.prune_threshold, self.cfg.regret_floor if self.cfg.variant != "cfr+" else 0.0])
+        fp = np.array([self.cfg.prune_threshold, self.cfg.regret_floor if self.cfg.variant != "cfr+" else 0.0, 0.0])
         return ip, fp
 
     def batch(self, chunk_index: int, deals: dict[str, np.ndarray]) -> None:

@@ -52,11 +52,11 @@ CH = 8
 ST_STREET, ST_BET, ST_LAST_RAISE, ST_RAISES, ST_POS, ST_AGGR, ST_PREV_AGGR = range(7)
 
 # int params
-P_MODE, P_MAX_STREET, P_EQ_SHOWDOWN, P_OPP_FIXED, P_TRAV_FIXED, P_UPDATE_AVG, P_PRUNE, P_FLOOR_ZERO = range(8)
-NUM_IPARAMS = 8
+P_MODE, P_MAX_STREET, P_EQ_SHOWDOWN, P_OPP_FIXED, P_TRAV_FIXED, P_UPDATE_AVG, P_PRUNE, P_FLOOR_ZERO, P_FREEZE, P_RESPOND = range(10)
+NUM_IPARAMS = 10
 # float params
-F_PRUNE_THRESHOLD, F_REGRET_FLOOR = range(2)
-NUM_FPARAMS = 2
+F_PRUNE_THRESHOLD, F_REGRET_FLOOR, F_Z = range(3)
+NUM_FPARAMS = 3
 
 
 def _rebind(fn, **jitted):
@@ -427,6 +427,24 @@ def _sigma_from(table, base, mask, sig, positive):
     else:
         for a in range(NUM_ACTIONS):
             sig[a] = 1.0 / legal if (mask >> a) & 1 else 0.0
+    return total
+
+
+@njit
+def _respond_sigma(regret, sq, fixed, base, mask, sig, z):
+    """Greedy Monte Carlo response: the action with the largest cumulative regret when it
+    clears ``z`` standard errors of its sampled regret increments, else the fixed row."""
+    best = -1
+    top = 0.0
+    for a in range(NUM_ACTIONS):
+        if (mask >> a) & 1 and regret[base + a] > top:
+            top = regret[base + a]
+            best = a
+    if best >= 0 and top * top > z * z * sq[base + best]:
+        for a in range(NUM_ACTIONS):
+            sig[a] = 1.0 if a == best else 0.0
+    else:
+        _sigma_from(fixed, base, mask, sig, False)
 
 
 @njit
@@ -444,8 +462,14 @@ def es_walk(d, trav, n, I, SIG, VAL, start, prizes, bb, post_order, pressure, bu
     base = key * NUM_ACTIONS
     sig = SIG[d]
     use_fixed = ip[P_TRAV_FIXED] if p == trav else ip[P_OPP_FIXED]
+    respond = ip[P_RESPOND] > 0 and p == trav and not use_fixed
+    if respond and street >= ip[P_RESPOND]:
+        respond = False
+        use_fixed = 1
     if use_fixed:
         _sigma_from(fixed, base, mask, sig, False)
+    elif respond:
+        _respond_sigma(regret, strat, fixed, base, mask, sig, fp[F_Z])
     else:
         _sigma_from(regret, base, mask, sig, True)
     if p != trav:
@@ -475,7 +499,7 @@ def es_walk(d, trav, n, I, SIG, VAL, start, prizes, bb, post_order, pressure, bu
                      eq, offsets, regret, strat, fixed, ip, fp, f, alive, fin, counter)
         vals[a] = va
         v += sig[a] * va
-    if not use_fixed:
+    if not use_fixed and not ip[P_FREEZE]:
         floor = fp[F_REGRET_FLOOR]
         for a in range(NUM_ACTIONS):
             if not (mask >> a) & 1:
@@ -483,6 +507,8 @@ def es_walk(d, trav, n, I, SIG, VAL, start, prizes, bb, post_order, pressure, bu
             if prune and sig[a] == 0.0 and regret[base + a] < fp[F_PRUNE_THRESHOLD]:
                 continue
             r = regret[base + a] + (vals[a] - v)
+            if respond:
+                strat[base + a] += (vals[a] - v) ** 2
             if ip[P_FLOOR_ZERO] and r < 0.0:
                 r = 0.0
             if r < floor:
@@ -542,6 +568,28 @@ def seat_values(deal_state, buckets, ranks, classes, st_n, st_stack, st_post, st
             out[j, trav] = es_walk(0, trav, n, I, SIG, VAL, st_stack[si], st_prizes[si], st_bb[si], st_order[si],
                                    st_press[si], buckets[j], ranks[j], classes[j], eq, offsets, regret, strat, fixed,
                                    ip, fp, f, alive, fin, counters)
+
+
+@njit(parallel=True)
+def seat_values_par(seed, threads, deal_state, buckets, ranks, classes, st_n, st_stack, st_post, st_bb, st_prizes,
+                    st_order, st_press, eq, offsets, regret, strat, fixed, ip, fp, I, SIG, VAL, f, alive, fin,
+                    counters, out):
+    """:func:`seat_values` over thread slots; run with ``P_FREEZE`` (or every player fixed).
+
+    Each traversal reseeds from ``(seed, deal, seat)``, so two calls that differ only in
+    one player's table share opponent and chance samples until their play diverges.
+    """
+    B = deal_state.shape[0]
+    for t in prange(threads):
+        for j in range(t, B, threads):
+            si = deal_state[j]
+            n = st_n[si]
+            for trav in range(n):
+                np.random.seed(seed + j * MAX_PLAYERS + trav)
+                init_hand(I[t], n, st_stack[si], st_post[si], st_bb[si])
+                out[j, trav] = es_walk(0, trav, n, I[t], SIG[t], VAL[t], st_stack[si], st_prizes[si], st_bb[si],
+                                       st_order[si], st_press[si], buckets[j], ranks[j], classes[j], eq, offsets,
+                                       regret, strat, fixed, ip, fp, f[t], alive[t], fin[t], counters[t])
 
 
 @njit

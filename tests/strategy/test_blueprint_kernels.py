@@ -210,12 +210,64 @@ def test_kernel_payoffs_match_the_exact_game(hu10):
     K.seat_values(np.zeros(B, np.int64), out_bucket, np.zeros((B, 8), np.int64), out_class, pool.n,
                   pool.stacks.astype(np.int64), pool.posts.astype(np.int64), pool.bb.astype(np.int64), pool.prizes,
                   pool.post_order.astype(np.int64), pool.pressure.astype(np.int64), g.eq, np.zeros(4, np.int64),
-                  np.zeros(1, np.float32), np.zeros(1, np.float32), table, ip, np.zeros(2), ws["I"][0],
+                  np.zeros(1, np.float32), np.zeros(1, np.float32), table, ip, np.zeros(K.NUM_FPARAMS), ws["I"][0],
                   ws["SIG"][0], ws["VAL"][0], ws["f"][0], ws["alive"][0], ws["fin"][0], np.zeros(1, np.int64), out)
     est, se = out[:, 0].mean(), out[:, 0].std() / np.sqrt(B)
     assert abs(est - exact) < 4 * se + 1e-3, (est, exact, se)
     other, se1 = out[:, 1].mean(), out[:, 1].std() / np.sqrt(B)
     assert abs(other + exact) < 4 * se1 + 1e-3
+
+
+def test_greedy_response_gains_and_is_bounded_by_the_exact_best_response(hu10):
+    """Against a fixed profile the frozen untrained responder is that profile (zero gain), and
+    after training its paired gain is positive and below the exact (perfect-recall) best response."""
+    from strategy.blueprint.exploit import _deal_inputs
+
+    g = hu10
+    rng = np.random.default_rng(4)
+    table = rng.random(g.B * A.CONTEXTS * A.NUM_ACTIONS).astype(np.float32) + 0.05
+    ex = g.exploitability(g.profile(table.reshape(-1, A.NUM_ACTIONS), g.table_keys(g.bucket)))
+    bound = ex["br0_bb"] + ex["br1_bb"]
+    deck, pair_class, class_bucket = _deal_inputs(g, g.bucket)
+    pool = g.tree.pool
+    stat = (pool.n, pool.stacks.astype(np.int64), pool.posts.astype(np.int64), pool.bb.astype(np.int64), pool.prizes,
+            pool.post_order.astype(np.int64), pool.pressure.astype(np.int64), g.eq, np.zeros(4, np.int64))
+    regret = np.zeros_like(table)
+    sq = np.zeros_like(table)
+    fp = np.array([-1e30, -1e30, 2.0])
+
+    def ip(freeze, trav_fixed=0):
+        v = np.zeros(K.NUM_IPARAMS, np.int64)
+        v[K.P_MAX_STREET], v[K.P_EQ_SHOWDOWN], v[K.P_OPP_FIXED], v[K.P_TRAV_FIXED] = 0, 1, 1, trav_fixed
+        v[K.P_FREEZE], v[K.P_RESPOND] = freeze, 4
+        return v
+
+    def deals(seed, B):
+        b, c = np.zeros((B, 8, 4), np.uint8), np.zeros((B, 8), np.int16)
+        K.deal_classes(seed, B, 2, deck, pair_class, class_bucket, b, c)
+        return np.zeros(B, np.int64), b, np.zeros((B, 8), np.int64), c
+
+    ws = K.workspace(2)
+
+    def values(ev, trav_fixed):
+        out = np.full((ev[0].size, 8), np.nan)
+        K.seat_values_par(11, 2, *ev, *stat, regret, sq, table, ip(1, trav_fixed), fp, ws["I"], ws["SIG"], ws["VAL"],
+                          ws["f"], ws["alive"], ws["fin"], np.zeros((2, 1), np.int64), out)
+        return out[:, :2].sum(axis=1)
+
+    ev = deals(99, 40000)
+    base = values(ev, 1)
+    assert np.array_equal(values(ev, 0), base)
+    for chunk in range(10):
+        tr = deals(chunk, 20000)
+        K.train_batch(chunk, 2, *tr, *stat, regret, sq, table, ip(0), np.zeros(20000, np.bool_), fp, ws["I"],
+                      ws["SIG"], ws["VAL"], ws["f"], ws["alive"], ws["fin"], np.zeros((2, 1), np.int64), np.zeros((2, 2)))
+    frozen = regret.copy()
+    d = values(ev, 0) - base
+    assert np.array_equal(regret, frozen)
+    gain, se = d.mean(), d.std() / np.sqrt(d.size)
+    assert gain > 4 * se, (gain, se)
+    assert gain < bound + 4 * se, (gain, bound, se)
 
 
 def test_sampled_training_improves_on_the_uniform_profile(hu10):

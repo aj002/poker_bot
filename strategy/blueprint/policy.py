@@ -127,6 +127,17 @@ class PolicyPack:
         out[self.keys[level]] = self.probs[level] / 255.0
         return out
 
+    def resolved(self) -> np.ndarray:
+        """The row :meth:`lookup` returns for every key, as ``(NUM_KEYS, NUM_ACTIONS)`` float32 (zeros on a miss)."""
+        out = np.zeros((A.NUM_KEYS, A.NUM_ACTIONS), np.float32)
+        for level in reversed(range(len(LEVEL_DIVISORS))):
+            div = LEVEL_DIVISORS[level]
+            coarse = np.zeros(A.NUM_KEYS // div, bool)
+            coarse[self.keys[level]] = True
+            hit = np.repeat(coarse, div)
+            out[hit] = np.repeat(self.dense(level), div, axis=0)[hit]
+        return out
+
     def nbytes(self) -> int:
         return sum(a.nbytes for a in self.keys) + sum(a.nbytes for a in self.probs)
 

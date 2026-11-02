@@ -1,0 +1,33 @@
+{
+  "experiment_id": "blueprint-scout",
+  "title": "Scouting: 10M-pair blueprint bundle vs the Stage 3 endgame bot (NLHE, full 8-player SNGs)",
+  "description": "Discovery-stage wiring and direction check for the M5 evaluation, run on the 10M-pair milestone of main-v3 while training continued (artifacts/blueprint/bundles/main-v3-10000000, built by make blueprint-bundles). Not a gate; the confirmation run is blueprint-vs-endgame-points on the final pack.",
+  "stage": "discovery",
+  "min_effect": 0.5,
+  "interval": "paired_t",
+  "arms": {
+    "A": {
+      "policy": "strategy/endgame/bots/points.py"
+    },
+    "B": {
+      "policy": "artifacts/blueprint/bundles/main-v3-10000000"
+    }
+  },
+  "variants": [
+    "practice_nlhe"
+  ],
+  "table": {
+    "players": 8,
+    "starting_stack": 2000,
+    "hand_cap": 200
+  },
+  "population": {
+    "source": "strategy.population:PopulationSource",
+    "partition": "validation",
+    "lineups_per_variant": 8
+  },
+  "blocks_per_lineup": 5,
+  "base_seed": "blueprint-scout-v1",
+  "isolation": "in_process",
+  "bootstrap_resamples": 2000
+}
