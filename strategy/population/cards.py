@@ -127,8 +127,31 @@ def plo_score(cards: Sequence[str]) -> float:
     return score
 
 
+@cache
+def card_ruleset(ruleset: str) -> str:
+    """The practice adapter that reads a ruleset's cards.
+
+    A build-day reveal variant is read by the nearest practice adapter (exactly-two-hole
+    showdowns by the PLO one, the 36-card deck by the short-deck one, anything else by
+    Hold'em), so on a revealed variant the whole population plays as variant-noisy
+    transfer bots: they misjudge whatever the reveal changed (a fifth hole card, a
+    different category order).
+    """
+    if ruleset in VARIANTS:
+        return ruleset
+    from strategy.rules.reveal import get_variant
+
+    v = get_variant(ruleset)
+    if v.hand_selection == "two_hole_three_board":
+        return "uncertainty_plo4"
+    if v.ranks == "6789TJQKA":
+        return "uncertainty_shortdeck"
+    return "practice_nlhe"
+
+
 def preflop_top(cards: Sequence[str], ruleset: str) -> float:
     """Top fraction of the variant's starting hands at this hand: 0 is the best, 1 the worst."""
+    ruleset = card_ruleset(ruleset)
     if ruleset == "uncertainty_plo4":
         q = _plo_quantiles()
         stronger = len(q) - bisect.bisect_right(q, plo_score(cards))
@@ -312,7 +335,7 @@ def strength_plo(hole: Sequence[str], board: Sequence[str]) -> Strength:
 
 def strength_for(ruleset: str) -> StrengthFn:
     return {"practice_nlhe": strength, "uncertainty_shortdeck": strength_shortdeck,
-            "uncertainty_plo4": strength_plo}[ruleset]
+            "uncertainty_plo4": strength_plo}[card_ruleset(ruleset)]
 
 
 # ------------------------------------------------------------------ board texture

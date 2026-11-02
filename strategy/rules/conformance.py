@@ -32,7 +32,8 @@ from typing import Any, Protocol
 
 from arena.domain.models import Action, LegalActions, LocalRules
 from strategy.rules.adapter import canonical_actions
-from strategy.rules.variants import VariantSpec, get_variant
+from strategy.rules.reveal import get_variant
+from strategy.rules.variants import VariantSpec
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_FIXTURE_ROOT = REPO_ROOT / "tests" / "golden" / "fixtures"
@@ -144,6 +145,11 @@ class ArenaSimulator:
     def rank_five(self, ruleset_id: str, cards: str) -> Any:
         from pokerkit import ShortDeckHoldemHand, StandardHighHand
 
+        from arena.rules.profiles import get_profile
+
+        custom = get_profile(ruleset_id).five_card_hand
+        if custom is not None:
+            return custom(cards)
         return (ShortDeckHoldemHand if ruleset_id == "uncertainty_shortdeck" else StandardHighHand)(cards)
 
 
@@ -240,12 +246,13 @@ def check_ranking(sim: Simulator, spec: VariantSpec) -> CheckResult:
     order = spec.ranks
     start = order.index(spec.lowest_straight[1])
     next_straight = "".join(order[start + k] + suits[k] for k in range(5))
-    trips = probes["three_of_a_kind"]
-    low_s, next_s, trips_s = (sim.rank_five(spec.ruleset_id, c) for c in (lowest, next_straight, trips))
-    if trips_s < low_s < next_s:
+    below_name = spec.category_order[spec.category_order.index("straight") - 1]
+    below = probes[below_name]
+    low_s, next_s, below_s = (sim.rank_five(spec.ruleset_id, c) for c in (lowest, next_straight, below))
+    if below_s < low_s < next_s:
         out.passed += 1
     else:
-        out.fail(f"lowest straight {lowest} should beat trips {trips} and lose to {next_straight}")
+        out.fail(f"lowest straight {lowest} should beat {below_name} {below} and lose to {next_straight}")
     return out
 
 

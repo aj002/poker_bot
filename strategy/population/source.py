@@ -16,6 +16,11 @@ Experiment specs name it as ``"population": {"source": "strategy.population:Popu
   rules: every holdout lineup has a holdout-only family, every validation lineup has a
   validation-only pair, and no train lineup has one.
 
+Members also play the build-day reveal variant while one is active
+(:func:`strategy.rules.reveal.reveal_active`), through the nearest practice card adapter
+(:func:`strategy.population.cards.card_ruleset`); otherwise the partitions, and so their
+hashes, are exactly the practice ones.
+
 ``OpponentRef.family`` is for evaluation reports only; at the table an opponent's entrant
 name is its opaque member id.
 """
@@ -28,7 +33,7 @@ import random
 from pathlib import Path
 from typing import Any
 
-from arena.domain.models import RULESET_IDS
+from arena.domain.models import REVEAL_RULESET_ID, RULESET_IDS
 from strategy.eval.population import Lineup, OpponentRef, Partition
 from strategy.population.families import CHECKPOINT_FAMILY, HOLDOUT_ONLY
 from strategy.population.params import PARTITIONS
@@ -41,6 +46,7 @@ from strategy.population.registry import (
     draw_entries,
 )
 from strategy.rules.canonical import canonical_hash
+from strategy.rules.reveal import reveal_active
 
 REPO = Path(__file__).resolve().parents[2]
 BOT_ROOT = REPO / "artifacts" / "population"
@@ -85,7 +91,10 @@ class PopulationSource:
 
     def _build(self, name: str) -> Partition:
         self.bot_dir.mkdir(parents=True, exist_ok=True)
-        refs = [OpponentRef(m.member_id, m.family, _policy_path(m.write_bot(self.bot_dir)), tuple(RULESET_IDS), m.hash)
+        rulesets = tuple(RULESET_IDS)
+        if reveal_active():
+            rulesets += (REVEAL_RULESET_ID,)
+        refs = [OpponentRef(m.member_id, m.family, _policy_path(m.write_bot(self.bot_dir)), rulesets, m.hash)
                 for m in sorted(self.registry.partition(name), key=lambda m: m.member_id)]
         slots = sorted((s for s in self.ledger.slots.values() if s.partition == name and s.status == "promoted"),
                        key=lambda s: s.slot_id)

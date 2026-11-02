@@ -40,7 +40,7 @@ ITERATIONS = {iterations}
 
 class Burner(ExplicitStateBot):
     name = "cpu_burner"
-    rulesets = ("practice_nlhe", "uncertainty_shortdeck", "uncertainty_plo4")
+    rulesets = ("practice_nlhe", "uncertainty_shortdeck", "uncertainty_plo4"){reveal}
 
     def __init__(self):
         self.buf = bytearray(4096)
@@ -57,12 +57,17 @@ def make_bot():
 '''
 
 
-def burn_bundle(out_dir: Path, iterations: int) -> ResolvedPolicy:
-    """Write (or reuse) a burner bundle in ``out_dir`` and resolve it as a policy."""
+def burn_bundle(out_dir: Path, iterations: int, *, reveal: bool = False) -> ResolvedPolicy:
+    """Write (or reuse) a burner bundle in ``out_dir`` and resolve it as a policy.
+
+    ``reveal`` also declares the build-day reveal ruleset; the practice burner's bytes
+    (and so its artifact hash) are unchanged without it.
+    """
     if iterations < 0:
         raise ValueError("iterations must be non-negative")
     out_dir.mkdir(parents=True, exist_ok=True)
-    (out_dir / "bot.py").write_text(BURN_TEMPLATE.format(iterations=int(iterations)), encoding="utf-8")
+    text = BURN_TEMPLATE.format(iterations=int(iterations), reveal=' + ("reveal_variant",)' if reveal else "")
+    (out_dir / "bot.py").write_text(text, encoding="utf-8")
     return resolve_policy(str(out_dir))
 
 
@@ -81,7 +86,7 @@ def calibrate(config: TournamentConfig, entrants: Sequence[Entrant], *, seed: st
 def _burner_median(ruleset_id: str, iterations: int, seed: str) -> float:
     config = TournamentConfig(ruleset_id=ruleset_id, initial_player_count=PROBE_SEATS, hand_cap=PROBE_HAND_CAP)
     with tempfile.TemporaryDirectory(prefix="burner-probe-") as tmp:
-        policy = burn_bundle(Path(tmp) / "cpu_burner", iterations)
+        policy = burn_bundle(Path(tmp) / "cpu_burner", iterations, reveal=ruleset_id == "reveal_variant")
         walls = calibrate(config, [policy.entrant("sandbox")] * PROBE_SEATS, seed=f"{seed}|burner-{iterations}")
     return statistics.median(walls)
 

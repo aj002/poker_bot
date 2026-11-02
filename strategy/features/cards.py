@@ -36,6 +36,10 @@ CATEGORY_NAMES = ("high_card", "pair", "two_pair", "trips", "straight", "flush",
 STANDARD_ORDER = (HIGH_CARD, PAIR, TWO_PAIR, TRIPS, STRAIGHT, FLUSH, FULL_HOUSE, QUADS, STRAIGHT_FLUSH)
 # PokerKit's native short-deck order (docs/assumptions.md): a flush beats a full house.
 SHORT_DECK_ORDER = (HIGH_CARD, PAIR, TWO_PAIR, TRIPS, STRAIGHT, FULL_HOUSE, FLUSH, QUADS, STRAIGHT_FLUSH)
+SPEC_CATEGORIES = {"high_card": HIGH_CARD, "one_pair": PAIR, "two_pair": TWO_PAIR, "three_of_a_kind": TRIPS,
+                   "straight": STRAIGHT, "flush": FLUSH, "full_house": FULL_HOUSE, "four_of_a_kind": QUADS,
+                   "straight_flush": STRAIGHT_FLUSH}
+"""Category names of :class:`~strategy.rules.variants.VariantSpec` to the evaluator's constants."""
 
 MADE_LEVELS = 11
 """Made-hand levels: 0 nothing/plays the board, 1 weak pair, 2 middle pair, 3 top pair,
@@ -72,6 +76,8 @@ class CardCapabilities:
     straight_high: tuple[int, ...] = field(init=False, repr=False, compare=False)
     deck: tuple[int, ...] = field(init=False, repr=False, compare=False)
     top_rank: int = field(init=False, repr=False, compare=False)
+    standard_priority: bool = field(init=False, repr=False, compare=False)
+    """Non-flush categories rank as in hold'em (the evaluator's fast path)."""
 
     def __post_init__(self) -> None:
         idx = tuple(RANK_INDEX[r] for r in self.ranks)
@@ -97,6 +103,8 @@ class CardCapabilities:
         set_(self, "straight_high", tuple(table))
         set_(self, "deck", tuple(r * 4 + s for r in idx for s in range(4)))
         set_(self, "top_rank", idx[-1])
+        pri = [strength[c] for c in (HIGH_CARD, PAIR, TWO_PAIR, TRIPS, STRAIGHT, FULL_HOUSE, QUADS)]
+        set_(self, "standard_priority", pri == sorted(pri))
 
     @property
     def deck_size(self) -> int:
@@ -109,15 +117,15 @@ class CardCapabilities:
 @lru_cache(maxsize=None)
 def capabilities(ruleset_id: str) -> CardCapabilities:
     """Capabilities for a ruleset, derived from its :class:`~strategy.rules.variants.VariantSpec`."""
-    from strategy.rules.variants import SHORT_DECK_CATEGORY_ORDER, STANDARD_CATEGORY_ORDER, get_variant
+    from strategy.rules.reveal import get_variant
 
     v = get_variant(ruleset_id)
-    if v.category_order == SHORT_DECK_CATEGORY_ORDER:
-        order = SHORT_DECK_ORDER
-    elif v.category_order == STANDARD_CATEGORY_ORDER:
-        order = STANDARD_ORDER
-    else:
-        raise ValueError(f"{ruleset_id}: unsupported category order {v.category_order}")
+    try:
+        order = tuple(SPEC_CATEGORIES[c] for c in v.category_order)
+    except KeyError:
+        raise ValueError(f"{ruleset_id}: unsupported category order {v.category_order}") from None
+    if v.suits != SUITS or v.board_streets != (3, 1, 1) or v.lowest_straight != v.ranks[-1] + v.ranks[:4]:
+        raise ValueError(f"{ruleset_id}: the card layer needs suits cdhs, a 3-1-1 board and an ace-low wheel")
     used = 2 if v.hand_selection == "two_hole_three_board" else None
     return CardCapabilities(ruleset_id, v.ranks, v.hole_cards, used, order, v.board_cards)
 
@@ -150,6 +158,8 @@ def _rank_value(counts: Sequence[int], mask: int, caps: CardCapabilities) -> int
             trips.append(r)
         elif k:
             quads.append(r)
+    if not caps.standard_priority:
+        return _best_rank_value(counts, mask, caps)
     if quads:
         q = quads[0]
         kick = next((r for r in _R_DESC if r != q and counts[r]), 0)
@@ -168,6 +178,35 @@ def _rank_value(counts: Sequence[int], mask: int, caps: CardCapabilities) -> int
     if pairs:
         return _pack(st[PAIR], (pairs[0], *singles[:3]))
     return _pack(st[HIGH_CARD], singles[:5])
+
+
+def _best_rank_value(counts: Sequence[int], mask: int, caps: CardCapabilities) -> int:
+    """The strongest non-flush five-card hand under any category order (every candidate, then max)."""
+    st = caps.strength
+    ranks = [r for r in _R_DESC if counts[r]]
+    multi = [r for r in ranks if counts[r] >= 2]
+    out: list[int] = []
+    if len(ranks) >= 5:
+        out.append(_pack(st[HIGH_CARD], ranks[:5]))
+    high = caps.straight_high[mask]
+    if high >= 0:
+        out.append(_pack(st[STRAIGHT], (high,)))
+    if multi:
+        p = multi[0]
+        out.append(_pack(st[PAIR], (p, *[r for r in ranks if r != p][:3])))
+    if len(multi) >= 2:
+        a, b = multi[0], multi[1]
+        out.append(_pack(st[TWO_PAIR], (a, b, next((r for r in ranks if r != a and r != b), 0))))
+    for t in (r for r in ranks if counts[r] >= 3):
+        out.append(_pack(st[TRIPS], (t, *[r for r in ranks if r != t][:2])))
+        p = next((r for r in multi if r != t), -1)
+        if p >= 0:
+            out.append(_pack(st[FULL_HOUSE], (t, p)))
+        break
+    q = next((r for r in ranks if counts[r] >= 4), -1)
+    if q >= 0:
+        out.append(_pack(st[QUADS], (q, next((r for r in ranks if r != q), 0))))
+    return max(out)
 
 
 def _flush_value(suit_mask: int, caps: CardCapabilities) -> int:

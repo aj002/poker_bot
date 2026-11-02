@@ -20,7 +20,8 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any
 
-from strategy.features.cards import CardCapabilities, capabilities, card_ints, postflop_cards, postflop_key
+from strategy.features.cards import (CardCapabilities, capabilities, card_ints, evaluate, postflop_cards,
+                                     postflop_key)
 from strategy.features.equity import EquityTables
 from strategy.features.state import BLINDS, LATE, HandContext, PointModel
 
@@ -39,9 +40,22 @@ def variant_assets(ruleset_id: str) -> tuple[CardCapabilities, EquityTables]:
     """Card capabilities and equity tables, loaded once per process per variant."""
     caps = _CAPS.get(ruleset_id)
     if caps is None:
-        caps = _CAPS[ruleset_id] = capabilities(ruleset_id)
-        _TABLES[ruleset_id] = EquityTables(caps)
+        caps = capabilities(ruleset_id)
+        n = caps.hole_count
+        evaluate(caps.deck[:n], caps.deck[n:n + 3], caps)  # builds the lazy rank tables off the decision path
+        _TABLES[ruleset_id] = EquityTables(caps, _tables_dir(ruleset_id))
+        _CAPS[ruleset_id] = caps
     return caps, _TABLES[ruleset_id]
+
+
+def _tables_dir(ruleset_id: str) -> str | None:
+    """The reveal variant's tables travel with its spec (:func:`strategy.rules.reveal.reveal_tables_dir`)."""
+    from strategy.rules.reveal import REVEAL_RULESET_ID, reveal_tables_dir
+
+    if ruleset_id != REVEAL_RULESET_ID:
+        return None
+    d = reveal_tables_dir()
+    return str(d) if d is not None else None
 
 
 @dataclass(slots=True)

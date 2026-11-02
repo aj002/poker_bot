@@ -72,6 +72,9 @@ class SearchConfig:
     """Parameter names held at their start value."""
     resume_from: str | None = None
     """Another run directory: start from its incumbent and search distribution."""
+    structure: dict[str, Any] | None = None
+    """Extra ``TournamentConfig`` fields (blind levels, hands per level, payouts) for an
+    announced structure; ``players``, ``starting_stack`` and ``hand_cap`` still set those."""
 
     def __post_init__(self) -> None:
         if self.challenger not in ("best", "mean"):
@@ -85,12 +88,22 @@ class SearchConfig:
         unknown = set(self.frozen) - set(SPACE.names)
         if unknown:
             raise ValueError(f"unknown frozen parameters {sorted(unknown)}")
+        clash = {"ruleset_id", "initial_player_count", "starting_stack", "hand_cap"} & set(self.structure or {})
+        if clash:
+            raise ValueError(f"set {sorted(clash)} through the search config fields, not structure")
 
     def table_config(self) -> Any:
         from arena.domain.models import TournamentConfig
 
         return TournamentConfig(ruleset_id=self.ruleset_id, initial_player_count=self.players,
-                                starting_stack=self.starting_stack, hand_cap=self.hand_cap)
+                                starting_stack=self.starting_stack, hand_cap=self.hand_cap, **(self.structure or {}))
+
+    def header_config(self) -> dict[str, Any]:
+        """The recorded config; an unset ``structure`` is left out so older runs still resume."""
+        out = asdict(self)
+        if out["structure"] is None:
+            del out["structure"]
+        return out
 
     @classmethod
     def load(cls, path: Path | str) -> SearchConfig:
@@ -270,7 +283,7 @@ def run_search(cfg: SearchConfig, *, root: Path = DEFAULT_RUN_ROOT, jobs: int | 
     store = RunStore(run_dir)
     source = load_population(cfg.source)
     digest = population_digest(source, cfg.partition)
-    header = {"config": asdict(cfg), "space_hash": SPACE.space_hash(), "dimensions": len(SPACE),
+    header = {"config": cfg.header_config(), "space_hash": SPACE.space_hash(), "dimensions": len(SPACE),
               "population": digest, "git_commit": _git_commit()}
     cfg_path = run_dir / "config.json"
     if cfg_path.exists():

@@ -31,7 +31,7 @@ from strategy.policy.fallback import fallback_action, is_legal, legalize
 from strategy.policy.spot import TableMemory, variant_assets
 
 STATE_VERSION = 1
-RULESETS = ("practice_nlhe", "uncertainty_shortdeck", "uncertainty_plo4")
+RULESETS = ("practice_nlhe", "uncertainty_shortdeck", "uncertainty_plo4", "reveal_variant")
 _SCALE = 1.0 / 18446744073709551616.0
 
 

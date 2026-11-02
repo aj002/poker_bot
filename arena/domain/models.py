@@ -12,8 +12,14 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, StrictBool, StrictInt, model_validator
 
-RulesetId = Literal["practice_nlhe", "uncertainty_shortdeck", "uncertainty_plo4"]
+RulesetId = Literal["practice_nlhe", "uncertainty_shortdeck", "uncertainty_plo4", "reveal_variant"]
 RULESET_IDS: tuple[str, ...] = ("practice_nlhe", "uncertainty_shortdeck", "uncertainty_plo4")
+"""The practice rulesets. Registries, sweeps and fingerprints iterate these."""
+REVEAL_RULESET_ID = "reveal_variant"
+"""The build-day slot: a variant described at run time by a spec file (arena.rules.reveal)."""
+ALL_RULESET_IDS: tuple[str, ...] = (*RULESET_IDS, REVEAL_RULESET_ID)
+REVEAL_ENV = "ARENA_REVEAL_VARIANT"
+"""Directory of the active reveal variant (``variant.json``); sandboxed bots never see it."""
 
 MAX_STARTING_STACK = 1_000_000_000
 MAX_SEATS = 8

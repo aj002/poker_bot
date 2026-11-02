@@ -34,7 +34,7 @@ from typing import Any, ClassVar, Literal, Union
 
 from pydantic import BaseModel, ConfigDict, StrictInt, StrictStr
 
-from arena.domain.models import RULESET_IDS, Action, LegalActions, RulesetId
+from arena.domain.models import ALL_RULESET_IDS, Action, LegalActions, RulesetId
 from arena.domain.observations import Observation
 
 __all__ = [
@@ -182,9 +182,9 @@ def bot_info(bot: object) -> BotInfo:
     if mode not in ("explicit", "instance") or not callable(getattr(bot, "decide", None)):
         raise BotLoadError("make_bot() must return an ExplicitStateBot or InstanceStateBot")
     rulesets = tuple(getattr(bot, "rulesets", ()) or ())
-    unknown = [r for r in rulesets if r not in RULESET_IDS]
+    unknown = [r for r in rulesets if r not in ALL_RULESET_IDS]
     if not rulesets or unknown:
-        raise BotLoadError(f"bot must declare supported rulesets from {RULESET_IDS}; got {rulesets!r}")
+        raise BotLoadError(f"bot must declare supported rulesets from {ALL_RULESET_IDS}; got {rulesets!r}")
     name = str(getattr(bot, "name", "unnamed-bot"))[:64]
     return BotInfo(name=name, rulesets=rulesets, state_mode=mode)
 

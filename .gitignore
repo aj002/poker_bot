@@ -9,3 +9,6 @@ artifacts/
 
 # Built on demand: python -m strategy.tables.build (see strategy/tables/README.md)
 strategy/tables/data/preflop-uncertainty_plo4.json.gz
+
+# A packaged bot's build-day variant (strategy.policy.package --reveal); never in a checkout
+strategy/reveal/

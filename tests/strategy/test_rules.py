@@ -18,7 +18,8 @@ from strategy.rules import (
 from strategy.rules.conformance import ArenaSimulator, run_conformance
 from strategy.rules.variants import CAP_DECK_36, CAP_FLUSH_OVER_FULL_HOUSE, CAP_NLHE_ASSETS, CAP_POT_LIMIT
 
-DECISION_TIME_MODULES = ("strategy/rules/canonical.py", "strategy/rules/variants.py", "strategy/rules/adapter.py")
+DECISION_TIME_MODULES = ("strategy/rules/canonical.py", "strategy/rules/variants.py", "strategy/rules/adapter.py",
+                         "strategy/rules/reveal.py")
 ALLOWED_ARENA = {"arena.agents.sdk", "arena.domain.observations"}
 ROOT = Path(__file__).resolve().parents[2]
 

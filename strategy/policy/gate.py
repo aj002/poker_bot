@@ -64,10 +64,11 @@ import sys
 import tempfile
 import time
 from collections import Counter
-from collections.abc import Iterator
+from collections.abc import Iterator, Mapping
 from pathlib import Path
 from typing import Any
 
+from arena.domain.models import REVEAL_RULESET_ID
 from strategy.eval import stalls
 from strategy.eval.burn import burn_bundle, matched_iterations
 from strategy.search.evaluate import _init, make_tasks, seat_agents
@@ -223,11 +224,15 @@ def run_gate(bundle: Path, *, ruleset_id: str = "practice_nlhe", min_decisions: 
              max_bot_timeout_rate: float = stalls.MAX_BOT_TIMEOUT_RATE, bot_p_min: float = stalls.BOT_P_MIN,
              max_control_timeout_rate: float = stalls.MAX_CONTROL_TIMEOUT_RATE,
              stall_p_min: float = stalls.STALL_P_MIN, control_iterations: int | None = None,
-             cost_tables: int = 0, cost_jobs: int | None = None, log: Any = print) -> dict[str, Any]:
+             cost_tables: int = 0, cost_jobs: int | None = None, structure: Mapping[str, Any] | None = None,
+             log: Any = print) -> dict[str, Any]:
+    """``structure`` (``TournamentConfig`` fields such as blind levels and payouts) replaces
+    ``players`` and ``hand_cap`` when given, so a revealed structure is gated as announced."""
     from arena.agents.baselines import BASELINES
     from arena.domain.models import TournamentConfig
 
-    config = TournamentConfig(ruleset_id=ruleset_id, initial_player_count=players, hand_cap=hand_cap)
+    shape = dict(structure) if structure is not None else {"initial_player_count": players, "hand_cap": hand_cap}
+    config = TournamentConfig(ruleset_id=ruleset_id, **shape)
     budget = config.bot_budget_ns
     _init(config.model_dump_json())
     source = load_population()
@@ -241,7 +246,8 @@ def run_gate(bundle: Path, *, ruleset_id: str = "practice_nlhe", min_decisions: 
             control = Path(BASELINES["calling_station"])
             control_info = {"policy": stalls.CONTROL_POLICY, "iterations": None}
         else:
-            burner = burn_bundle(Path(tmp) / "cpu_burner", control_info["iterations"])
+            burner = burn_bundle(Path(tmp) / "cpu_burner", control_info["iterations"],
+                                 reveal=ruleset_id == REVEAL_RULESET_ID)
             control = burner.path
             control_info |= {"policy": burner.name, "artifact_sha256": burner.artifact_sha256}
         log(f"control: {control_info}")
@@ -326,12 +332,14 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--control-iterations", type=int,
                    help="loop iterations per decision of the matched control (default: calibrated to the bundle's "
                         "median decide time)")
+    p.add_argument("--structure", help="JSON file of TournamentConfig fields (blind levels, payouts, seats, cap)")
     p.add_argument("--out")
     args = p.parse_args(argv)
+    structure = json.loads(Path(args.structure).read_text()) if args.structure else None
     rep = run_gate(Path(args.bundle), ruleset_id=args.ruleset, min_decisions=args.decisions,
                    p99_limit_us=args.p99_us, p999_limit_us=args.p999_us, seed=args.seed, max_reruns=args.max_reruns,
                    cost_tables=args.cost_tables, cost_jobs=args.cost_jobs or max(1, (os.cpu_count() or 2) - 1),
-                   control_iterations=args.control_iterations,
+                   control_iterations=args.control_iterations, structure=structure,
                    log=lambda s: print(s, file=sys.stderr, flush=True))
     rep.pop("manifest")
     text = json.dumps(rep, indent=1, sort_keys=True)

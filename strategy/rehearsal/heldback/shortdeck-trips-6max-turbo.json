@@ -1,0 +1,28 @@
+{
+ "schema_version": 1,
+ "name": "shortdeck-trips-6max-turbo",
+ "announcement": "Short-deck hold'em (36 cards, sixes to aces) where three of a kind beats a straight and a flush beats a full house; the ace still plays low in A-6-7-8-9. Six seats, 1,500 chips, a turbo schedule (blinds rise every 15 hands from 10/20), 150-hand cap, points 45/30/15/10.",
+ "variant": {
+  "title": "Short-deck hold'em, trips over straights",
+  "family": "holdem",
+  "ranks": "6789TJQKA",
+  "suits": "cdhs",
+  "hole_cards": 2,
+  "board_streets": [3, 1, 1],
+  "burn_before_board": true,
+  "hand_selection": "best_five_of_seven",
+  "category_order": ["high_card", "one_pair", "two_pair", "straight", "three_of_a_kind", "full_house", "flush",
+                     "four_of_a_kind", "straight_flush"],
+  "lowest_straight": "A6789",
+  "betting": "no_limit"
+ },
+ "structure": {
+  "initial_player_count": 6,
+  "starting_stack": 1500,
+  "hand_cap": 150,
+  "hands_per_level": 15,
+  "blind_levels": [[10, 20], [15, 30], [25, 50], [40, 80], [60, 120], [100, 200], [150, 300], [200, 400],
+                   [300, 600], [400, 800]],
+  "payout_points": [45, 30, 15, 10, 0, 0]
+ }
+}

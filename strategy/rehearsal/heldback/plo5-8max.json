@@ -1,0 +1,27 @@
+{
+ "schema_version": 1,
+ "name": "plo5-8max",
+ "announcement": "Five-card pot-limit Omaha. Each player gets five hole cards and must use exactly two of them with three board cards. Standard 52-card deck and hand ranking. Eight seats, 2,000 chips, the usual blind schedule, 200-hand cap, points 50/30/20.",
+ "variant": {
+  "title": "Five-card pot-limit Omaha",
+  "family": "omaha",
+  "ranks": "23456789TJQKA",
+  "suits": "cdhs",
+  "hole_cards": 5,
+  "board_streets": [3, 1, 1],
+  "burn_before_board": true,
+  "hand_selection": "two_hole_three_board",
+  "category_order": ["high_card", "one_pair", "two_pair", "three_of_a_kind", "straight", "flush", "full_house",
+                     "four_of_a_kind", "straight_flush"],
+  "lowest_straight": "A2345",
+  "betting": "pot_limit"
+ },
+ "structure": {
+  "initial_player_count": 8,
+  "starting_stack": 2000,
+  "hand_cap": 200,
+  "hands_per_level": 25,
+  "blind_levels": [[10, 20], [15, 30], [25, 50], [50, 100], [75, 150], [100, 200], [150, 300], [200, 400]],
+  "payout_points": [50, 30, 20, 0, 0, 0, 0, 0]
+ }
+}

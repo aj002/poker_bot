@@ -22,13 +22,14 @@ regime switch hand). A seeded table therefore replays exactly and restores after
 from __future__ import annotations
 
 import math
+import os
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from typing import Any
 
 from arena.agents.sdk import ExplicitStateBot, clamp_raise_to
 from arena.agents.styles.engine import Chance, Decision, Spot, parse
-from arena.domain.models import RULESET_IDS, Action
+from arena.domain.models import REVEAL_ENV, REVEAL_RULESET_ID, RULESET_IDS, Action
 from strategy.population import cards
 from strategy.population.params import unit_hash
 
@@ -181,6 +182,11 @@ class PopulationBot(ExplicitStateBot):
     def __init__(self, spec: Mapping[str, Any]) -> None:
         from strategy.population.families import FAMILIES
 
+        if os.environ.get(REVEAL_ENV):
+            # The reveal variant is readable only through the environment, which a
+            # sandboxed member never gets; in-process members play it via the nearest
+            # practice card adapter (cards.card_ruleset).
+            self.rulesets = (*RULESET_IDS, REVEAL_RULESET_ID)
         self.spec = dict(spec)
         self.family = FAMILIES[self.spec["family"]]
         self.params: dict[str, float] = dict(self.spec["params"])

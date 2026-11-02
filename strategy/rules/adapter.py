@@ -20,7 +20,8 @@ from typing import Any, Literal
 
 from arena.agents.sdk import Action, LegalActions, Observation, TableInfo, raise_to
 from strategy.rules.canonical import canonical_hash
-from strategy.rules.variants import VariantSpec, get_variant
+from strategy.rules.reveal import get_variant
+from strategy.rules.variants import VariantSpec
 
 RULES_HASH_DOMAIN = "strategy-rules-v1"
 
