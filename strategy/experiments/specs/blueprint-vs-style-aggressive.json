@@ -1,0 +1,33 @@
+{
+  "experiment_id": "blueprint-vs-style-aggressive",
+  "title": "Blueprint vs the aggressive style bot in the candidate seat",
+  "description": "Discovery. B is the final main-v3 pack built into a bundle by `make blueprint-bundles` (artifacts/blueprint/bundles/final; its MANIFEST.json records the pack hash).",
+  "stage": "discovery",
+  "min_effect": 0.5,
+  "interval": "paired_t",
+  "arms": {
+    "A": {
+      "policy": "style:aggressive"
+    },
+    "B": {
+      "policy": "artifacts/blueprint/bundles/final"
+    }
+  },
+  "variants": [
+    "practice_nlhe"
+  ],
+  "table": {
+    "players": 8,
+    "starting_stack": 2000,
+    "hand_cap": 200
+  },
+  "population": {
+    "source": "strategy.population:PopulationSource",
+    "partition": "validation",
+    "lineups_per_variant": 8
+  },
+  "blocks_per_lineup": 8,
+  "base_seed": "blueprint-vs-style-aggressive-v1",
+  "isolation": "in_process",
+  "bootstrap_resamples": 2000
+}

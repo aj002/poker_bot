@@ -1,0 +1,33 @@
+{
+  "experiment_id": "blueprint-progress-10m",
+  "title": "Training progress: 10M-pair milestone vs the final average blueprint",
+  "description": "Discovery. A is the main-v3 average strategy at 10,000,000 pairs, B the final average, both with the point-aware leaf. The Stage 4 gate asks the average blueprint to improve locked population score as training proceeds.",
+  "stage": "discovery",
+  "min_effect": 0.5,
+  "interval": "paired_t",
+  "arms": {
+    "A": {
+      "policy": "artifacts/blueprint/bundles/main-v3-10000000"
+    },
+    "B": {
+      "policy": "artifacts/blueprint/bundles/final"
+    }
+  },
+  "variants": [
+    "practice_nlhe"
+  ],
+  "table": {
+    "players": 8,
+    "starting_stack": 2000,
+    "hand_cap": 200
+  },
+  "population": {
+    "source": "strategy.population:PopulationSource",
+    "partition": "validation",
+    "lineups_per_variant": 8
+  },
+  "blocks_per_lineup": 10,
+  "base_seed": "blueprint-progress-10m-v1",
+  "isolation": "in_process",
+  "bootstrap_resamples": 2000
+}

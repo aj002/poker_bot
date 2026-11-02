@@ -1,0 +1,33 @@
+{
+  "experiment_id": "blueprint-vs-heuristic",
+  "title": "Blueprint vs the NLHE heuristic baseline",
+  "description": "Discovery. B is the final main-v3 pack built into a bundle by `make blueprint-bundles` (artifacts/blueprint/bundles/final; its MANIFEST.json records the pack hash).",
+  "stage": "discovery",
+  "min_effect": 0.5,
+  "interval": "paired_t",
+  "arms": {
+    "A": {
+      "policy": "baseline:nlhe_heuristic"
+    },
+    "B": {
+      "policy": "artifacts/blueprint/bundles/final"
+    }
+  },
+  "variants": [
+    "practice_nlhe"
+  ],
+  "table": {
+    "players": 8,
+    "starting_stack": 2000,
+    "hand_cap": 200
+  },
+  "population": {
+    "source": "strategy.population:PopulationSource",
+    "partition": "validation",
+    "lineups_per_variant": 8
+  },
+  "blocks_per_lineup": 10,
+  "base_seed": "blueprint-vs-heuristic-v1",
+  "isolation": "in_process",
+  "bootstrap_resamples": 2000
+}

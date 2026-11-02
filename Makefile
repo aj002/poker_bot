@@ -213,3 +213,54 @@ gate-control:
 bench-policy: package-baseline
 	$(UV) run python -m strategy.policy.bench --bundle artifacts/bots/baseline-candidate --tables 60 \
 		--out artifacts/gate/baseline-bench.json
+
+# Stage 4 MCCFR blueprint (docs: strategy/blueprint/README.md). Training is offline and needs
+# numba (--group train); the deployed bot and the evaluation targets do not.
+.PHONY: blueprint-states blueprint-train blueprint-pack blueprint-bundles blueprint-exploit blueprint-response \
+	blueprint-audit lab-blueprint
+BP = artifacts/blueprint
+BP_RUN ?= $(BP)/runs/main-v3
+BP_STATES = $(BP)/states-practice_nlhe-s1.npz
+BP_HOURS ?= 4
+BP_THREADS ?= 4
+BP_PACK = strategy/tables/data/blueprint-practice_nlhe.npz
+BP_MILESTONES = 1000000 3000000 10000000
+
+blueprint-states:
+	$(UV) run python -m strategy.blueprint.states --lineups 40 --seed 1 --jobs $(JOBS) --out $(BP_STATES)
+
+# Resumes from the last checkpoint when $(BP_RUN) exists.
+blueprint-train:
+	$(UV) run $(TRAIN) python -m strategy.blueprint.train --run $(BP_RUN) --states $(BP_STATES) --variant linear \
+		--chunk 20000 --interval-pairs 1000000 --linear-intervals 100 --prune-after 5000000 --threads $(BP_THREADS) \
+		--producers 3 --hours $(BP_HOURS) --checkpoint-minutes 15 $(foreach m,$(BP_MILESTONES) 20000000 30000000,--milestone $(m))
+
+blueprint-pack:
+	$(UV) run python -m strategy.blueprint.policy --run $(BP_RUN) --out $(BP_PACK)
+
+blueprint-bundles:
+	$(UV) run python -m strategy.blueprint.package --pack $(BP_PACK) --out $(BP)/bundles/final > /dev/null
+	$(UV) run python -m strategy.blueprint.package --pack $(BP_PACK) --leaf none --out $(BP)/bundles/final-noleaf > /dev/null
+	for m in $(BP_MILESTONES); do \
+		$(UV) run python -m strategy.blueprint.policy --run $(BP_RUN) --milestone pairs-$$m --out $(BP)/packs/main-v3-$$m.npz && \
+		$(UV) run python -m strategy.blueprint.package --pack $(BP)/packs/main-v3-$$m.npz --out $(BP)/bundles/main-v3-$$m > /dev/null \
+		|| exit 1; done
+
+blueprint-exploit:
+	$(UV) run $(TRAIN) python -m strategy.blueprint.exploit --stacks 10 25 50 100 --out $(BP)/exploit-hu.json
+
+blueprint-response:
+	$(UV) run $(TRAIN) python -m strategy.blueprint.response $(foreach m,$(BP_MILESTONES),--pack $(BP)/packs/main-v3-$(m).npz) \
+		--pack $(BP_PACK) --pairs 3000000 --checkpoint 1000000 --out $(BP)/response.json
+
+blueprint-audit:
+	$(UV) run python -m strategy.blueprint.audit --pack $(BP_PACK) --jobs $(JOBS) --out $(BP)/audit.json
+
+# Needs `make blueprint-bundles`. The sandboxed smoke runs with one job: default parallelism times out.
+lab-blueprint:
+	for s in blueprint-vs-endgame-points blueprint-vs-endgame-chips blueprint-vs-heuristic blueprint-leaf-ablation \
+		blueprint-progress-1m blueprint-progress-10m blueprint-vs-style-aggressive blueprint-vs-style-rock \
+		blueprint-vs-style-station blueprint-vs-style-super-aggressive blueprint-vs-style-switcher \
+		blueprint-vs-style-weak-tight; do \
+		$(UV) run python -m strategy.cli experiment $$s $(LAB_JOBS_FLAG) || exit 1; done
+	$(UV) run python -m strategy.cli experiment blueprint-sandbox-smoke --jobs 1

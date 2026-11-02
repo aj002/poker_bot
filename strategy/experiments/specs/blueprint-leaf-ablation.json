@@ -1,0 +1,33 @@
+{
+  "experiment_id": "blueprint-leaf-ablation",
+  "title": "Blueprint with vs without the point-aware push/fold leaf",
+  "description": "Discovery. A is the final pack with no leaf (the blueprint plays every stack depth); B is the same pack with the point-aware leaf. Bundles from `make blueprint-bundles`.",
+  "stage": "discovery",
+  "min_effect": 0.5,
+  "interval": "paired_t",
+  "arms": {
+    "A": {
+      "policy": "artifacts/blueprint/bundles/final-noleaf"
+    },
+    "B": {
+      "policy": "artifacts/blueprint/bundles/final"
+    }
+  },
+  "variants": [
+    "practice_nlhe"
+  ],
+  "table": {
+    "players": 8,
+    "starting_stack": 2000,
+    "hand_cap": 200
+  },
+  "population": {
+    "source": "strategy.population:PopulationSource",
+    "partition": "validation",
+    "lineups_per_variant": 8
+  },
+  "blocks_per_lineup": 10,
+  "base_seed": "blueprint-leaf-ablation-v1",
+  "isolation": "in_process",
+  "bootstrap_resamples": 2000
+}
