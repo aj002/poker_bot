@@ -104,6 +104,10 @@ def test_assess_compares_stalls_with_the_controls_stalls_and_reports_its_bot_flo
     assert b["verdict"] == "fail" and b["control_bot_caused"] == 8
     assert b["bot_vs_control_p_value"] == pytest.approx(binomial_upper_tail(8, 16, 0.5))
     assert "workload-matched control had 8 on 50000" in b["reason"]
+    # The host and stall tests are still evaluated under a bot-caused fail.
+    assert b["stall_verdict"] == "pass" and b["ceiling_p_value"] is not None
+    assert assess(tally(timeouts=15, bot=1, stall=14, exposure=15.0), control,
+                  strict=True)["stall_verdict"] == "stall_excess"
     assert assess(tally(timeouts=2, stall=2, exposure=15.0), control, strict=True)["verdict"] == "pass"
 
 

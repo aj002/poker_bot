@@ -255,10 +255,11 @@ def run_gate(bundle: Path, *, ruleset_id: str = "practice_nlhe", min_decisions: 
                 "restarts": cand.restarts == 0,
                 "internal_fallbacks": cand.internal == 0,
                 "bot_caused_timeouts": k_tally["classes"]["bot_caused"] == 0,
-                "timeouts_within_host_control": assessment["verdict"] == "pass",
+                "timeouts_within_host_control": assessment["stall_verdict"] == "pass",
             }
             hard = [k for k, ok in checks.items() if not ok and k != "timeouts_within_host_control"]
-            verdict = ({"verdict": "fail", "reason": "failed: " + ", ".join(hard)} if hard
+            detail = f" ({assessment['reason']})" if assessment["verdict"] == "fail" else ""
+            verdict = ({"verdict": "fail", "reason": "failed: " + ", ".join(hard) + detail} if hard
                        else {"verdict": assessment["verdict"], "reason": assessment["reason"]})
             verdicts.append(verdict)
             attempts.append({

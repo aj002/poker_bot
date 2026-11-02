@@ -246,14 +246,41 @@ def _stall(t: Mapping[str, Any]) -> int:
     return t["classes"]["stall_like"] + t["classes"]["unclassified"] + t.get("unrecorded", 0)
 
 
+def _host_and_stalls(entrant: Mapping[str, Any], control: Mapping[str, Any] | None,
+                     max_control_timeout_rate: float | None, stall_p_min: float) -> dict[str, Any]:
+    stall = _stall(entrant)
+    if control is None:
+        return {"stall_verdict": "pass" if stall == 0 else "stall_excess",
+                "stall_reason": "no control run" if stall == 0
+                else f"{stall} stall-like timeouts and no control to test them"}
+    out: dict[str, Any] = {}
+    kc, nc = control["timeouts"], control["decisions"]
+    ks = _stall(control)
+    p_excess = excess_p_value(stall, entrant["exposure_s"], ks, control["exposure_s"])
+    out["excess_p_value"] = p_excess
+    if max_control_timeout_rate is not None:
+        p_ceiling = poisson_upper_tail(kc, nc * max_control_timeout_rate)
+        out["ceiling_p_value"] = p_ceiling
+        if p_ceiling < CEILING_ALPHA:
+            return {**out, "stall_verdict": "host_invalid",
+                    "stall_reason": f"control timed out on {kc}/{nc} decisions, significantly above the "
+                                    f"{max_control_timeout_rate:.3%} host ceiling (p={p_ceiling:.2g})"}
+    if stall and (p_excess is None or p_excess < stall_p_min):
+        return {**out, "stall_verdict": "stall_excess",
+                "stall_reason": f"{stall} stall-like or unclassified timeouts against {ks} in the control "
+                                f"(exposure {entrant['exposure_s']:.3g} s vs {control['exposure_s']:.3g} s, "
+                                f"p={'n/a' if p_excess is None else f'{p_excess:.2g}'} < {stall_p_min})"}
+    return {**out, "stall_verdict": "pass", "stall_reason": "within the host-stall rate of the interleaved control"}
+
+
 def assess(entrant: Mapping[str, Any], control: Mapping[str, Any] | None, *, strict: bool,
            max_bot_timeouts: int | None = 0, max_control_timeout_rate: float | None = MAX_CONTROL_TIMEOUT_RATE,
            stall_p_min: float = STALL_P_MIN) -> dict[str, Any]:
     """Verdict for one entrant tally against the control tally of the same run:
-    ``fail`` (bot-caused, strict entrants only), ``host_invalid``, ``stall_excess`` or ``pass``."""
+    ``fail`` (bot-caused, strict entrants only), ``host_invalid``, ``stall_excess`` or ``pass``.
+    The host and stall tests are always evaluated (``stall_verdict``), even under a fail."""
     bot = entrant["classes"]["bot_caused"]
-    stall = _stall(entrant)
-    out: dict[str, Any] = {"strict": strict, "bot_caused": bot, "stall_like_or_unclassified": stall,
+    out: dict[str, Any] = {"strict": strict, "bot_caused": bot, "stall_like_or_unclassified": _stall(entrant),
                            "max_bot_timeouts": max_bot_timeouts, "max_control_timeout_rate": max_control_timeout_rate,
                            "stall_p_min": stall_p_min, "ceiling_p_value": None, "excess_p_value": None,
                            "control_bot_caused": None, "control_stall_like_or_unclassified": None,
@@ -263,6 +290,7 @@ def assess(entrant: Mapping[str, Any], control: Mapping[str, Any] | None, *, str
         out["control_stall_like_or_unclassified"] = _stall(control)
         out["bot_vs_control_p_value"] = excess_p_value(bot, entrant["exposure_s"], control["classes"]["bot_caused"],
                                                        control["exposure_s"])
+    out |= _host_and_stalls(entrant, control, max_control_timeout_rate, stall_p_min)
     if strict and max_bot_timeouts is not None and bot > max_bot_timeouts:
         rules = ", ".join(f"{r} {n}" for r, n in sorted(entrant.get("rules", {}).items())
                           if r in ("cpu_bound", "replay_slow", "replay_timeout"))
@@ -272,26 +300,7 @@ def assess(entrant: Mapping[str, Any], control: Mapping[str, Any] | None, *, str
         return {**out, "verdict": "fail",
                 "reason": f"{bot} bot-caused timeouts (limit {max_bot_timeouts}; {rules}): the bot was computing "
                           f"past the deadline (CPU ~ wall) or its replay used at least half the budget{floor}"}
-    if control is None:
-        return {**out, "verdict": "pass" if stall == 0 else "stall_excess",
-                "reason": "no control run" if stall == 0 else f"{stall} stall-like timeouts and no control to test them"}
-    kc, nc = control["timeouts"], control["decisions"]
-    if max_control_timeout_rate is not None:
-        p_ceiling = poisson_upper_tail(kc, nc * max_control_timeout_rate)
-        out["ceiling_p_value"] = p_ceiling
-        if p_ceiling < CEILING_ALPHA:
-            return {**out, "verdict": "host_invalid",
-                    "reason": f"control timed out on {kc}/{nc} decisions, significantly above the "
-                              f"{max_control_timeout_rate:.3%} host ceiling (p={p_ceiling:.2g})"}
-    ks = _stall(control)
-    p_excess = excess_p_value(stall, entrant["exposure_s"], ks, control["exposure_s"])
-    out["excess_p_value"] = p_excess
-    if stall and (p_excess is None or p_excess < stall_p_min):
-        return {**out, "verdict": "stall_excess",
-                "reason": f"{stall} stall-like or unclassified timeouts against {ks} in the control "
-                          f"(exposure {entrant['exposure_s']:.3g} s vs {control['exposure_s']:.3g} s, "
-                          f"p={'n/a' if p_excess is None else f'{p_excess:.2g}'} < {stall_p_min})"}
-    return {**out, "verdict": "pass", "reason": "within the host-stall rate of the interleaved control"}
+    return {**out, "verdict": out["stall_verdict"], "reason": out["stall_reason"]}
 
 
 def needs_rerun(assessment: Mapping[str, Any]) -> bool:
