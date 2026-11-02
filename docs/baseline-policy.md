@@ -162,12 +162,18 @@ gate runs.
 Each timeout, candidate and control alike, is classified (`strategy.eval.stalls`,
 described in [strategy-evaluation.md](strategy-evaluation.md)):
 
-- *bot-caused*: the decide alone ran past the budget minus the median harness
-  overhead with CPU time at least 0.9 of its wall time (`cpu_bound`), or the warm
-  replays of the exact decision in a fresh worker (three repeats, the cold first one
-  dropped) have a median of 500 µs or more;
-- *stall-like*: the worker's own time fitted (`transport`), the decide was off-CPU
-  (`descheduled`), only the harness parse was slow (`parse`), or the replay was fast.
+- *bot-caused*: the warm replays of the exact decision in a fresh worker (three
+  repeats, the cold first one dropped) have a median of 500 µs or more; the bot had
+  started a thread (`threaded`); or the decide alone ran past the budget minus the
+  median harness overhead with CPU time at least 0.9 of its wall time (`cpu_bound`)
+  and the host did not explain it;
+- *stall-like*: the host slowed a CPU-bound decide (`host_slowdown`: the reply's own
+  harness parse ran at least 3 times the seat's median; `host_burst`: 3 or more
+  timeouts within 10 decisions while the seat's other parses there, or the adjacent
+  control tables, ran at least 2 times slower), provided the decide fits once divided
+  by that slowdown; or the worker's own time fitted (`transport`), the decide was
+  off-CPU (`descheduled`), only the harness parse was slow (`parse`), or the replay
+  was fast.
 
 The control's bot-caused timeouts are host stalls charged to the burner's CPU clock;
 the report gives them as the rule's false-attribution floor.

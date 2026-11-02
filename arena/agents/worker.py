@@ -469,6 +469,7 @@ class Decision:
     worker_wall_ns: int | None = None
     worker_cpu_ns: int | None = None
     worker_parse_ns: int | None = None
+    worker_parse_gc: int | None = None
     state_bytes: int | None = None
     note: str | None = None
     """The bot's private reasoning note (:func:`arena.agents.sdk.with_note`), stripped from ``action``."""
@@ -498,6 +499,10 @@ class TimeoutRecord:
     worker_wall_ns: int | None = None
     worker_cpu_ns: int | None = None
     worker_parse_cpu_ns: int | None = None
+    worker_parse_gc: int | None = None
+    """Garbage collections that ran inside the observation parse."""
+    worker_threads: int | None = None
+    """Python threads alive in the worker when it replied (1: the bot started none)."""
     observation: bytes | None = None
     """The request's observation JSON (only with ``timeout_inputs``, explicit state)."""
     committed: bytes | None = None
@@ -515,7 +520,8 @@ class TimeoutRecord:
                 "drained_after_ns": self.drained_after_ns,
                 "reply_kind": self.reply_kind, "worker_parse_ns": self.worker_parse_ns,
                 "worker_wall_ns": self.worker_wall_ns, "worker_cpu_ns": self.worker_cpu_ns,
-                "worker_parse_cpu_ns": self.worker_parse_cpu_ns}
+                "worker_parse_cpu_ns": self.worker_parse_cpu_ns, "worker_parse_gc": self.worker_parse_gc,
+                "worker_threads": self.worker_threads}
 
 
 @dataclass
@@ -536,6 +542,10 @@ class SeatStats:
     e2e_ns: list[int] = field(default_factory=list)
     worker_wall_ns: list[int] = field(default_factory=list)
     worker_cpu_ns: list[int] = field(default_factory=list)
+    worker_parse_ns: list[int] = field(default_factory=list)
+    """One entry per decision, in order (index = ``TimeoutRecord.decision_index``); -1
+    when the worker reported no parse time (timeouts, crashes) or a garbage
+    collection ran inside the parse."""
     timeouts: list[TimeoutRecord] = field(default_factory=list)
     infrastructure: list[tuple[int, str]] = field(default_factory=list)
     """(decision index, event) for failures that were not the bot's doing:
@@ -800,9 +810,11 @@ class WorkerSeat:
             return Decision(None, "timeout", e2e_ns=e2e)
         e2e = frame.received_ns - dispatched
         m = frame.meta
-        timing = {k: m.get(k) if isinstance(m.get(k), int) else None for k in ("wall_ns", "cpu_ns", "parse_ns")}
+        timing = {k: m.get(k) if isinstance(m.get(k), int) else None
+                  for k in ("wall_ns", "cpu_ns", "parse_ns", "parse_gc")}
         decision = Decision(None, None, e2e_ns=e2e, worker_wall_ns=timing["wall_ns"],
-                            worker_cpu_ns=timing["cpu_ns"], worker_parse_ns=timing["parse_ns"])
+                            worker_cpu_ns=timing["cpu_ns"], worker_parse_ns=timing["parse_ns"],
+                            worker_parse_gc=timing["parse_gc"])
         if not on_time(frame.received_ns, deadline):
             decision.fallback = "timeout"
             decision.rejected = {"late_by_ns": frame.received_ns - deadline}
@@ -858,8 +870,10 @@ def _note_reply(record: TimeoutRecord, frame: ReceivedFrame, drained: bool = Fal
     else:
         record.late_by_ns = frame.received_ns - record.deadline_ns
     record.reply_kind = str(m.get("t"))
-    record.worker_parse_ns, record.worker_wall_ns, record.worker_cpu_ns, record.worker_parse_cpu_ns = (
-        m.get(k) if isinstance(m.get(k), int) else None for k in ("parse_ns", "wall_ns", "cpu_ns", "parse_cpu_ns"))
+    (record.worker_parse_ns, record.worker_wall_ns, record.worker_cpu_ns, record.worker_parse_cpu_ns,
+     record.worker_parse_gc, record.worker_threads) = (
+        m.get(k) if isinstance(m.get(k), int) else None
+        for k in ("parse_ns", "wall_ns", "cpu_ns", "parse_cpu_ns", "parse_gc", "threads"))
 
 
 REPLAY_BUDGET_NS = 100_000_000
@@ -1044,6 +1058,8 @@ def play_table(
                 st.worker_wall_ns.append(decision.worker_wall_ns)
             if decision.worker_cpu_ns is not None:
                 st.worker_cpu_ns.append(decision.worker_cpu_ns)
+            st.worker_parse_ns.append(-1 if decision.worker_parse_ns is None or decision.worker_parse_gc
+                                      else decision.worker_parse_ns)
             if on_decision is not None:
                 on_decision(seat, decision, table)
             index += 1

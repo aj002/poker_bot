@@ -243,6 +243,8 @@ class TableResult:
     e2e_ns: dict[int, bytes] = field(default_factory=dict)
     worker_wall_ns: dict[int, bytes] = field(default_factory=dict)
     worker_cpu_ns: dict[int, bytes] = field(default_factory=dict)
+    seat_parse_ns: dict[int, bytes] = field(default_factory=dict)
+    """Per seat (not entrant), ``SeatStats.worker_parse_ns``: one int64 per decision."""
     attempt: int = 1
     invalid_reason: str | None = None
     """One of :data:`INFRASTRUCTURE_CAUSES` when infrastructure invalidated this attempt."""
@@ -407,6 +409,7 @@ class TableRunner:
             result.e2e_ns[e] = result.e2e_ns.get(e, b"") + array("q", st.e2e_ns).tobytes()
             result.worker_wall_ns[e] = result.worker_wall_ns.get(e, b"") + array("q", st.worker_wall_ns).tobytes()
             result.worker_cpu_ns[e] = result.worker_cpu_ns.get(e, b"") + array("q", st.worker_cpu_ns).tobytes()
+            result.seat_parse_ns[seat] = array("q", st.worker_parse_ns).tobytes()
             result.infrastructure += [{"entrant": e, "seat": seat, "decision": i, "event": ev}
                                       for i, ev in st.infrastructure]
             result.timeouts.setdefault(e, []).extend(

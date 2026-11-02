@@ -23,7 +23,10 @@ Timeouts
     (decide wall and thread CPU time, parse time) and three replays of the
     decision in a fresh worker from its exact observation and committed state. A
     decide that ran past the deadline with CPU ~ wall is bot-caused, as is a slow
-    replay. Because a host stall on this VM is charged to the running thread's CPU
+    replay, unless the host demonstrably slowed it: the harness parse in the same
+    reply, the seat's neighbouring parses in a burst, or the control tables played
+    around the table ran several times slower, and the decide fits once divided by
+    that slowdown. Because a host stall on this VM is charged to the running thread's CPU
     clock, the control also collects "bot-caused" timeouts, so the candidate's are
     tested against the control's (C-test, p >= 0.01) under an absolute ceiling.
     Stall-like ones are tested against the control's stall-like ones (C-test,
@@ -105,6 +108,9 @@ class _Side:
         self.e2e: list[int] = []
         self.fallbacks: Counter[str] = Counter()
         self.records: list[tuple[str, dict[str, Any]]] = []
+        self.labels: list[str] = []
+        self.table_walls: list[list[int]] = []
+        self.parse: dict[tuple[str, Any], list[int]] = {}
 
     def add(self, table_id: str, seat: Any, records: list[dict[str, Any]]) -> None:
         st = seat.stats
@@ -117,14 +123,27 @@ class _Side:
         self.late += st.late_discarded
         self.max_state = max(self.max_state, st.max_state_bytes)
         self.records += [(table_id, r) for r in records]
+        self.labels.append(table_id)
+        self.table_walls.append(list(st.worker_wall_ns))
+        self.parse[(table_id, None)] = list(st.worker_parse_ns)
 
-    def tally(self, budget_ns: int) -> dict[str, Any]:
+    def tally(self, budget_ns: int, control: _Side | None = None) -> dict[str, Any]:
+        """Classified timeouts; with ``control``, the control tables played just before
+        and after each table are host evidence for its timeout bursts."""
+        factor: dict[str, float | None] = {}
+        if control is not None:
+            per = stalls.control_factors(control.table_walls)
+            for i, label in enumerate(self.labels):
+                near = [f for f in per[max(0, i - 1): i + 1] if f is not None]
+                factor[label] = max(near) if near else None
         return stalls.tally_samples(decisions=self.decisions, timeouts=self.fallbacks.get("timeout", 0),
-                                    e2e=self.e2e, wall=self.wall, records=self.records, budget_ns=budget_ns)
+                                    e2e=self.e2e, wall=self.wall, records=self.records, budget_ns=budget_ns,
+                                    parse=self.parse, control_factor=factor)
 
     def summary(self) -> dict[str, Any]:
+        parse = [x for xs in self.parse.values() for x in xs if x >= 0]
         return {"tables": self.tables, "decisions": self.decisions, "worker_wall": quantiles(self.wall),
-                "e2e": quantiles(self.e2e), "fallbacks": dict(self.fallbacks), "restarts": self.restarts,
+                "worker_parse": quantiles(parse), "e2e": quantiles(self.e2e), "fallbacks": dict(self.fallbacks), "restarts": self.restarts,
                 "late_replies": self.late, "max_state_bytes": self.max_state}
 
 
@@ -260,7 +279,7 @@ def run_gate(bundle: Path, *, ruleset_id: str = "practice_nlhe", min_decisions: 
                                            log=log)
             w = quantiles(cand.wall)
             other = {k: v for k, v in cand.fallbacks.items() if k != "timeout"}
-            k_tally, c_tally = cand.tally(budget), ctrl.tally(budget)
+            k_tally, c_tally = cand.tally(budget, ctrl), ctrl.tally(budget)
             assessment = stalls.assess(k_tally, c_tally, strict=True, max_bot_timeout_rate=max_bot_timeout_rate,
                                        bot_p_min=bot_p_min, max_control_timeout_rate=max_control_timeout_rate,
                                        stall_p_min=stall_p_min)

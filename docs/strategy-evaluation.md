@@ -150,13 +150,29 @@ never treated as independent.
   control alike, is classified, first matching rule first. The *allowance* is the
   budget minus the entrant's median harness overhead (median end-to-end minus median
   decide wall, which is typical parse plus transport):
-  - *bot-caused*: the late reply's decide alone exceeded the allowance with thread
-    CPU time at least 0.9 of its wall time (`cpu_bound`: the bot was computing); or a
-    replay of the exact decision (explicit-state bots, first
+  - *bot-caused*: a replay of the exact decision (explicit-state bots, first
     `gates.timeout_replays_per_seat` (3) timeouts per seat per table, 3 repeats in a
     fresh worker; the first, a cold start, is left out of the median) has a median of
-    at least half the budget, or a repeat misses even its 100 ms budget;
-  - *stall-like*: parse plus decide fitted the allowance (`transport`); the decide
+    at least half the budget, or a repeat misses even its 100 ms budget; the bot had
+    started a Python thread (`threaded`: a bot thread can slow the parse, the decide
+    or the reply, so no stall rule applies); or the late reply's decide alone
+    exceeded the allowance with thread CPU time at least 0.9 of its wall time
+    (`cpu_bound`) and no host rule applies;
+  - *stall-like, host rules*: a CPU-bound decide the host slowed. The harness parse
+    does the same work whatever the bot, so a parse far above the entrant's own
+    median parse (`SeatStats.worker_parse_ns`) measures the slowdown. The decide must
+    fit the allowance once divided by that slowdown, the worker must be
+    single-threaded, and the parse must have run no garbage collection, so a bot
+    that would have missed the deadline at normal speed stays `cpu_bound`.
+    `host_slowdown`: the reply's parse is at least 3 times the median and 200 µs above
+    it. `host_burst`: at least 3 timeouts of the seat within 10 decisions, with a
+    slowdown of at least 2 in the median parse of the seat's other decisions in that
+    window, in this reply's parse, or (deployed gate) in the decide times of the
+    control tables played just before and after (their 90th percentile over the
+    control's median). The tally reports `parse_slow_share` and `window_slow_share`,
+    the shares of decisions with such a slowdown: a bot's own slow decides are hidden
+    only where they coincide with one;
+  - *stall-like, other*: parse plus decide fitted the allowance (`transport`); the decide
     or the parse was off-CPU for over a tenth of its wall time (`descheduled`); the
     decide fitted but the harness's parse did not (`parse`); or, with no reply
     timings, the replay median is under half the budget (`replay_fast`);

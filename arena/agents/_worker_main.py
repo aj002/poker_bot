@@ -17,6 +17,7 @@ import os
 import resource
 import select
 import sys
+import threading
 import time
 import traceback
 
@@ -92,6 +93,12 @@ class Worker:
         self.mode: str | None = None
         self.cached: bytes = b"null"
         self.pending: tuple[int, bytes] | None = None
+        self.collections = 0
+        gc.callbacks.append(self._on_gc)
+
+    def _on_gc(self, phase: str, info: dict) -> None:
+        if phase == "start":
+            self.collections += 1
 
     def send(self, meta: dict, blob: bytes = b"") -> None:
         write_all(self.out_fd, encode_frame(meta, blob))
@@ -129,10 +136,12 @@ class Worker:
         if self.pending is not None and self.pending[0] == meta.get("commit"):
             self.cached = self.pending[1]
         self.pending = None
+        g0 = self.collections
         t0, p0 = time.perf_counter_ns(), time.thread_time_ns()
         obs = Observation.model_validate_json(blob)
         t1 = time.perf_counter_ns()
         c0 = time.thread_time_ns()
+        parse_gc = self.collections - g0
         bot = self.bot
         try:
             if self.mode == "explicit":
@@ -143,10 +152,12 @@ class Worker:
             c1, t2 = time.thread_time_ns(), time.perf_counter_ns()
             code = "bot_memory_error" if isinstance(exc, MemoryError) else "bot_exception"
             self.send({"t": "error", "seq": seq, "code": code, "detail": _detail(exc),
-                       "parse_ns": t1 - t0, "parse_cpu_ns": c0 - p0, "wall_ns": t2 - t1, "cpu_ns": c1 - c0})
+                       "parse_ns": t1 - t0, "parse_cpu_ns": c0 - p0, "wall_ns": t2 - t1, "cpu_ns": c1 - c0,
+                       "parse_gc": parse_gc, "threads": threading.active_count()})
             return
         c1, t2 = time.thread_time_ns(), time.perf_counter_ns()
-        timing = {"parse_ns": t1 - t0, "parse_cpu_ns": c0 - p0, "wall_ns": t2 - t1, "cpu_ns": c1 - c0}
+        timing = {"parse_ns": t1 - t0, "parse_cpu_ns": c0 - p0, "wall_ns": t2 - t1, "cpu_ns": c1 - c0,
+                  "parse_gc": parse_gc, "threads": threading.active_count()}
         try:
             state = encode_state(new_state) if self.mode == "explicit" else b""
             payload = action.model_dump(exclude_none=True) if isinstance(action, Action) else action

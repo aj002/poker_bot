@@ -177,8 +177,12 @@ itself out of those windows:
 - `play_table` freezes the existing heap for the duration of the table.
 
 Every timeout becomes a `TimeoutRecord` with the worker's own times from the late
-reply: parse wall and CPU (`worker_parse_ns`, `worker_parse_cpu_ns`) and decide wall
-and CPU (`worker_wall_ns`, `worker_cpu_ns`). With `timeout_inputs` the observation
+reply: parse wall and CPU (`worker_parse_ns`, `worker_parse_cpu_ns`), decide wall
+and CPU (`worker_wall_ns`, `worker_cpu_ns`), the garbage collections that ran inside
+the parse (`worker_parse_gc`) and the worker's Python thread count when it replied
+(`worker_threads`). `SeatStats.worker_parse_ns` keeps every decision's parse time in
+order (-1 for a timeout or a parse that ran a collection), so a timeout's parse can be
+compared with the seat's median and with its neighbours. With `timeout_inputs` the observation
 and committed state are kept as well, so `replay_decision` can replay the exact
 decision in a fresh worker. `run_benchmark(control=..., control_every=k)` interleaves
 tables seated entirely with a control bot, so a run measures its own stall rate.
@@ -196,8 +200,9 @@ the control burner does a fixed amount of work instead.
 `strategy.eval.stalls` builds the gate on top of these hooks, with a workload-matched
 burner (`strategy.eval.burn`) as the control:
 
-- bot-caused timeouts (a CPU-bound decide past the deadline, or a slow replay) fail;
-  the control's own bot-caused timeouts are reported as the floor of that rule;
+- bot-caused timeouts (a CPU-bound decide past the deadline that a host slowdown
+  does not explain, a slow replay, or a late reply from a worker with bot threads)
+  count against a 0.02% ceiling and against the control's own bot-caused timeouts;
 - stall-like timeouts are tested against the control's (C-test);
 - the control must stay under a 0.05% ceiling;
 - up to 2 reruns are allowed, and every attempt is reported.

@@ -66,7 +66,7 @@ def test_late_reply_is_timed_when_it_is_drained():
                              "outcome": "late_reply", "late_by_ns": None, "drained_after_ns": 400_000,
                              "reply_kind": "action",
                              "worker_parse_ns": 5, "worker_wall_ns": 10, "worker_cpu_ns": 9,
-                             "worker_parse_cpu_ns": 4}
+                             "worker_parse_cpu_ns": 4, "worker_parse_gc": 0, "worker_threads": 1}
 
 
 def test_reply_read_after_the_deadline_is_recorded_at_once():

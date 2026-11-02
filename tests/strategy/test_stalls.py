@@ -72,6 +72,126 @@ def test_classify_uses_decide_cpu_against_wall():
     assert stalls.cpu_bound(rec()) is None and stalls.cpu_bound(computing) is True
 
 
+def test_host_slowdown_needs_a_slowed_parse_and_a_decide_that_fits_at_normal_speed():
+    host = stalls.HostEvidence(parse_median_ns=100_000)
+    slowed = rec(worker_parse_ns=600_000, worker_parse_cpu_ns=598_000, worker_wall_ns=1_200_000,
+                 worker_cpu_ns=1_190_000, worker_parse_gc=0, worker_threads=1)
+    # The harness parse ran 6x its median: at normal speed the decide was 200 us.
+    assert classify(slowed, BUDGET, 220_000, host) == ("stall_like", "host_slowdown")
+    assert classify(slowed, BUDGET, 220_000) == ("bot_caused", "cpu_bound")
+    # A slow bot in the same slowdown still misses: 6 ms / 6 = 1 ms > the 780 us allowance.
+    assert classify({**slowed, "worker_wall_ns": 6_000_000, "worker_cpu_ns": 5_990_000}, BUDGET, 220_000,
+                    host) == ("bot_caused", "cpu_bound")
+    # The parse must be 3x its median and 200 us above it, without a collection inside.
+    assert classify({**slowed, "worker_parse_ns": 290_000}, BUDGET, 220_000, host) == ("bot_caused", "cpu_bound")
+    assert classify({**slowed, "worker_parse_ns": 70_000}, BUDGET, 220_000,
+                    stalls.HostEvidence(parse_median_ns=20_000)) == ("bot_caused", "cpu_bound")
+    assert classify({**slowed, "worker_parse_gc": 1}, BUDGET, 220_000, host) == ("bot_caused", "cpu_bound")
+    assert classify({**slowed, "worker_parse_gc": None}, BUDGET, 220_000, host) == ("bot_caused", "cpu_bound")
+    # A worker with a bot thread can slow its own parse: every late reply is the bot's.
+    assert classify({**slowed, "worker_threads": 2}, BUDGET, 220_000, host) == ("bot_caused", "threaded")
+    assert classify(rec(worker_threads=2), BUDGET, 220_000) == ("bot_caused", "threaded")
+    assert classify({**slowed, "worker_threads": None}, BUDGET, 220_000, host) == ("bot_caused", "cpu_bound")
+    # Replay evidence comes first.
+    assert classify({**slowed, **replay(700_000, 700_000, 700_000)}, BUDGET, 220_000, host) == ("bot_caused",
+                                                                                                "replay_slow")
+
+
+def _burst(parse_around=100_000, decide=1_100_000, at=(20, 23, 26), control=None):
+    parse = [100_000] * 200
+    for i in range(10, 37):
+        parse[i] = parse_around
+    records = []
+    for i in at:
+        parse[i] = -1
+        records.append(("t", rec(decision_index=i, worker_parse_ns=110_000, worker_parse_cpu_ns=109_000,
+                                 worker_wall_ns=decide, worker_cpu_ns=decide - 5_000, worker_parse_gc=0,
+                                 worker_threads=1)))
+    t = stalls.tally_samples(decisions=200, timeouts=len(at), e2e=[320_000] * 200, wall=[100_000] * 200,
+                             records=records, budget_ns=BUDGET, parse={("t", None): parse},
+                             control_factor={"t": control})
+    return t
+
+
+def test_bursts_are_host_stalls_only_with_host_evidence_around_them():
+    # Three CPU-bound timeouts within 10 decisions while the seat's other parses ran 4x
+    # their median: a host burst. Each decide fits at a quarter of its time.
+    t = _burst(parse_around=400_000)
+    assert t["rules"] == {"host_burst": 3} and t["classes"]["bot_caused"] == 0
+    assert t["records"][0]["cluster"] == 3 and t["records"][0]["window_factor"] == pytest.approx(4.0)
+    assert t["parse_median_ns"] == 100_000 and t["window_slow_share"] > 0
+    # The same cluster with normal parses around it is the bot's.
+    assert _burst()["rules"] == {"cpu_bound": 3}
+    # ...unless the control tables played around it slowed down too.
+    assert _burst(control=2.5)["rules"] == {"host_burst": 3}
+    assert _burst(control=1.3)["rules"] == {"cpu_bound": 3}
+    # Two timeouts are not a burst; a decide too slow even at a quarter speed is not hidden.
+    assert _burst(parse_around=400_000, at=(20, 23))["rules"] == {"cpu_bound": 2}
+    assert _burst(parse_around=400_000, decide=5_000_000)["rules"] == {"cpu_bound": 3}
+    # Bot-caused timeouts spread out are never a burst, whatever the host did.
+    assert _burst(parse_around=400_000, at=(5, 60, 120))["rules"] == {"cpu_bound": 3}
+
+
+def test_control_factors_are_a_high_quantile_over_the_median():
+    f = stalls.control_factors([[100] * 20, [100] * 15 + [300] * 5, [900] * 5])
+    assert f == [1.0, 3.0, None]
+    assert stalls.control_factors([[], []]) == [None, None]
+
+
+SLOW_BOT = '''import threading
+import time
+import zlib
+
+from arena.agents.sdk import ExplicitStateBot, check_or_call
+
+THREAD = {thread}
+
+
+class Slow(ExplicitStateBot):
+    name = "slow_injector"
+    rulesets = ("practice_nlhe",)
+
+    def __init__(self):
+        if THREAD:
+            threading.Thread(target=time.sleep, args=(3600,), daemon=True).start()
+
+    def decide(self, observation, state):
+        if zlib.crc32(str(observation.decision_id).encode()) % 6 == 0:
+            until = time.perf_counter_ns() + 3_000_000
+            while time.perf_counter_ns() < until:
+                pass
+        return check_or_call(observation.legal), state
+
+
+def make_bot():
+    return Slow()
+'''
+
+
+@needs_sandbox
+@pytest.mark.parametrize("thread", [False, True])
+def test_injected_slow_decisions_stay_bot_caused_in_the_sandbox(tmp_path, thread):
+    from strategy.policy.gate import run_gate
+
+    bot = tmp_path / "slow"
+    bot.mkdir()
+    (bot / "bot.py").write_text(SLOW_BOT.format(thread=thread), encoding="utf-8")
+    rep = run_gate(bot, min_decisions=150, players=4, hand_cap=40, log=lambda s: None, max_reruns=0,
+                   control_iterations=0, p99_limit_us=100_000, p999_limit_us=100_000)
+    first = rep["attempts"][0]
+    t = first["candidate"]["timeouts"]
+    injected = [r for r in t["records"] if (r.get("worker_wall_ns") or 0) >= 2_500_000]
+    assert len(injected) >= 10
+    # A sixth of the decisions take 3 ms: they cluster on every table, yet none is
+    # passed off as a host stall.
+    assert max(r["cluster"] for r in injected) >= 3
+    assert all(r["class"] == "bot_caused" for r in injected)
+    assert {r["rule"] for r in injected} <= ({"threaded", "replay_slow"} if thread else {"cpu_bound", "replay_slow"})
+    assert not any(r["rule"].startswith("host_") for r in t["records"])
+    assert t["parse_median_ns"] and t["parse_median_ns"] < 1_000_000
+    assert not rep["passed"] and not first["checks"]["bot_caused_ceiling"]
+
+
 def test_tails_match_closed_forms():
     assert binomial_upper_tail(2, 2, 0.5) == pytest.approx(0.25)
     assert binomial_upper_tail(0, 5, 0.3) == 1.0 and binomial_upper_tail(6, 5, 0.3) == 0.0

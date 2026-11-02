@@ -69,7 +69,7 @@ class ScriptedChannel:
             state = json.dumps({"n": n + 1}).encode() if self.world.info["state_mode"] == "explicit" else b""
             action = {"type": "check"} if obs.legal.check else {"type": "fold"}
             reply = {"t": "action", "seq": meta["seq"], "action": action, "wall_ns": 10, "cpu_ns": 9, "parse_ns": 5,
-                     "parse_cpu_ns": 4}
+                     "parse_cpu_ns": 4, "parse_gc": 0, "threads": 1}
             if plan == "never":
                 return
             if plan == "crash":

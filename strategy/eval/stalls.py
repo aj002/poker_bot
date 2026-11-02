@@ -13,16 +13,37 @@ Classes (:func:`classify`, first matching rule wins)
     overhead (``median e2e - median decide wall``, i.e. typical parse plus transport).
 
     ``bot_caused``
-        * cpu_bound: the decide alone exceeded the allowance and its CPU time is at
-          least ``CPU_WALL_RATIO`` (0.9) of its wall time. The bot was computing, so
-          with typical parse and transport the deadline would still have been missed.
         * replay_timeout / replay_slow: the decision, replayed three times from its
           exact observation and committed state in a fresh worker (explicit-state
           bots only), missed the 100 ms replay budget or had a median ``parse +
           decide`` of at least ``STALL_REPLAY_FRACTION`` (half) of the budget.
           The first replay in the fresh worker is a cold start (lazy loads, caches)
           and is left out of the median when there are at least three.
-    ``stall_like``
+        * threaded: a late reply from a worker in which the bot had started a
+          Python thread. A bot thread can hold the GIL or a core during the parse,
+          the decide or the reply, so none of the stall rules below can clear it.
+        * cpu_bound: the decide alone exceeded the allowance and its CPU time is at
+          least ``CPU_WALL_RATIO`` (0.9) of its wall time, and no host rule applies.
+    ``stall_like`` (host rules: CPU-bound decides the host slowed)
+        The parse is harness code whose work does not depend on the bot, so a parse
+        far above the entrant's own median parse measures how much slower the host
+        ran. A host rule needs a single-threaded worker, a parse with no garbage
+        collection inside, and a decide that fits the allowance once divided by the
+        measured slowdown: a bot that would have missed the deadline at normal speed
+        stays ``cpu_bound``.
+        * host_slowdown: the reply's own parse is at least ``PARSE_SLOW_FACTOR`` (3)
+          times the median and ``PARSE_SLOW_MIN_NS`` (200 us) above it.
+        * host_burst: at least ``BURST_MIN_TIMEOUTS`` (3) timeouts of the seat within
+          ``BURST_WINDOW`` (10) decisions, with a slowdown of at least
+          ``HOST_SLOW_FACTOR`` (2) in the median parse of the seat's other decisions
+          in that window, in this reply's parse, or in the decide times of the
+          control tables played just before and after the table (their
+          ``CONTROL_SLOW_QUANTILE`` over the control's median).
+        The tally reports ``parse_slow_share`` and ``window_slow_share``, the shares
+        of decisions whose own parse or window shows such a slowdown. A bot's own
+        slow decides are hidden only when they coincide with one, so at most these
+        shares of them are.
+    ``stall_like`` (other)
         * transport: ``parse + decide`` fitted in the allowance; the time was lost
           outside the worker.
         * descheduled: the decide's or the parse's CPU time is under 0.9 of its
@@ -84,6 +105,7 @@ import statistics
 from array import array
 from collections import Counter
 from collections.abc import Mapping, Sequence
+from dataclasses import dataclass
 from typing import Any
 
 CONTROL_POLICY = "baseline:calling_station"
@@ -99,6 +121,14 @@ MAX_RERUNS = 2
 CONTROL_EVERY = 4
 TIMEOUT_REPLAYS_PER_SEAT = 3
 RECORDS_KEPT = 50
+PARSE_SLOW_FACTOR = 3.0
+PARSE_SLOW_MIN_NS = 200_000
+HOST_SLOW_FACTOR = 2.0
+BURST_WINDOW = 10
+BURST_MIN_TIMEOUTS = 3
+WINDOW_MIN_SAMPLES = 3
+CONTROL_SLOW_QUANTILE = 0.9
+CONTROL_MIN_DECISIONS = 10
 
 CLASSES = ("bot_caused", "stall_like", "unclassified")
 
@@ -135,14 +165,48 @@ def cpu_bound(record: Mapping[str, Any], part: str = "decide") -> bool | None:
     return cpu >= CPU_WALL_RATIO * wall
 
 
-def classify(record: Mapping[str, Any], budget_ns: int, overhead: int | None) -> tuple[str, str]:
+@dataclass(frozen=True)
+class HostEvidence:
+    """What the harness saw of the host around one timeout (:func:`host_evidence`)."""
+
+    parse_median_ns: int | None = None
+    """The entrant's median observation parse over its decisions (parses that ran a
+    garbage collection excluded)."""
+    window_factor: float | None = None
+    """Median parse of the seat's other decisions within ``BURST_WINDOW`` decisions of
+    this one, on-time and timed-out, over ``parse_median_ns``."""
+    cluster: int = 1
+    """Timeouts of the seat within ``BURST_WINDOW`` decisions, this one included."""
+    control_factor: float | None = None
+    """Slowdown of the control tables played just before and after this table: the
+    ``CONTROL_SLOW_QUANTILE`` of their decide times over the control's median."""
+
+
+def _host_factor(record: Mapping[str, Any], host: HostEvidence | None) -> tuple[str, float] | None:
+    """``(rule, slowdown)`` when the harness has independent evidence that the host
+    ran slow around this reply; None otherwise."""
+    if host is None or record.get("worker_threads") != 1:
+        return None
+    med, parse = host.parse_median_ns, _int(record, "worker_parse_ns")
+    clean = record.get("worker_parse_gc") == 0
+    if clean and med and parse is not None and parse >= max(PARSE_SLOW_FACTOR * med, med + PARSE_SLOW_MIN_NS):
+        return "host_slowdown", parse / med
+    if host.cluster < BURST_MIN_TIMEOUTS:
+        return None
+    factors = [f for f in (host.window_factor, host.control_factor) if f is not None]
+    if clean and med and parse is not None:
+        factors.append(parse / med)
+    s = max(factors, default=0.0)
+    return ("host_burst", s) if s >= HOST_SLOW_FACTOR else None
+
+
+def classify(record: Mapping[str, Any], budget_ns: int, overhead: int | None,
+             host: HostEvidence | None = None) -> tuple[str, str]:
     """``(class, rule)`` for one timeout record from ``TableResult.timeouts``."""
     timed = record.get("outcome") == "late_reply" and overhead is not None
     own, decide = _worker_ns(record), _int(record, "worker_wall_ns")
     allowance = budget_ns - (overhead or 0)
     bound = cpu_bound(record)
-    if timed and bound and decide is not None and decide > allowance:
-        return "bot_caused", "cpu_bound"
     replay = record.get("replay") or {}
     runs = replay.get("runs") or []
     warm = runs[1:] if len(runs) >= 3 else runs
@@ -151,6 +215,14 @@ def classify(record: Mapping[str, Any], budget_ns: int, overhead: int | None) ->
         return "bot_caused", "replay_timeout"
     if times and statistics.median(times) >= STALL_REPLAY_FRACTION * budget_ns:
         return "bot_caused", "replay_slow"
+    threads = _int(record, "worker_threads")
+    if timed and threads is not None and threads > 1:
+        return "bot_caused", "threaded"
+    if timed and bound and decide is not None and decide > allowance:
+        slow = _host_factor(record, host)
+        if slow is not None and decide / slow[1] <= allowance:
+            return "stall_like", slow[0]
+        return "bot_caused", "cpu_bound"
     if timed and own is not None:
         if own <= allowance:
             return "stall_like", "transport"
@@ -169,28 +241,102 @@ def classify(record: Mapping[str, Any], budget_ns: int, overhead: int | None) ->
 
 def tally(attempts: Sequence[Any], entrant: int, budget_ns: int) -> dict[str, Any]:
     """Decisions, exposure and classified timeouts of one entrant over runner ``TableResult``s."""
+    parse = {(f"{r.table_id}-a{r.attempt}", seat): list(array("q", raw))
+             for r in attempts for seat, raw in getattr(r, "seat_parse_ns", {}).items()
+             if r.seats.get(seat) == entrant}
     return tally_samples(
         decisions=sum(r.decisions.get(entrant, 0) for r in attempts),
         timeouts=sum(r.fallbacks.get(entrant, {}).get("timeout", 0) for r in attempts),
         e2e=[x for r in attempts for x in array("q", r.e2e_ns.get(entrant, b""))],
         wall=[x for r in attempts for x in array("q", r.worker_wall_ns.get(entrant, b""))],
         records=[(f"{r.table_id}-a{r.attempt}", rec) for r in attempts for rec in r.timeouts.get(entrant, [])],
-        budget_ns=budget_ns)
+        budget_ns=budget_ns, parse=parse)
+
+
+def control_factors(tables: Sequence[Sequence[int]]) -> list[float | None]:
+    """Per control table, in play order: the ``CONTROL_SLOW_QUANTILE`` of its decide
+    times over the control's median decide (None under ``CONTROL_MIN_DECISIONS``)."""
+    every = [x for t in tables for x in t]
+    if not every:
+        return [None] * len(tables)
+    med = statistics.median(every)
+    out: list[float | None] = []
+    for t in tables:
+        if len(t) < CONTROL_MIN_DECISIONS or med <= 0:
+            out.append(None)
+            continue
+        s = sorted(t)
+        out.append(s[min(len(s) - 1, int(CONTROL_SLOW_QUANTILE * len(s)))] / med)
+    return out
+
+
+def _clean(xs: Sequence[int]) -> list[int]:
+    return [x for x in xs if x >= 0]
+
+
+def host_evidence(record: Mapping[str, Any], parse: Sequence[int] | None, records: Sequence[Mapping[str, Any]],
+                  parse_median: int | None, control_factor: float | None = None) -> HostEvidence:
+    """:class:`HostEvidence` for ``record`` from its seat's per-decision parse times
+    (``SeatStats.worker_parse_ns``) and every timeout record of that seat and table."""
+    i = _int(record, "decision_index")
+    if i is None:
+        return HostEvidence(parse_median, None, 1, control_factor)
+    near = [r for r in records if isinstance(r.get("decision_index"), int)
+            and abs(r["decision_index"] - i) <= BURST_WINDOW]
+    samples = _clean(parse[max(0, i - BURST_WINDOW): i] + parse[i + 1: i + 1 + BURST_WINDOW]) if parse else []
+    samples += [p for r in near if r is not record and r.get("worker_parse_gc") == 0
+                and (p := _int(r, "worker_parse_ns")) is not None]
+    window = (statistics.median(samples) / parse_median
+              if parse_median and len(samples) >= WINDOW_MIN_SAMPLES else None)
+    return HostEvidence(parse_median, window, len(near), control_factor)
+
+
+def _slow_shares(parse: Mapping[Any, Sequence[int]], med: int | None) -> dict[str, float | None]:
+    """Shares of decisions whose own parse, or whose window's median parse, shows a host
+    slowdown: what the ``host_*`` rules could at most hide of a bot's own slow decides."""
+    n = own = window = 0
+    if not med:
+        return {"parse_slow_share": None, "window_slow_share": None}
+    cut = max(PARSE_SLOW_FACTOR * med, med + PARSE_SLOW_MIN_NS)
+    for xs in parse.values():
+        xs = list(xs)
+        for i, x in enumerate(xs):
+            if x < 0:
+                continue
+            n += 1
+            own += x >= cut
+            near = _clean(xs[max(0, i - BURST_WINDOW): i] + xs[i + 1: i + 1 + BURST_WINDOW])
+            window += len(near) >= WINDOW_MIN_SAMPLES and statistics.median(near) >= HOST_SLOW_FACTOR * med
+    return {"parse_slow_share": own / n if n else None, "window_slow_share": window / n if n else None}
 
 
 def tally_samples(*, decisions: int, timeouts: int, e2e: Sequence[int], wall: Sequence[int],
-                  records: Sequence[tuple[str, Mapping[str, Any]]], budget_ns: int) -> dict[str, Any]:
-    """:func:`tally` from raw samples; ``records`` pairs a table label with each timeout record."""
+                  records: Sequence[tuple[str, Mapping[str, Any]]], budget_ns: int,
+                  parse: Mapping[tuple[str, Any], Sequence[int]] | None = None,
+                  control_factor: Mapping[str, float | None] | None = None) -> dict[str, Any]:
+    """:func:`tally` from raw samples; ``records`` pairs a table label with each timeout
+    record. ``parse`` maps ``(table label, seat)`` (seat None when records carry none)
+    to that seat's per-decision parse times; ``control_factor`` maps a table label to
+    the slowdown of its adjacent control tables (:func:`control_factors`)."""
     over = overhead_ns(e2e, wall)
+    parse = parse or {}
+    every = [x for xs in parse.values() for x in _clean(xs)]
+    med = int(statistics.median(every)) if every else None
+    by_seat: dict[tuple[str, Any], list[Mapping[str, Any]]] = {}
+    for table, rec in records:
+        by_seat.setdefault((table, rec.get("seat")), []).append(rec)
     classes: Counter = Counter()
     rules: Counter = Counter()
     kept: list[dict[str, Any]] = []
     for table, rec in records:
-        cls, rule = classify(rec, budget_ns, over)
+        key = (table, rec.get("seat"))
+        host = host_evidence(rec, parse.get(key), by_seat[key], med, (control_factor or {}).get(table))
+        cls, rule = classify(rec, budget_ns, over, host)
         classes[cls] += 1
         rules[rule] += 1
         if len(kept) < RECORDS_KEPT:
-            kept.append({"table": table, "class": cls, "rule": rule,
+            kept.append({"table": table, "class": cls, "rule": rule, "cluster": host.cluster,
+                         "window_factor": host.window_factor, "control_factor": host.control_factor,
                          **{k: v for k, v in rec.items() if k != "replay"},
                          "replay_worker_ns": [_worker_ns(x) for x in (rec.get("replay") or {}).get("runs", [])]})
     return {
@@ -202,6 +348,8 @@ def tally_samples(*, decisions: int, timeouts: int, e2e: Sequence[int], wall: Se
         "classes": {c: classes.get(c, 0) for c in CLASSES},
         "rules": dict(sorted(rules.items())),
         "unrecorded": max(0, timeouts - sum(classes.values())),
+        "parse_median_ns": med,
+        **_slow_shares(parse, med),
         "records": kept,
     }
 
@@ -358,6 +506,7 @@ def select_attempt(assessments: Sequence[Mapping[str, Any]], max_reruns: int = M
             "reason": f"{len(assessments)} attempts, none passed: {assessments[-1]['reason']}"}
 
 
-__all__ = ["BOT_P_MIN", "CLASSES", "CONTROL_POLICY", "CPU_WALL_RATIO", "MAX_BOT_TIMEOUT_RATE", "STALL_REPLAY_FRACTION", "assess", "binomial_upper_tail",
-           "classify", "cpu_bound", "excess_p_value", "merge_tallies", "needs_rerun", "overhead_ns",
-           "poisson_upper_tail", "select_attempt", "tally", "tally_samples"]
+__all__ = ["BOT_P_MIN", "CLASSES", "CONTROL_POLICY", "CPU_WALL_RATIO", "MAX_BOT_TIMEOUT_RATE", "STALL_REPLAY_FRACTION",
+           "HostEvidence", "assess", "binomial_upper_tail", "classify", "control_factors", "cpu_bound",
+           "excess_p_value", "host_evidence", "merge_tallies", "needs_rerun", "overhead_ns", "poisson_upper_tail",
+           "select_attempt", "tally", "tally_samples"]

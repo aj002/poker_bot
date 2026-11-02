@@ -233,6 +233,7 @@ def test_gate_bot_caused_ceiling_control_test_headroom_and_reruns(monkeypatch):
     class Seat:
         def __init__(self, timeouts, wall=100_000):
             self.stats = type("S", (), {"decisions": 100, "worker_wall_ns": [wall] * 100,
+                                        "worker_parse_ns": [100_000] * 100,
                                         "e2e_ns": [300_000] * 100, "fallbacks": {"timeout": len(timeouts)} if timeouts
                                         else {}, "restarts": [], "late_discarded": 0, "max_state_bytes": 10})()
             self.records = timeouts
