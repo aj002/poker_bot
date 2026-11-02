@@ -26,7 +26,8 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     rep = run(a.spec, a.out, budget=a.budget, jobs=a.jobs, gate=not a.no_gate)
     print(json.dumps({"name": rep["name"], "chosen": rep["chosen"], "failure": rep["failure"],
-                      "total_wall_s": rep["total_wall_s"], "first_artifact_s": rep["first_artifact_s"],
+                      "total_wall_s": rep["total_wall_s"], "total_active_s": rep.get("total_active_s"),
+                      "first_artifact_s": rep["first_artifact_s"],
                       "steps": {s["name"]: [s["status"], s["wall_s"]] for s in rep["steps"]}}, indent=1))
     return 0 if rep["chosen"] and not rep["failure"] else 1
 

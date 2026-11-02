@@ -44,6 +44,7 @@ from __future__ import annotations
 
 import gzip
 import hashlib
+import importlib.util
 import io
 import json
 import math
@@ -106,13 +107,16 @@ class Step:
     status: str = "pending"
     """``ok``, ``fail``, ``na`` (does not apply), ``skipped`` or ``fatal``."""
     wall_s: float = 0.0
+    active_s: float = 0.0
+    """Monotonic seconds; less than ``wall_s`` only when the host was suspended during the step."""
     started_s: float = 0.0
     detail: dict[str, Any] = field(default_factory=dict)
     error: str | None = None
 
     def as_dict(self) -> dict[str, Any]:
         return {"name": self.name, "status": self.status, "wall_s": round(self.wall_s, 2),
-                "started_s": round(self.started_s, 2), "detail": self.detail, "error": self.error}
+                "active_s": round(self.active_s, 2), "started_s": round(self.started_s, 2), "detail": self.detail,
+                "error": self.error}
 
 
 def load_announcement(path: Path | str) -> dict[str, Any]:
@@ -168,7 +172,7 @@ class Rehearsal:
         self.gate_enabled = gate
         self._log = log or (lambda s: print(s, file=sys.stderr, flush=True))
         self.steps: list[Step] = []
-        self.t0 = time.time()
+        self.t0, self.m0 = time.time(), time.monotonic()
         self.ctx: dict[str, Any] = {}
 
     def log(self, msg: str) -> None:
@@ -180,7 +184,7 @@ class Rehearsal:
         step = Step(name, started_s=time.time() - self.t0)
         self.steps.append(step)
         self.log(f"step {name} ...")
-        t = time.perf_counter()
+        t, m = time.time(), time.monotonic()
         try:
             fn(step)
             if step.status == "pending":
@@ -189,7 +193,7 @@ class Rehearsal:
             step.error = f"{type(exc).__name__}: {exc}"
             step.detail.setdefault("traceback", traceback.format_exc(limit=6))
             step.status = "fatal" if fatal else "fail"
-        step.wall_s = time.perf_counter() - t
+        step.wall_s, step.active_s = time.time() - t, time.monotonic() - m
         self.log(f"step {name}: {step.status} in {step.wall_s:.1f}s" + (f" ({step.error})" if step.error else ""))
         self._write_report()
         if step.status == "fatal":
@@ -614,7 +618,8 @@ class Rehearsal:
         rep = {"spec": str(self.spec_path), "name": self.ctx.get("name"), "budget": self.budget_name,
                "budget_detail": self.budget, "jobs": self.jobs, "ruleset_id": self.ctx.get("ruleset_id"),
                "selection_rule": SELECTION_RULE, "chosen": self.ctx.get("chosen"),
-               "failure": self.ctx.get("failure"), "total_wall_s": round(total, 1), "first_artifact_s": first,
+               "failure": self.ctx.get("failure"), "total_wall_s": round(total, 1),
+               "total_active_s": round(time.monotonic() - self.m0, 1), "first_artifact_s": first,
                "early_submission_s": early,
                "steps": steps}
         (self.out / "report.json").write_text(json.dumps(rep, indent=1, sort_keys=True, default=str) + "\n")
@@ -707,9 +712,7 @@ def push_fold_feasibility(spec: Any, caps: Any) -> dict[str, Any]:
         reasons.append(f"needs {', '.join(missing)} (dense two-card class matrices and a legal one-action shove)")
     if not caps.standard_priority:
         reasons.append("the numba showdown kernel ranks non-flush categories in hold'em order only")
-    try:
-        import numba  # noqa: F401
-    except ImportError:
+    if importlib.util.find_spec("numba") is None:
         reasons.append("numba is not installed (uv run --group train)")
     reasons.append("the endgame generator samples states at the default 8-seat structure and takes 10-20 "
                    "minutes per mode; the baseline and fallback do not read push/fold tables")
@@ -793,10 +796,17 @@ def render_markdown(rep: Mapping[str, Any]) -> str:
              f"Spec `{rep['spec']}`, budget `{rep['budget']}`, ruleset `{rep.get('ruleset_id')}`, {rep['jobs']} jobs.",
              f"Total wall time {rep['total_wall_s']} s; first artifact at {_fmt(rep.get('first_artifact_s'))} s; "
              f"gated early submission at {_fmt(rep.get('early_submission_s'))} s.",
-             f"Chosen: **{rep.get('chosen')}**." + (f" Failure: {rep['failure']}" if rep.get("failure") else ""), "",
-             "| step | status | wall s | note |", "|---|---|---|---|"]
+             f"Chosen: **{rep.get('chosen')}**." + (f" Failure: {rep['failure']}" if rep.get("failure") else "")]
+    active = rep.get("total_active_s")
+    if active is not None and rep["total_wall_s"] - active >= 1.0:
+        lines.append(f"The host was suspended for {rep['total_wall_s'] - active:.1f} s of that ({active} s active, "
+                     "monotonic clock); the active column excludes it.")
+    if rep.get("timing_note"):
+        lines.append(rep["timing_note"])
+    lines += ["", "| step | status | wall s | active s | note |", "|---|---|---|---|---|"]
     for s in rep["steps"]:
-        lines.append(f"| {s['name']} | {s['status']} | {s['wall_s']:.1f} | {(s['error'] or '').replace('|', '/')[:160]} |")
+        lines.append(f"| {s['name']} | {s['status']} | {s['wall_s']:.1f} | {_fmt(s.get('active_s'), 1)} | "
+                     f"{(s['error'] or '').replace('|', '/')[:160]} |")
     steps = {s["name"]: s for s in rep["steps"]}
     val = steps.get("validation", {}).get("detail", {})
     rows = [(k, v) for k, v in val.items() if isinstance(v, dict) and "mean_difference" in v and "A" in v]
