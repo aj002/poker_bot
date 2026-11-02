@@ -247,6 +247,27 @@ attempts, the controls had 1 CPU-bound timeout in 86,000 decisions. Pooled, nlhe
 (C-test p = 0.48), so a strict gate fails a bot at this workload in a large share of
 50,000-decision runs.
 
+**Bot-caused against the control, headroom and points cost.** Under the current gate
+(ceiling 0.02%, bot-caused C-tested against the matched control, headroom 400/600 µs,
+cold first replay dropped) both bots passed on their first attempt, on a quiet host:
+
+| | nlhe-v2 | blueprint |
+|---|---|---|
+| decisions / tables | 50,118 / 369 | 50,060 / 330 |
+| decide p99 / p99.9 / max | 242 / 301 / 511 µs | 231 / 272 / 648 µs |
+| timeouts (bot-caused / stall-like) | 8 (0 / 8, all `transport`) | 7 (0 / 7: 6 `transport`, 1 `parse`) |
+| control timeouts / decisions | 5 / 12,862 (all `parse`) | 1 / 11,277 |
+| stall C-test p / host ceiling p | 0.95 / 0.77 | 0.50 / 1.00 |
+| points cost per table, measured rate | 0.07 (95% CI -0.07 to 0.21) | -0.04 (-0.20 to 0.11) |
+| points cost per table, 10× rate | 0.20 (-0.25 to 0.65) | 0.03 (-0.36 to 0.42) |
+
+The base is about 19 points per table. An earlier nlhe-v2 run of the same gate, on a
+noisier host (49 timeouts, 0.098%, 4 bot-caused, still passing: ceiling met, bot vs
+control p = 0.36), gave the tightest cost estimate: at 10 times its rate, 1,404 forced
+timeouts cost 0.055 points each (95% CI -0.57 to 0.68). A timeout falls back to a check
+when one is legal, which is often what the bot would do anyway. At the measured rates
+timeouts cost under 0.03 points per table, far below the table-to-table noise.
+
 **GC.** The worker collects and freezes the heap after loading the bot, and packaged
 bots also freeze after loading the variant tables (`gc_mode="freeze"`). The decision
 path keeps no garbage cycles, so the bench sees no collection inside a decision.
