@@ -18,7 +18,10 @@ Steps, in order (``report.json`` records each one's wall time, status and detail
                 the card evaluator against PokerKit's showdown order on random hands,
                 and complete smoke tournaments with the fallback in every seat.
 ``fallback``    package :mod:`strategy.policy.generic` with the variant: the first
-                submittable artifact.
+                artifact, built before any table or search.
+``gate_fallback`` the deployed gate (sandboxed seat, classified timeouts, headroom) for
+                the fallback at the announced structure.
+``submit_early`` the gated fallback as the first submission window (``submission/early``).
 ``tables``      regenerate the postflop equity table, the preflop table where the
                 class count allows it, and decide push/fold feasibility (reasons are
                 recorded; push/fold is not on the baseline's decision path).
@@ -28,11 +31,11 @@ Steps, in order (``report.json`` records each one's wall time, status and detail
 ``validation``  in-process A/B experiments on the validation partition: tuned vs
                 fallback, tuned vs transferred, transferred vs fallback.
 ``select``      :data:`SELECTION_RULE`, declared here before any result exists.
-``gate``        the deployed gate (sandboxed seat, classified timeouts, headroom) for
-                the fallback and for the selected bundle, at the announced structure.
+``gate``        the deployed gate for the selected bundle (the fallback's is reused).
 ``limits``      artifact bytes, resident memory, and that no numpy/numba is loaded.
-``submit``      a deterministic tarball of the selected bundle, the fallback as the
-                rollback, ``SHA256SUMS`` and ``submission.json``.
+``submit``      the final window (``submission/final``): a deterministic tarball of the
+                selected bundle, the fallback as the rollback, ``SHA256SUMS`` and
+                ``submission.json``.
 
 Budgets (:data:`BUDGETS`) trade resolution for wall time; ``smoke`` exists for tests.
 """
@@ -199,6 +202,8 @@ class Rehearsal:
             self._run("load", self.step_load)
             self._run("conformance", self.step_conformance)
             self._run("fallback", self.step_fallback)
+            self._run("gate_fallback", self.step_gate_fallback, fatal=False)
+            self._run("submit_early", self.step_submit_early, fatal=False)
             self._run("tables", self.step_tables, fatal=False)
             self._run("search", self.step_search, fatal=False)
             self._run("package", self.step_package)
@@ -362,6 +367,7 @@ class Rehearsal:
                            structure={"hands_per_level": s["hands_per_level"], "blind_levels": s["blind_levels"],
                                       "payout_points": s["payout_points"]}, **cem)
         root = self.out / "search"
+        step.detail["resumed"] = (root / cfg.run_id / "state.json").exists()
         run_dir = run_search(cfg, root=root, jobs=self.jobs, log=self.log)
         inc = json.loads((run_dir / "incumbent.json").read_text())
         gens = [json.loads(line) for line in (run_dir / "generations.jsonl").read_text().splitlines() if line]
@@ -488,29 +494,48 @@ class Rehearsal:
         self.ctx["selection_order"] = order
         step.detail.update(rule=SELECTION_RULE, order=order, reasons=why)
 
+    def step_gate_fallback(self, step: Step) -> None:
+        if not self.gate_enabled:
+            step.status = "skipped"
+            step.detail["note"] = "gate disabled (--no-gate)"
+            return
+        r = self.ctx.setdefault("gates", {})["fallback"] = self._gate("fallback")
+        step.detail.update(r)
+        if not r["passed"]:
+            step.status = "fail"
+            step.error = "the fallback failed the deployed gate: no safe early submission or rollback"
+
+    def step_submit_early(self, step: Step) -> None:
+        fb = (self.ctx.get("gates") or {}).get("fallback")
+        if fb is None or not fb["passed"]:
+            step.status = "skipped" if fb is None else "fail"
+            step.error = None if fb is None else "the fallback did not pass the gate"
+            step.detail["note"] = "no gated fallback to submit"
+            return
+        step.detail.update(self._write_submission("early", "fallback", None))
+        step.detail["early_submission_s"] = round(time.time() - self.t0, 2)
+
     def step_gate(self, step: Step) -> None:
         if not self.gate_enabled:
             step.status = "skipped"
             step.detail["note"] = "gate disabled (--no-gate); the selection is not deployable as reported"
             self.ctx["chosen"] = self.ctx["selection_order"][0]
             return
-        results: dict[str, Any] = {}
-        fb = self._gate("fallback")
-        results["fallback"] = fb
+        results = self.ctx.setdefault("gates", {})
         chosen = None
         for role in self.ctx["selection_order"]:
-            r = results.get(role) or self._gate(role)
-            results[role] = r
-            if r["passed"]:
+            if role not in results:
+                results[role] = self._gate(role)
+                step.detail[role] = results[role]
+            if results[role]["passed"]:
                 chosen = role
                 break
-        step.detail.update(results)
-        self.ctx["gates"] = results
+        step.detail["reused"] = sorted(set(results) - set(step.detail))
         if chosen is None:
             raise RuntimeError("no candidate passed the deployed gate, including the fallback")
         self.ctx["chosen"] = chosen
         step.detail["chosen"] = chosen
-        if not fb["passed"]:
+        if not results["fallback"]["passed"]:
             step.status = "fail"
             step.error = "the fallback failed the deployed gate (no safe rollback)"
 
@@ -549,13 +574,18 @@ class Rehearsal:
 
     def step_submit(self, step: Step) -> None:
         chosen = self.ctx["chosen"]
-        sub = self.out / "submission"
+        step.detail.update(self._write_submission("final", chosen, "fallback"))
+
+    def _write_submission(self, window: str, role: str, rollback: str | None) -> dict[str, Any]:
+        sub = self.out / "submission" / window
         if sub.exists():
             for p in sub.iterdir():
                 p.unlink()
         files: dict[str, Any] = {}
-        for role, kind in ((chosen, "submission"), ("fallback", "rollback")):
-            if kind == "rollback" and role == chosen:
+        for role, kind in ((role, "submission"), (rollback, "rollback")):
+            if role is None:
+                continue
+            if kind == "rollback" and role == files["submission"]["role"]:
                 files["rollback"] = files["submission"]
                 continue
             path = self.ctx["bundles"][role]
@@ -567,11 +597,12 @@ class Rehearsal:
                            "vector_hash": man.get("vector_hash"), "commit": man.get("commit")}
         sums = sorted({(f["sha256"], f["file"]) for f in files.values()}, key=lambda x: x[1])
         (sub / "SHA256SUMS").write_text("".join(f"{h}  {n}\n" for h, n in sums), encoding="ascii")
-        meta = {"name": self.ctx["name"], "ruleset_id": self.ctx["ruleset_id"],
+        meta = {"name": self.ctx["name"], "window": window, "ruleset_id": self.ctx["ruleset_id"],
                 "variant_hash": self.ctx["spec"].variant_hash(), "config_hash": self.ctx["config"].config_hash(),
+                "gate": {k: (self.ctx.get("gates") or {}).get(v["role"], {}).get("passed") for k, v in files.items()},
                 **files}
         (sub / "submission.json").write_text(json.dumps(meta, indent=1, sort_keys=True) + "\n", encoding="ascii")
-        step.detail.update(meta, directory=str(sub))
+        return {**meta, "directory": str(sub)}
 
     # ---------------------------------------------------------------- report
 
@@ -579,10 +610,12 @@ class Rehearsal:
         steps = [s.as_dict() for s in self.steps]
         total = time.time() - self.t0
         first = next((s.detail.get("first_artifact_s") for s in self.steps if s.name == "fallback"), None)
+        early = next((s.detail.get("early_submission_s") for s in self.steps if s.name == "submit_early"), None)
         rep = {"spec": str(self.spec_path), "name": self.ctx.get("name"), "budget": self.budget_name,
                "budget_detail": self.budget, "jobs": self.jobs, "ruleset_id": self.ctx.get("ruleset_id"),
                "selection_rule": SELECTION_RULE, "chosen": self.ctx.get("chosen"),
                "failure": self.ctx.get("failure"), "total_wall_s": round(total, 1), "first_artifact_s": first,
+               "early_submission_s": early,
                "steps": steps}
         (self.out / "report.json").write_text(json.dumps(rep, indent=1, sort_keys=True, default=str) + "\n")
         (self.out / "report.md").write_text(render_markdown(rep))
@@ -758,7 +791,8 @@ def _fmt(x: Any, nd: int = 2) -> str:
 def render_markdown(rep: Mapping[str, Any]) -> str:
     lines = [f"# Rehearsal: {rep.get('name')}", "",
              f"Spec `{rep['spec']}`, budget `{rep['budget']}`, ruleset `{rep.get('ruleset_id')}`, {rep['jobs']} jobs.",
-             f"Total wall time {rep['total_wall_s']} s; first submittable artifact at {_fmt(rep.get('first_artifact_s'))} s.",
+             f"Total wall time {rep['total_wall_s']} s; first artifact at {_fmt(rep.get('first_artifact_s'))} s; "
+             f"gated early submission at {_fmt(rep.get('early_submission_s'))} s.",
              f"Chosen: **{rep.get('chosen')}**." + (f" Failure: {rep['failure']}" if rep.get("failure") else ""), "",
              "| step | status | wall s | note |", "|---|---|---|---|"]
     for s in rep["steps"]:
@@ -773,8 +807,11 @@ def render_markdown(rep: Mapping[str, Any]) -> str:
             ci = v.get("ci95") or [None, None]
             lines.append(f"| {k} | {v['blocks']} | {_fmt(v['mean_points_A'])} | {_fmt(v['mean_points_B'])} | "
                          f"{_fmt(v['fair_share'])} | {_fmt(v['mean_difference'])} | [{_fmt(ci[0])}, {_fmt(ci[1])}] |")
-    gate = steps.get("gate", {}).get("detail", {})
-    grows = [(k, v) for k, v in gate.items() if isinstance(v, dict) and "passed" in v]
+    grows = []
+    if steps.get("gate_fallback", {}).get("detail", {}).get("passed") is not None:
+        grows.append(("fallback", steps["gate_fallback"]["detail"]))
+    grows += [(k, v) for k, v in steps.get("gate", {}).get("detail", {}).items()
+              if isinstance(v, dict) and "passed" in v]
     if grows:
         lines += ["", "Deployed gate:", "", "| bundle | passed | decisions | p99 us | p99.9 us | timeouts | internal fb | failed checks |",
                   "|---|---|---|---|---|---|---|---|"]

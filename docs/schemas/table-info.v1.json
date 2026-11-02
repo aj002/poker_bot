@@ -27,7 +27,8 @@
       "enum": [
         "practice_nlhe",
         "uncertainty_shortdeck",
-        "uncertainty_plo4"
+        "uncertainty_plo4",
+        "reveal_variant"
       ],
       "title": "Ruleset Id",
       "type": "string"

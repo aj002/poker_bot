@@ -21,9 +21,17 @@ where the engine corrects PokerKit.
 | `practice_nlhe` | No-limit Texas Hold'em |
 | `uncertainty_shortdeck` | No-limit short-deck Hold'em (6–A, PokerKit's native hand order) |
 | `uncertainty_plo4` | Pot-limit Omaha, four hole cards |
+| `reveal_variant` | The build-day slot: whatever `$ARENA_REVEAL_VARIANT/variant.json` describes (see below) |
 
 Tables seat 2–8 players. They use a dead button, escalating blinds, no ante, and a hand
 cap (default 200). If the cap is reached, the survivors are scored by ICM.
+
+`reveal_variant` is for a variant announced only on build day. The engine builds it at
+run time from a variant description (deck ranks, 2–5 hole cards, best-five or
+exactly-two-hole showdown, any order of the nine hand categories, the lowest straight,
+no-limit or pot-limit) out of PokerKit's own parts, and rejects anything it cannot express
+before a hand is dealt (`arena/rules/reveal.py`). Practice registries, sweeps and
+fingerprints still iterate only the three practice rulesets.
 
 ## Layout
 
@@ -49,6 +57,10 @@ strategy/endgame/  Stage 3 push/fold subgames over the full stack vector, class-
 strategy/value/    tournament rollouts and the continuation value V(s) (ICM + fitted residual)
 strategy/blueprint/ Stage 4 abstracted point-aware MCCFR blueprint for NLHE: abstraction, numba
                    trainer, policy pack, deployed bot (no numba), responses and audits (README.md)
+strategy/policy/   Stage 1 baseline policy (runtime.py, bundles, deployed gate) and generic.py, the
+                   variant-agnostic fallback bot
+strategy/rehearsal/ Stage 9 build-day pipeline: announcement -> conformance -> tables -> CEM re-tune
+                   -> validation -> gate -> submission, every step timed (heldback/: rehearsal specs)
 strategy/data/     pinned Pluribus PHH download, import through the arena engine, study packs,
                    bot-vs-Pluribus agreement diagnostic (fixtures/: 24 upstream hands)
 examples/          template_bot.py: copy it to start a bot
@@ -150,6 +162,14 @@ confidence-capped response experts to the blueprint, within a per-table loss bud
 ```bash
 make exploit-bundles exploit-validate   # the pre-registered paired validation runs
 make gate-exploit                       # the sandboxed deployed-path gate
+```
+
+Build day (Stage 9, [`docs/build-day-playbook.md`](docs/build-day-playbook.md)): write the
+announced variant and structure into a spec like `strategy/rehearsal/heldback/*.json`, then
+
+```bash
+make rehearse REVEAL_SPEC=path/to/announcement.json   # timed pipeline -> artifacts/rehearsal/<name>-fast/
+make gate-fallback FALLBACK_RULESET=uncertainty_plo4  # the variant-agnostic fallback through the deployed gate
 ```
 
 The CLI plays seeded headless hands and tournaments with simple built-in policies

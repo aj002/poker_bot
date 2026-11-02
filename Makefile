@@ -214,6 +214,29 @@ bench-policy: package-baseline
 	$(UV) run python -m strategy.policy.bench --bundle artifacts/bots/baseline-candidate --tables 60 \
 		--out artifacts/gate/baseline-bench.json
 
+# Build day (Stage 9; docs/build-day-playbook.md). REVEAL_SPEC is the announcement turned into a
+# variant + structure file; runs land in artifacts/rehearsal/<name>-<budget>/ (report.md, submission/).
+.PHONY: rehearse rehearse-heldback package-fallback gate-fallback
+REVEAL_SPEC ?= strategy/rehearsal/heldback/plo5-8max.json
+REHEARSAL_BUDGET ?= fast
+
+rehearse:
+	$(UV) run python -m strategy.rehearsal run $(REVEAL_SPEC) --budget $(REHEARSAL_BUDGET) --jobs $(SEARCH_JOBS)
+
+# Every held-back announcement in turn (about an hour each at the fast budget; run on an idle machine).
+rehearse-heldback:
+	for s in strategy/rehearsal/heldback/*.json; do \
+		$(UV) run python -m strategy.rehearsal run $$s --budget $(REHEARSAL_BUDGET) --jobs $(SEARCH_JOBS); done
+
+# The variant-agnostic fallback on a practice ruleset (FALLBACK_RULESET) through the deployed gate.
+FALLBACK_RULESET ?= practice_nlhe
+package-fallback:
+	$(UV) run python -m strategy.policy.package --kind fallback --out artifacts/bots/fallback
+
+gate-fallback: package-fallback
+	$(UV) run python -m strategy.policy.gate --bundle artifacts/bots/fallback --ruleset $(FALLBACK_RULESET) \
+		--decisions $(GATE_DECISIONS) --cost-tables 0 --out artifacts/gate/fallback-$(FALLBACK_RULESET).json
+
 # Stage 4 MCCFR blueprint (docs: strategy/blueprint/README.md). Training is offline and needs
 # numba (--group train); the deployed bot and the evaluation targets do not.
 .PHONY: blueprint-states blueprint-train blueprint-pack blueprint-bundles blueprint-exploit blueprint-response \
