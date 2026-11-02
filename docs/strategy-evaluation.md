@@ -137,13 +137,16 @@ never treated as independent.
 - **Classified timeout gate** (sandboxed runs, `strategy.eval.stalls`): each arm
   plays a control table (the control in every seat) before its first table and after
   every `gates.control_every` (4) tables. The control is a workload-matched burner
-  (`strategy.eval.burn`): a bot that spends a fixed thread-CPU time per decision and
-  then checks or calls. Before each arm, one sandboxed probe table on its own seed
-  (`<cell seed>|calibration`, never counted) measures the candidate's median decide
-  wall time, and the burn is that median minus the burner's 15 µs base cost, so the
-  control meets host events at the candidate's rate per decision.
-  `gates.control_burn_ns` fixes the burn instead. The calling station is the
-  fallback when the probe sees no candidate decision. Every timeout, candidate and
+  (`strategy.eval.burn`): a bot that runs a fixed number of loop iterations per
+  decision and then checks or calls. Before each arm, one sandboxed probe table on
+  its own seed (`<cell seed>|calibration`, never counted) measures the candidate's
+  median decide wall time. Two burner probe tables (0 and 3,000 iterations) give the
+  burner's base cost (about 15 µs) and cost per iteration (about 55 ns), and the
+  iteration count is set so the burner's median matches the candidate's. The work is
+  fixed, not the time, so host stalls and host slowdowns stretch the burner's decides
+  as they stretch the candidate's. `gates.control_iterations` fixes the count
+  instead. The calling station is the fallback when the probe sees no candidate
+  decision. Every timeout, candidate and
   control alike, is classified, first matching rule first. The *allowance* is the
   budget minus the entrant's median harness overhead (median end-to-end minus median
   decide wall, which is typical parse plus transport):
@@ -154,9 +157,9 @@ never treated as independent.
     fresh worker) has a median of at least half the budget or misses even its 100 ms
     budget;
   - *stall-like*: parse plus decide fitted the allowance (`transport`); the decide
-    was off-CPU for over a tenth of its wall time (`descheduled`); the decide fitted
-    but the harness's parse did not (`parse`); or, with no reply timings, the replay
-    median is under half the budget (`replay_fast`);
+    or the parse was off-CPU for over a tenth of its wall time (`descheduled`); the
+    decide fitted but the harness's parse did not (`parse`); or, with no reply
+    timings, the replay median is under half the budget (`replay_fast`);
   - *unclassified*: none of that evidence. These count with the stall-like ones.
 
   On this VM a host stall is mostly charged to the running thread's CPU clock, so

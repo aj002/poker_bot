@@ -183,12 +183,15 @@ and committed state are kept as well, so `replay_decision` can replay the exact
 decision in a fresh worker. `run_benchmark(control=..., control_every=k)` interleaves
 tables seated entirely with a control bot, so a run measures its own stall rate.
 
-The stalls are charged to thread CPU time. A burner that spends exactly 160 µs of
-CPU per decision (6 sandboxed seats, 86,394 decisions) timed out 19 times, and
-every late reply showed CPU within 10% of wall. One decide reported 1.74 ms of wall
-and 1.74 ms of CPU for a 160 µs loop, and two parses reported 1.0–1.2 ms of CPU
-against a usual 130 µs. CPU ≈ wall therefore does not separate a host stall from bot
-computation here.
+The stalls are charged to thread CPU time. A probe bot that spends exactly 160 µs
+of thread CPU time per decision (6 sandboxed seats, 86,394 decisions) timed out 19
+times, and every late reply showed CPU within 10% of wall. One decide reported
+1.74 ms of wall and 1.74 ms of CPU for a 160 µs loop, and two parses reported
+1.0–1.2 ms of CPU against a usual 130 µs. CPU ≈ wall therefore does not separate a
+host stall from bot computation here. The host also slows the CPU without stopping
+it: in gate control records the harness parse (fixed work) ran 3–7 times its usual
+time with CPU ≈ wall. A bot that stops after a fixed CPU time is immune to that, so
+the control burner does a fixed amount of work instead.
 
 `strategy.eval.stalls` builds the gate on top of these hooks, with a workload-matched
 burner (`strategy.eval.burn`) as the control:

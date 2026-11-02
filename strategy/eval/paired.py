@@ -18,7 +18,6 @@ Unit
 from __future__ import annotations
 
 import shutil
-import statistics
 from array import array
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
@@ -175,21 +174,20 @@ def _attempt_row(n: int, out_dir: Path, run: ArmRun) -> dict[str, Any]:
 
 
 def matched_control(cell: Cell, policy: ResolvedPolicy, *, out_dir: Path, budget_ns: int | None = None,
-                    burn_ns: int | None = None) -> tuple[ResolvedPolicy, dict[str, Any]]:
+                    iterations: int | None = None) -> tuple[ResolvedPolicy, dict[str, Any]]:
     """The workload-matched burner control for ``policy`` in ``cell``
-    (:mod:`strategy.eval.burn`), calibrated on one sandboxed probe table unless
-    ``burn_ns`` is given; the calling station when the probe saw no candidate decision."""
-    info: dict[str, Any] = {"burn_ns": burn_ns, "calibration_decisions": 0, "calibration_median_ns": None}
-    if burn_ns is None:
+    (:mod:`strategy.eval.burn`): the candidate's median decide time over one
+    sandboxed probe table, matched by two burner probe tables, unless ``iterations``
+    is given; the calling station when the probe saw no candidate decision."""
+    info: dict[str, Any] | None = {"iterations": iterations}
+    if iterations is None:
         entrants = [policy.entrant("sandbox")] + [resolve_policy(o.policy).entrant("sandbox")
                                                   for o in cell.lineup.opponents]
         walls = burn.calibrate(cell.config, entrants, seed=cell.seed, budget_ns=budget_ns)
-        burn_ns = burn.matched_burn_ns(walls)
-        info |= {"burn_ns": burn_ns, "calibration_decisions": len(walls),
-                 "calibration_median_ns": int(statistics.median(walls)) if walls else None}
-    if burn_ns is None:
-        return resolve_policy(stalls.CONTROL_POLICY), {**info, "policy": stalls.CONTROL_POLICY}
-    control = burn.burn_bundle(out_dir / "cpu_burner", burn_ns)
+        info = burn.matched_iterations(walls, ruleset_id=cell.ruleset_id, seed=cell.seed)
+    if info is None:
+        return resolve_policy(stalls.CONTROL_POLICY), {"policy": stalls.CONTROL_POLICY, "iterations": None}
+    control = burn.burn_bundle(out_dir / "cpu_burner", info["iterations"])
     return control, {**info, "policy": control.name, "artifact_sha256": control.artifact_sha256}
 
 
@@ -204,7 +202,7 @@ def run_arm_gated(cell: Cell, arm: Arm, policy: ResolvedPolicy, *, out_dir: Path
     control, calibration = None, None
     if kwargs.get("isolation") == "sandbox" and control_every > 0:
         control, calibration = matched_control(cell, policy, out_dir=out_dir, budget_ns=kwargs.get("budget_ns"),
-                                               burn_ns=g.get("control_burn_ns"))
+                                               iterations=g.get("control_iterations"))
     attempts: list[ArmRun] = []
     rows: list[dict[str, Any]] = []
     while True:

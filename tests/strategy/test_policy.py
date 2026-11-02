@@ -15,7 +15,6 @@ import pytest
 from arena.agents.sdk import bot_info, decode_state, encode_state
 from arena.agents.worker import InProcessSeat, play_table
 from arena.domain.models import RULESET_IDS, TournamentConfig
-from strategy.eval.burn import BURNER_BASE_NS
 from strategy.policy.baseline import SPACE
 from strategy.policy.fallback import fallback_action, is_legal, legalize
 from strategy.policy.package import RUNTIME_FILES, build_bundle
@@ -255,17 +254,18 @@ def test_gate_fails_on_bot_caused_timeouts_and_reruns_stalls(monkeypatch):
     monkeypatch.setattr(gate, "_attempt", attempt)
     monkeypatch.setattr(gate, "load_population", lambda: None)
     monkeypatch.setattr(gate, "calibrate", lambda *_a, **_k: [300_000] * 9 + [5_000_000])
+    monkeypatch.setattr(gate, "matched_iterations", lambda walls, **_k: {"iterations": len(walls) * 100,
+                                                                          "target_median_ns": 300_000})
     script[:] = [[slow]]
     rep = gate.run_gate(Path("x"), min_decisions=100, log=lambda s: None)
     assert not rep["passed"] and rep["selection"]["action"] == "fail" and len(rep["attempts"]) == 1
     assert rep["timeout_classes"]["bot_caused"] == 500 and not rep["checks"]["bot_caused_timeouts"]
-    assert rep["control"]["policy"] == "cpu_burner" and rep["control"]["calibration_median_ns"] == 300_000
-    assert rep["control"]["burn_ns"] == 300_000 - BURNER_BASE_NS
+    assert rep["control"]["policy"] == "cpu_burner" and rep["control"]["iterations"] == 1000
     script[:] = [[computing]]
-    rep = gate.run_gate(Path("x"), min_decisions=100, control_burn_ns=100_000, log=lambda s: None)
+    rep = gate.run_gate(Path("x"), min_decisions=100, control_iterations=2_000, log=lambda s: None)
     assert not rep["passed"] and rep["timeout_rules"] == {"cpu_bound": 500}
-    assert rep["control"] == {**rep["control"], "burn_ns": 100_000, "calibration_decisions": 0}
+    assert rep["control"]["iterations"] == 2_000 and "target_median_ns" not in rep["control"]
     script[:] = [[stall] * 2, [stall] * 2, []]
-    rep = gate.run_gate(Path("x"), min_decisions=100, control_burn_ns=100_000, log=lambda s: None)
+    rep = gate.run_gate(Path("x"), min_decisions=100, control_iterations=2_000, log=lambda s: None)
     assert rep["passed"] and [a["verdict"] for a in rep["attempts"]] == ["stall_excess", "stall_excess", "pass"]
     assert rep["selection"]["used"] == 2

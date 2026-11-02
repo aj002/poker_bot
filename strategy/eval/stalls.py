@@ -23,8 +23,8 @@ Classes (:func:`classify`, first matching rule wins)
     ``stall_like``
         * transport: ``parse + decide`` fitted in the allowance; the time was lost
           outside the worker.
-        * descheduled: the decide's CPU time is under 0.9 of its wall time; the
-          thread was off-CPU for the difference.
+        * descheduled: the decide's or the parse's CPU time is under 0.9 of its
+          wall time; the thread was off-CPU for the difference.
         * parse: the decide fitted in the allowance but ``parse + decide`` did not;
           the harness's own decode was slow.
         * replay_fast: no reply timings (unresponsive), and the replay median is
@@ -42,10 +42,11 @@ Classes (:func:`classify`, first matching rule wins)
     ``bot_caused`` timeouts are host events misattributed by these rules.
 
 Control
-    A workload-matched burner (:mod:`strategy.eval.burn`) that spends the candidate's
-    median decide time in CPU per decision, so it meets host events at the same rate
-    per decision. The calling station (about 20 us per decision) is the fallback
-    when no calibration is possible.
+    A workload-matched burner (:mod:`strategy.eval.burn`) that does a fixed amount of
+    CPU work per decision, calibrated to the candidate's median decide time, so host
+    stalls and slowdowns stretch its decides as they stretch the candidate's. The
+    calling station (about 20 us per decision) is the fallback when no calibration
+    is possible.
 
 Gates (:func:`assess`)
     1. Bot-caused timeouts are strict: more than ``max_bot_timeouts`` (default 0)
@@ -113,10 +114,13 @@ def _int(row: Mapping[str, Any], key: str) -> int | None:
     return v if isinstance(v, int) else None
 
 
-def cpu_bound(record: Mapping[str, Any]) -> bool | None:
-    """Whether the decide's thread CPU time is at least ``CPU_WALL_RATIO`` of its
-    wall time; None without both."""
-    wall, cpu = _int(record, "worker_wall_ns"), _int(record, "worker_cpu_ns")
+_TIMES = {"decide": ("worker_wall_ns", "worker_cpu_ns"), "parse": ("worker_parse_ns", "worker_parse_cpu_ns")}
+
+
+def cpu_bound(record: Mapping[str, Any], part: str = "decide") -> bool | None:
+    """Whether the decide's (or the parse's) thread CPU time is at least
+    ``CPU_WALL_RATIO`` of its wall time; None without both."""
+    wall, cpu = (_int(record, k) for k in _TIMES[part])
     if wall is None or cpu is None:
         return None
     return cpu >= CPU_WALL_RATIO * wall
@@ -140,7 +144,7 @@ def classify(record: Mapping[str, Any], budget_ns: int, overhead: int | None) ->
     if timed and own is not None:
         if own <= allowance:
             return "stall_like", "transport"
-        if bound is False:
+        if bound is False or cpu_bound(record, "parse") is False:
             return "stall_like", "descheduled"
         if bound:
             return "stall_like", "parse"

@@ -57,6 +57,9 @@ def test_classify_uses_decide_cpu_against_wall():
     # The decide fitted; the harness's parse did not.
     slow_parse = rec(worker_parse_ns=850_000, worker_wall_ns=150_000, worker_cpu_ns=149_000)
     assert classify(slow_parse, BUDGET, 220_000) == ("stall_like", "parse")
+    # A parse that was off-CPU is descheduled, not a slow parse.
+    assert classify({**slow_parse, "worker_parse_cpu_ns": 200_000}, BUDGET, 220_000) == ("stall_like", "descheduled")
+    assert classify({**slow_parse, "worker_parse_cpu_ns": 840_000}, BUDGET, 220_000) == ("stall_like", "parse")
     # CPU ~ wall inside the allowance is transport.
     assert classify(rec(worker_cpu_ns=49_000), BUDGET, 220_000) == ("stall_like", "transport")
     assert stalls.cpu_bound(rec()) is None and stalls.cpu_bound(computing) is True
@@ -218,16 +221,17 @@ def test_sandboxed_arms_classify_against_an_interleaved_control(tmp_path):
     assert classes["B"]["strict"] and not classes["A"]["strict"]
     calibration = cell["control_calibration"]
     assert calibration["policy"] == "cpu_burner" and calibration["calibration_decisions"] > 0
-    assert calibration["burn_ns"] == max(0, calibration["calibration_median_ns"] - burn.BURNER_BASE_NS)
+    assert calibration["iterations"] >= 0 and calibration["ns_per_iteration"] > 0
 
 
 @needs_sandbox
-def test_burner_spends_its_burn_time_per_decision(tmp_path):
+def test_burner_is_matched_to_a_target_decide_time(tmp_path):
     from arena.domain.models import TournamentConfig
 
+    info = burn.matched_iterations([400_000, 100_000, 250_000], ruleset_id="practice_nlhe", seed="pytest-burner")
+    assert info["target_median_ns"] == 250_000 and info["iterations"] > 0
     config = TournamentConfig(ruleset_id="practice_nlhe", initial_player_count=3, starting_stack=300, hand_cap=6)
-    policy = burn.burn_bundle(tmp_path / "burner", 200_000)
-    walls = burn.calibrate(config, [policy.entrant("sandbox")] * 3, seed="pytest-burner")
-    assert walls and 200_000 <= statistics.median(walls) < 200_000 + 4 * burn.BURNER_BASE_NS
-    assert burn.matched_burn_ns([300_000, 100_000, 290_000]) == 290_000 - burn.BURNER_BASE_NS
-    assert burn.matched_burn_ns([]) is None and burn.matched_burn_ns([5_000]) == 0
+    policy = burn.burn_bundle(tmp_path / "burner", info["iterations"])
+    median = statistics.median(burn.calibrate(config, [policy.entrant("sandbox")] * 3, seed="pytest-burner-check"))
+    assert 0.6 * 250_000 < median < 1.6 * 250_000
+    assert burn.matched_iterations([], ruleset_id="practice_nlhe", seed="x") is None

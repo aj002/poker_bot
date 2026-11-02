@@ -153,10 +153,11 @@ The packaged bundle is staged and played by `arena.agents.worker.WorkerSeat`, as
 sandboxed tournament. Only the candidate's seat is sandboxed; opponents run
 in-process. Every candidate table is followed by a **control table**: the same
 seed, seat and opponents, with a workload-matched burner (`strategy.eval.burn`)
-sandboxed in the candidate's seat. The burner spends a fixed CPU time per decision,
-calibrated before the first attempt to the candidate's median decide time over 2
-tasks that no attempt plays (`--control-burn-us` fixes it). The control measures
-the host's stall rate at the candidate's workload while the gate runs.
+sandboxed in the candidate's seat. The burner does a fixed amount of CPU work per
+decision, calibrated before the first attempt so its median decide time matches the
+candidate's over 2 tasks that no attempt plays (`--control-iterations` fixes it).
+The control measures the host's stall rate at the candidate's workload while the
+gate runs.
 
 Each timeout, candidate and control alike, is classified (`strategy.eval.stalls`,
 described in [strategy-evaluation.md](strategy-evaluation.md)):
