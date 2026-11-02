@@ -1,0 +1,42 @@
+{
+ "practice_nlhe:default": {
+  "config_hash": "0a2974f95c78ce91d054e491910cf098ec3d88176bc8a2d289e7ce98e98d186c",
+  "conformance": "ae7d16c85a2b28a2a8d8ca789bfc32bf2cc1d07e9fe75e3510ecef8e91e2761e",
+  "event_logs": "b2e2ef876fafe11f2e27871921e7ae047ac4a72e34de69d16f0b436de301bf26",
+  "observations": "6f9e2ed0b73de0944483ea71c9105840dba9eb396f09d742528e87432f09944d",
+  "phh": "378001a078b65dfc36a2a639d8fa012d20afdff123994dda8bca23084b0f2651",
+  "rules_hash": "62fcb3e938ef6da1f7d40e14ea0470eae9e470ff4e4abda1c63353daf136ec2b"
+ },
+ "reveal_variant:plo5-8max": {
+  "config_hash": "986eed0bc004364fb942b1477a69debff424311e93bdb754eed02a91c294eeb3",
+  "conformance": "ad9918866be626cb8ed416b46460bd9a144c891df95309fefae1a9784a16c860",
+  "event_logs": "2bfec1932d501174e4d04e25190ccaf1e52883b0b46daa59f29da38503ae3c3b",
+  "observations": "27b9a0103602d4416bcc33982554536847d70e101184d686aa129f9d0a6d617b",
+  "phh": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "rules_hash": "0ecc82d9a9af4cbe0744369edfa9114ffba2ee35440b8db4b15a2edc8e40d125"
+ },
+ "reveal_variant:shortdeck-trips-6max-turbo": {
+  "config_hash": "68c19bc7e8d86e4fc59263fa1bf59dba5219cd908a162da3a62d9c780295e4ca",
+  "conformance": "6395ed64e69b373c9a58b39f5fbb1dcf08a72a6e541d5e70d121f2160ef05650",
+  "event_logs": "7d8ad00527dc989c9fd07f675740ccfbd6a7faa36c00aeb09cdea9b359fde354",
+  "observations": "3b74f792774b1986aa82659341abfd977ae41921e53070d553dcbe567ce3ebb1",
+  "phh": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "rules_hash": "a73bb2fc2c462f47ecb06353847d2232fae7b645839ae2174e7d77c759215d61"
+ },
+ "uncertainty_plo4:default": {
+  "config_hash": "63965fc71a558f65ec7b33412e09163dce50b9dc252facbafe879c154d30c00d",
+  "conformance": "142026d78f496061cd8145b0f4b7b66e20ffef3e62c2ccd16acfa626840449a7",
+  "event_logs": "2fcc1c21d2aae74ae688a8b905368c4fb7ea08fb34c6595d0bfd8445a2049d86",
+  "observations": "f446a912c17f2af28a82de1cbcd542d2ca5984f3de7fb82ec9b6c5fe9e778c91",
+  "phh": "f39a4a1c46161b2b0e1872cd5e70c72893269ac3a0cdd7a9862a305eaa2da779",
+  "rules_hash": "16a2bf0990540efc1ab8278e7a734edfcabb515cd7cb1dd8b7796f5812320ad3"
+ },
+ "uncertainty_shortdeck:default": {
+  "config_hash": "ecbaab51e750b81180d1950479cc52ecf981093b562b6e83497835ff210db326",
+  "conformance": "afcd16ac80549ca8b64459186bde0a24b754fbb666cf052a4fe17bcb035cad95",
+  "event_logs": "8edfac625c19c4e7617f0a8941778622744447db0e90a7b23c7c8d97dade069e",
+  "observations": "e2614e4a1093f99ab417f22e6b4a023c26978e90e5188bd9946eea2f36e2a6be",
+  "phh": "4f19ec12c4697618c245aa9d6b996b7681c0e45e0aecdf24c924874d6b1fb704",
+  "rules_hash": "d1897b723afb05705a3ea30cfe3d8ad358b4e706149f523f3878200467ec9a97"
+ }
+}
