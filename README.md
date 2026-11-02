@@ -47,6 +47,8 @@ strategy/games/    Stage 2 toy games with analytic solutions (Kuhn, Leduc, AKQ, 
 strategy/endgame/  Stage 3 push/fold subgames over the full stack vector, class-vector CFR+ with
                    exact best responses, limp/min-raise gaps, table lookup, push/fold bots (bots/)
 strategy/value/    tournament rollouts and the continuation value V(s) (ICM + fitted residual)
+strategy/blueprint/ Stage 4 abstracted point-aware MCCFR blueprint for NLHE: abstraction, numba
+                   trainer, policy pack, deployed bot (no numba), responses and audits (README.md)
 strategy/data/     pinned Pluribus PHH download, import through the arena engine, study packs,
                    bot-vs-Pluribus agreement diagnostic (fixtures/: 24 upstream hands)
 examples/          template_bot.py: copy it to start a bot
@@ -111,6 +113,19 @@ make value-rollouts value-fit  # rollouts and the fitted continuation value
 make lab-endgame       # paired SNG experiments: point-aware vs chip-EV, chart and no layer
 make tables-response tables-exploit  # population response curves (train partition) and tables responding to them
 make lab-response      # the pre-registered response-vs-equilibrium comparisons (docs/endgame-response-preregistration.md)
+```
+
+The Stage 4 blueprint (`strategy/blueprint/README.md`) trains with numba and deploys
+as a numba-free bot over a committed 4.4 MB pack
+(`strategy/tables/data/blueprint-practice_nlhe.npz`). Its bots are
+`strategy/blueprint/bots/blueprint.py` (point-aware push/fold leaf),
+`blueprint_capped.py`, `blueprint_chips.py` and `blueprint_noleaf.py`:
+
+```bash
+make blueprint-train      # BP_HOURS=4 of ES-MCCFR; resumes from the run directory's checkpoint
+make blueprint-pack blueprint-bundles  # pack and self-contained submission bundles
+make blueprint-exploit blueprint-response blueprint-audit  # HU exploitability, approximate responses, boundary audit
+make lab-blueprint        # paired points evaluations on the validation population, then a sandbox smoke
 ```
 
 The CLI plays seeded headless hands and tournaments with simple built-in policies

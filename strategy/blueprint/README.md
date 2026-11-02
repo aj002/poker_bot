@@ -60,9 +60,16 @@ and a resumed run replays the same deal stream.
 
 The pack keeps the average strategy as uint8 rows over four back-off levels (the
 trained key, then pooling pressure, acted/initiative and depth), dropping rows with
-little reach. Lookup is a binary search per level; the bot warms its caches at
-load. Inside the push/fold range the point-aware endgame tables decide, as in the
-Stage 3 bot.
+little reach. Lookup is a binary search per level. Inside the push/fold range a
+Stage 3 table decides first: point-aware (`bots/blueprint.py`), confidence-capped
+population responses (`blueprint_capped.py`), chip-EV (`blueprint_chips.py`) or none
+(`blueprint_noleaf.py`).
+
+The 1 ms deadline is end to end, and a sandboxed worker restored after a restart or
+replaying a timeout skips `initial_state`. So the constructor loads the pack and
+tables and replays 48 recorded observations (`data/warm-practice_nlhe.json.gz`,
+rewritten by `python -m strategy.blueprint.package --write-warm`) three times. It
+touches only memo caches of pure functions, so play is unchanged.
 
 ## Rebuilding
 
@@ -70,7 +77,7 @@ Stage 3 bot.
 make blueprint-states     # start-state pool (training partition)
 make blueprint-train      # BP_HOURS=4; resumes when the run directory exists
 make blueprint-pack       # final average strategy -> strategy/tables/data/blueprint-practice_nlhe.npz
-make blueprint-bundles    # final, final-noleaf and milestone bundles under artifacts/blueprint/bundles
+make blueprint-bundles    # final, final-capped, final-noleaf and milestone bundles under artifacts/blueprint/bundles
 make blueprint-exploit    # heads-up exploitability by abstraction and variant
 make blueprint-response   # approximate best responses to the milestone and final packs
 make blueprint-audit      # unabstracted boundary audit of the final pack
