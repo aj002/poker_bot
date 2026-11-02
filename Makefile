@@ -266,3 +266,41 @@ lab-blueprint:
 		blueprint-vs-style-weak-tight; do \
 		$(UV) run python -m strategy.cli experiment $$s $(LAB_JOBS_FLAG) || exit 1; done
 	$(UV) run python -m strategy.cli experiment blueprint-sandbox-smoke --jobs 1
+
+# Opponent exploitation (Stage 6 / M7; strategy/exploit/README.md). Training partition only up to the
+# pack; exploit-validate runs the pre-registered specs (docs/opponent-exploitation-preregistration.md).
+.PHONY: exploit-collect exploit-models exploit-calibrate exploit-experts exploit-pack exploit-bundles \
+	exploit-validate
+EX = artifacts/exploit
+EX_PACK = strategy/tables/data/exploit-practice_nlhe.npz
+EX_EXPERTS = --archetype station --archetype nit --archetype maniac --archetype limper --archetype regular \
+	--archetype population
+EX_JOBS ?= 7
+
+exploit-collect:
+	$(UV) run python -m strategy.exploit.collect --tables 3000 --jobs $(EX_JOBS) --out $(EX)/collect-train.npz
+
+exploit-models:
+	$(UV) run python -m strategy.exploit.models --data $(EX)/collect-train.npz --out $(EX)/models
+
+exploit-calibrate:
+	$(UV) run python -m strategy.exploit.calibrate --data $(EX)/collect-train.npz --models $(EX)/models \
+		--out $(EX)/calibration.json
+
+exploit-experts:
+	$(UV) run $(TRAIN) python -m strategy.exploit.experts deals --pairs 3000000 --seed 910 --out $(EX)/deals-train.npz
+	$(UV) run $(TRAIN) python -m strategy.exploit.experts deals --pairs 100000 --seed 911 --out $(EX)/deals-eval.npz
+	$(UV) run $(TRAIN) python -m strategy.exploit.experts train $(EX_EXPERTS) --p 0.5 \
+		--all-archetypes station nit maniac limper regular --pairs 2000000 --deals $(EX)/deals-train.npz \
+		--eval-deals $(EX)/deals-eval.npz --models $(EX)/models --threads $(EX_JOBS) --out $(EX)/experts
+
+exploit-pack:
+	$(UV) run python -m strategy.exploit.build --experts $(EX)/experts --models $(EX)/models \
+		--calibration $(EX)/calibration.json --out $(EX_PACK)
+
+exploit-bundles: blueprint-bundles
+	$(UV) run python -m strategy.exploit.package --out $(EX)/bundles/exploit > /dev/null
+
+exploit-validate:
+	for s in exploit-vs-blueprint-validation exploit-robust-equilibrium exploit-robust-deceptive; do \
+		$(UV) run python -m strategy.exploit.evaluate run $$s --jobs $(EX_JOBS) || exit 1; done
