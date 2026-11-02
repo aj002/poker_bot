@@ -104,8 +104,11 @@ class PolicyPack:
         if self.provenance["abstraction"] != json.loads(json.dumps(A.describe())):
             raise ValueError(f"{path}: pack was built for another abstraction")
         n = len(LEVEL_DIVISORS)
-        self.keys = [arrays[f"keys{k}"] for k in range(n)]
-        self.probs = [arrays[f"probs{k}"] for k in range(n)]
+        self.keys = [np.ascontiguousarray(arrays[f"keys{k}"]) for k in range(n)]
+        self.probs = [np.ascontiguousarray(arrays[f"probs{k}"]) for k in range(n)]
+        for k in range(n):
+            if self.keys[k].size:
+                self.lookup(int(self.keys[k][self.keys[k].size // 2]) * LEVEL_DIVISORS[k])
 
     def lookup(self, key: int) -> tuple[tuple[int, ...], int] | None:
         """``(uint8 row, level)`` for the finest level holding ``key``, or None."""

@@ -127,6 +127,9 @@ class BlueprintPolicy:
         self.pack = pack or PolicyPack(pack_path(ruleset_id))
         self.offsets = A.OFFSETS
         self._pressure: dict[tuple[str, int], int] = {}
+        for i, a in enumerate(self.caps.deck):
+            for b in self.caps.deck[i + 1:]:
+                self.cards.preflop((a, b))
 
     def pressure_bucket(self, obs, start: dict[int, int]) -> int:
         k = (obs.hand_id, obs.hero_seat)
