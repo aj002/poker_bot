@@ -23,24 +23,26 @@ Timeouts
     (decide wall and thread CPU time, parse time) and three replays of the
     decision in a fresh worker from its exact observation and committed state. A
     decide that ran past the deadline with CPU ~ wall is bot-caused, as is a slow
-    replay; bot-caused timeouts fail the gate outright. Because a host stall on
-    this VM is charged to the running thread's CPU clock, the control also collects
-    "bot-caused" timeouts: they are reported as the false-attribution floor of the
-    rule. Stall-like ones are tested against the control's stall-like ones (C-test,
+    replay. Because a host stall on this VM is charged to the running thread's CPU
+    clock, the control also collects "bot-caused" timeouts, so the candidate's are
+    tested against the control's (C-test, p >= 0.01) under an absolute ceiling.
+    Stall-like ones are tested against the control's stall-like ones (C-test,
     p >= 0.01), and the control must not run significantly above the 0.05% host
-    ceiling. A host-invalid or stall-excess attempt is rerun with the same seeds up
-    to ``max_reruns`` (2) times; every attempt is in the report and the first
-    passing one decides.
+    ceiling. A host-invalid, bot-excess or stall-excess attempt is rerun with the
+    same seeds up to ``max_reruns`` (2) times; every attempt is in the report and
+    the first passing one decides. Reruns exhausted with a bot excess fail.
 
 Pass criteria (all must hold, in the attempt used):
 
 * at least ``min_decisions`` candidate decisions (default 50,000);
-* worker decision wall time p99 below ``p99_limit_us`` (default 500 us) - this is the
-  bot's own time (state decode + decide) as the worker measures it;
+* headroom: worker decision wall time p99 at or below ``p99_limit_us`` (400 us) and
+  p99.9 at or below ``p999_limit_us`` (600 us) - the bot's own time (state decode +
+  decide) as the worker measures it;
 * zero arena fallbacks other than timeouts (illegal action, crash, invalid output,
   state errors) and zero worker restarts;
-* zero bot-caused timeouts, and stall-like timeouts within the control's rate on a
-  host within the ceiling;
+* bot-caused timeouts at or below ``max_bot_timeout_rate`` (0.02%) of decisions and
+  within the control's bot-caused rate;
+* stall-like timeouts within the control's rate on a host within the ceiling;
 * zero internal fallbacks (``state["fb"]`` in the committed state).
 
 The harness process's collector is off from dispatch until each reply is read and
