@@ -182,6 +182,24 @@ def test_gate_specs_are_never_edited(tmp_path):
         Gt.write_spec({"experiment_id": "s", "x": 2}, tmp_path)
 
 
+def test_a_blend_interpolates_rows_between_parent_and_child():
+    from strategy.league.blend import blend_deviations
+
+    base = np.zeros(3 * ROW, np.uint8)
+    base[0:ROW] = [0, 255, 0, 0, 0, 0]
+    base[ROW:2 * ROW] = [51, 51, 51, 51, 51, 0]
+    child = base.copy()
+    child[0:ROW] = [0, 0, 255, 0, 0, 0]
+    child[ROW:2 * ROW] = [0, 0, 0, 0, 0, 255]
+    keys = np.array([0, 1])
+    assert blend_deviations(base, child, keys, 0.0).rows.tolist() == base.reshape(-1, ROW)[:2].tolist()
+    assert blend_deviations(base, child, keys, 1.0).rows.tolist() == child.reshape(-1, ROW)[:2].tolist()
+    half = blend_deviations(base, child, keys, 0.5)
+    assert half.rows.sum(axis=1).tolist() == [255, 255] and half.best.tolist() == [A.MIN_RAISE, A.ALL_IN]
+    assert abs(int(half.rows[0, A.CALL]) - int(half.rows[0, A.MIN_RAISE])) <= 1
+    assert half.rows[1, A.ALL_IN] in (127, 128)
+
+
 LEAGUE_PACK = REPO / "strategy" / "tables" / "data" / "league-practice_nlhe.npz"
 
 

@@ -138,3 +138,52 @@ Secondary exploitability, real engine (exploiter vs target in target-rich lineup
 
 Deployment gate for the league bot: passed on attempt 1. 50,197 decisions, worker p99
 229 µs, 2 bot-caused timeouts within the control's rate, 6.4 MB bundle.
+
+## Amendment 2: blueprint–C1 blend frontier (written before any blend run)
+
+**Question.** Is there a blend of C1 and the blueprint that keeps a real population gain and
+passes the selection's robust-score clause that C1 failed?
+
+**Family.** `B_λ` is the blueprint pack with level-0 rows at C1's 75,407 override keys
+set to `(1 − λ) · blueprint row + λ · C1 row` (`strategy.league.blend`). Every key has a
+blueprint row, so no key is a miss. The grid is λ ∈ {0.25, 0.5, 0.7, 0.85, 0.95}. λ = 0 is
+the blueprint, with exploiter E1, and λ = 1 is C1, with exploiter E2.
+
+**Train-only measurements, per λ:**
+
+1. On held-out abstract deals (train-derived states and clones):
+   - the population gain of `B_λ` over the blueprint;
+   - an exploiter `X_λ`, a gated best response to `B_λ` alone (the league exploiter
+     config: 1M pairs, z 3, seed 3000 + 100λ);
+   - the antisymmetric advantage `H(B_λ, j)` for `j` ∈ {blueprint, baseline, C1, E2, X_λ}.
+2. With the real engine on the **train** partition:
+   - `B_λ` vs the blueprint, 12 lineups × 8 blocks;
+   - `X_λ` vs `B_λ` in `B_λ`-rich lineups (three `B_λ` seats), 8 × 6 blocks.
+
+**Choosing λ (declared now).**
+
+- **Eligible:** `H(B_λ, j) ≥ −0.15` for every `j` above. `X_λ` counts whether or not its gain
+  is significant, which is stricter than the selection clause.
+- **Choice:** among eligible λ in (0, 1), the one with the largest real-engine train
+  population gain.
+- **Stopping rule:** if none is eligible, or the chosen λ's train lower bound is ≤ 0, the
+  answer is a null and no validation run is made.
+
+The chosen λ is committed before any validation run.
+
+**Validation, as originally declared (incumbent: the blueprint, the declared selection):**
+
+- `improve` vs the blueprint, 24 × 12.
+- `regress-j` for `j` ∈ {blueprint, baseline, C1, E2, X_λ}, 12 × 8 each. Each point
+  estimate > −2, each lower bound > −5, and the pooled lower bound > −1.5.
+- `X_λ` enters the strategic pool only if its abstract gain is significant (the league's
+  exploiter rule).
+- If promoted: `curve`, then `select` (the same −0.15 clause over the strategic pool).
+  If selected: the confirmation family with fresh ids `league-main-v1-confirm-<B>-*`:
+  `vs-blueprint` (400 blocks, > 0) and `ni-j` for blueprint, baseline and C1 (200 blocks
+  each, > −1), Holm-corrected at one-sided α = 0.05.
+- Descriptive: `X_λ` vs `B_λ` in `B_λ`-rich validation lineups, 12 × 8.
+
+**The blend replaces the blueprint as the default bot only if** it is promoted, selected,
+confirmed on every member of its family, and passes the deployment gate. Otherwise the
+blueprint stays the default and the result is reported as a null.

@@ -642,7 +642,7 @@ CONFIRM_MARGIN = 1.0
 """Non-inferiority margin (points per tournament) of the pre-registered regression confirmations."""
 
 
-def confirm_specs(lg: League, selected: str) -> dict[str, tuple[dict, float]]:
+def confirm_specs(lg: League, selected: str, tag: str = "") -> dict[str, tuple[dict, float]]:
     """The pre-registered confirmation family for ``selected`` (docs/league-training-preregistration.md).
 
     ``vs-blueprint``: superiority over the blueprint on the validation population (400 blocks).
@@ -654,22 +654,22 @@ def confirm_specs(lg: League, selected: str) -> dict[str, tuple[dict, float]]:
     run = lg.cfg.run
     cand = (selected, lg.bundle(selected))
     out = {"vs-blueprint": (Gt._spec(
-        f"league-{run}-confirm-vs-blueprint", f"League {run} confirmation: {selected} vs blueprint (validation)",
+        f"league-{run}-confirm{tag}-vs-blueprint", f"League {run} confirmation: {selected} vs blueprint (validation)",
         f"Pre-registered confirmation. A = blueprint, B = {selected}; validation population, fresh seeds.",
-        lg.bundle("blueprint"), cand[1], base_seed=f"league-{run}-confirm-vs-blueprint", stage="confirmation",
+        lg.bundle("blueprint"), cand[1], base_seed=f"league-{run}-confirm{tag}-vs-blueprint", stage="confirmation",
         lineups=40, blocks=10), 0.0)}
     for j in lg.deployable():
         if j == selected:
             continue
-        spec = Gt.regress_spec(run, 0, (j, lg.bundle(j)), cand, lg.rule, tag="-confirm", stage="confirmation",
+        spec = Gt.regress_spec(run, 0, (j, lg.bundle(j)), cand, lg.rule, tag=f"-confirm{tag}", stage="confirmation",
                                lineups=25, blocks=8)
-        spec["experiment_id"] = spec["base_seed"] = f"league-{run}-confirm-ni-{j}"
+        spec["experiment_id"] = spec["base_seed"] = f"league-{run}-confirm{tag}-ni-{j}"
         spec["title"] = f"League {run} confirmation: {selected} non-inferior to {j} in {j}-rich lineups"
         out[f"ni-{j}"] = (spec, -CONFIRM_MARGIN)
     return out
 
 
-def confirm(lg: League, name: str | None = None) -> dict:
+def confirm(lg: League, name: str | None = None, tag: str = "") -> dict:
     """The confirmation family for the selection, or for ``name`` (a declared amendment, own result file)."""
     from strategy.league import gates as Gt
 
@@ -681,7 +681,7 @@ def confirm(lg: League, name: str | None = None) -> dict:
         result.write_text(json.dumps(out, indent=1))
         return out
     runs, rows = {}, {}
-    for key, (spec, margin) in confirm_specs(lg, selected).items():
+    for key, (spec, margin) in confirm_specs(lg, selected, tag).items():
         path = Gt.write_spec(spec, lg.dir / "specs")
         lg.log(f"confirm: {key} ({path.name})")
         runs[key] = r = Gt.run(path, jobs=lg.cfg.jobs)
