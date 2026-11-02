@@ -212,7 +212,8 @@ def test_bundle_plays_in_the_real_sandbox(tmp_path):
     from strategy.policy.gate import run_gate
 
     bundle = build_bundle(tmp_path / "bot", SPACE.from_unit([0.5] * len(SPACE)))
-    rep = run_gate(bundle, min_decisions=60, players=6, hand_cap=25, log=lambda s: None, p99_limit_us=10_000)
+    rep = run_gate(bundle, min_decisions=60, players=6, hand_cap=25, log=lambda s: None, p99_limit_us=10_000,
+                   p999_limit_us=10_000, cost_tables=4)
     assert rep["decisions"] >= 60
     assert rep["internal_fallbacks"] == 0 and rep["restarts"] == 0
     assert set(rep["fallbacks"]) <= {"timeout"}  # shared CI machines may miss the 1 ms deadline
@@ -222,14 +223,16 @@ def test_bundle_plays_in_the_real_sandbox(tmp_path):
     assert rep["control"]["policy"] == "cpu_burner" and rep["control"]["calibration_decisions"] > 0
     assert sum(rep["timeout_classes"].values()) == rep["fallbacks"].get("timeout", 0)
     assert rep["selection"]["action"] in ("use", "fail", "invalid") and len(rep["attempts"]) <= 3
+    assert [a["multiplier"] for a in rep["points_cost"]["arms"]] == [1, 10]
+    assert rep["points_cost"]["tables"] == 4
 
 
-def test_gate_fails_on_bot_caused_timeouts_and_reruns_stalls(monkeypatch):
+def test_gate_bot_caused_ceiling_control_test_headroom_and_reruns(monkeypatch):
     from strategy.policy import gate
 
     class Seat:
-        def __init__(self, timeouts):
-            self.stats = type("S", (), {"decisions": 100, "worker_wall_ns": [100_000] * 100,
+        def __init__(self, timeouts, wall=100_000):
+            self.stats = type("S", (), {"decisions": 100, "worker_wall_ns": [wall] * 100,
                                         "e2e_ns": [300_000] * 100, "fallbacks": {"timeout": len(timeouts)} if timeouts
                                         else {}, "restarts": [], "late_discarded": 0, "max_state_bytes": 10})()
             self.records = timeouts
@@ -242,30 +245,49 @@ def test_gate_fails_on_bot_caused_timeouts_and_reruns_stalls(monkeypatch):
     script = []
 
     def attempt(*_a, **_k):
+        # 500 candidate and 500 control tables of 100 decisions; the scripted
+        # records all land on the first candidate table.
         cand, ctrl = gate._Side(), gate._Side()
-        k = script.pop(0)
-        for _ in range(500):
-            s = Seat(k)
+        records, wall = script.pop(0)
+        for i in range(500):
+            s = Seat(records if i == 0 else [], wall)
             cand.add("t", s, s.records)
             c = Seat([])
             ctrl.add("t", c, [])
         return cand, ctrl, 0
+
+    def run(**kw):
+        return gate.run_gate(Path("x"), min_decisions=100, log=lambda s: None, **kw)
 
     monkeypatch.setattr(gate, "_attempt", attempt)
     monkeypatch.setattr(gate, "load_population", lambda: None)
     monkeypatch.setattr(gate, "calibrate", lambda *_a, **_k: [300_000] * 9 + [5_000_000])
     monkeypatch.setattr(gate, "matched_iterations", lambda walls, **_k: {"iterations": len(walls) * 100,
                                                                           "target_median_ns": 300_000})
-    script[:] = [[slow]]
-    rep = gate.run_gate(Path("x"), min_decisions=100, log=lambda s: None)
+    # 11 bot-caused in 50,000 decisions is above the 0.02% ceiling: final, no rerun.
+    script[:] = [([slow] * 11, 100_000)]
+    rep = run()
     assert not rep["passed"] and rep["selection"]["action"] == "fail" and len(rep["attempts"]) == 1
-    assert rep["timeout_classes"]["bot_caused"] == 500 and not rep["checks"]["bot_caused_timeouts"]
+    assert rep["timeout_classes"]["bot_caused"] == 11 and not rep["checks"]["bot_caused_ceiling"]
     assert rep["control"]["policy"] == "cpu_burner" and rep["control"]["iterations"] == 1000
-    script[:] = [[computing]]
-    rep = gate.run_gate(Path("x"), min_decisions=100, control_iterations=2_000, log=lambda s: None)
-    assert not rep["passed"] and rep["timeout_rules"] == {"cpu_bound": 500}
-    assert rep["control"]["iterations"] == 2_000 and "target_median_ns" not in rep["control"]
-    script[:] = [[stall] * 2, [stall] * 2, []]
-    rep = gate.run_gate(Path("x"), min_decisions=100, control_iterations=2_000, log=lambda s: None)
+    # 8 CPU-bound against none in the control at equal exposure: p = 0.5**8 < 0.01, a
+    # bot excess, rerun; the rerun passes and is used.
+    script[:] = [([computing] * 8, 100_000), ([computing] * 2, 100_000)]
+    rep = run(control_iterations=2_000)
+    assert rep["passed"] and [a["verdict"] for a in rep["attempts"]] == ["bot_excess", "pass"]
+    first = rep["attempts"][0]
+    assert first["checks"]["bot_caused_ceiling"] and not first["checks"]["bot_caused_within_control"]
+    assert rep["timeout_rules"] == {"cpu_bound": 2} and rep["control"]["iterations"] == 2_000
+    # A bot excess in every attempt is a fail once reruns are exhausted.
+    script[:] = [([computing] * 8, 100_000)] * 3
+    assert run(control_iterations=2_000)["selection"]["action"] == "fail"
+    # Stall excess reruns.
+    script[:] = [([stall] * 10, 100_000), ([stall] * 10, 100_000), ([], 100_000)]
+    rep = run(control_iterations=2_000)
     assert rep["passed"] and [a["verdict"] for a in rep["attempts"]] == ["stall_excess", "stall_excess", "pass"]
     assert rep["selection"]["used"] == 2
+    # Headroom is a hard gate: decide p99 above 400 us fails with no timeouts at all.
+    script[:] = [([], 450_000)]
+    rep = run(control_iterations=2_000)
+    assert not rep["passed"] and not rep["checks"]["decide_p99_headroom"] and len(rep["attempts"]) == 1
+    assert rep["p99_limit_us"] == 400 and rep["p999_limit_us"] == 600

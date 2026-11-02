@@ -55,11 +55,14 @@ from __future__ import annotations
 
 import argparse
 import gc
+import itertools
 import json
+import os
 import sys
 import tempfile
 import time
 from collections import Counter
+from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
 
@@ -70,6 +73,10 @@ from strategy.search.population import load_population
 
 REPLAYS_PER_TABLE = stalls.TIMEOUT_REPLAYS_PER_SEAT
 CALIBRATION_TABLES = 2
+P99_LIMIT_US = 400.0
+P999_LIMIT_US = 600.0
+RERUNNABLE = ("bot_caused_within_control", "timeouts_within_host_control")
+TASK_BATCH = 50
 
 
 def quantiles(xs: list[int]) -> dict[str, float]:
@@ -164,6 +171,13 @@ def calibrate(bundle: Path, config: Any, source: Any, *, ruleset_id: str, seed: 
     return walls
 
 
+def gate_tasks(source: Any, config: Any, *, seed: str, ruleset_id: str, partition: str) -> Iterator[Any]:
+    """The gate's tables, in order: batches of ``TASK_BATCH`` tasks from ``partition``."""
+    for batch in itertools.count():
+        yield from make_tasks(source, partition, ruleset_id=ruleset_id, players=config.initial_player_count,
+                              count=TASK_BATCH, namespace=f"{seed}|{ruleset_id}|{batch}")
+
+
 def _attempt(bundle: Path, control: Path, config: Any, source: Any, *, ruleset_id: str, seed: str, partition: str,
              min_decisions: int, max_tables: int, log: Any) -> tuple[_Side, _Side, int]:
     from arena.agents.sdk import decode_state
@@ -181,36 +195,33 @@ def _attempt(bundle: Path, control: Path, config: Any, source: Any, *, ruleset_i
     try:
         with WorkerPool(size=2) as pool:
             artifacts = {"candidate": pool.stage(bundle), "control": pool.stage(control)}
-            batch = 0
-            while cand.decisions < min_decisions and cand.tables < max_tables:
-                tasks = make_tasks(source, partition, ruleset_id=ruleset_id, players=config.initial_player_count,
-                                   count=50, namespace=f"{seed}|{ruleset_id}|{batch}")
-                batch += 1
-                for task in tasks:
-                    for role, side in (("candidate", cand), ("control", ctrl)):
-                        art = artifacts[role]
-                        table, seat = _play(pool, art, config, task, REPLAYS_PER_TABLE)
-                        side.add(table.table_id, seat, _records(seat, pool, art))
-                        if role == "candidate":
-                            state = decode_state(seat.committed)
-                            side.internal += int(state.get("fb", 0)) if isinstance(state, dict) else 0
-                    if cand.tables % 25 == 0:
-                        log(f"{cand.tables} tables, {cand.decisions} decisions, timeouts "
-                            f"{cand.fallbacks.get('timeout', 0)} (control {ctrl.fallbacks.get('timeout', 0)}/"
-                            f"{ctrl.decisions}), internal {cand.internal}, {time.time() - t0:.0f}s")
-                    if cand.decisions >= min_decisions:
-                        break
+            for task in gate_tasks(source, config, seed=seed, ruleset_id=ruleset_id, partition=partition):
+                if cand.decisions >= min_decisions or cand.tables >= max_tables:
+                    break
+                for role, side in (("candidate", cand), ("control", ctrl)):
+                    art = artifacts[role]
+                    table, seat = _play(pool, art, config, task, REPLAYS_PER_TABLE)
+                    side.add(table.table_id, seat, _records(seat, pool, art))
+                    if role == "candidate":
+                        state = decode_state(seat.committed)
+                        side.internal += int(state.get("fb", 0)) if isinstance(state, dict) else 0
+                if cand.tables % 25 == 0:
+                    log(f"{cand.tables} tables, {cand.decisions} decisions, timeouts "
+                        f"{cand.fallbacks.get('timeout', 0)} (control {ctrl.fallbacks.get('timeout', 0)}/"
+                        f"{ctrl.decisions}), internal {cand.internal}, {time.time() - t0:.0f}s")
     finally:
         gc.callbacks.remove(on_gc)
     return cand, ctrl, pauses[0]
 
 
 def run_gate(bundle: Path, *, ruleset_id: str = "practice_nlhe", min_decisions: int = 50_000,
-             p99_limit_us: float = 500.0, seed: str = "deployed-gate-v1", partition: str = "train",
+             p99_limit_us: float = P99_LIMIT_US, p999_limit_us: float = P999_LIMIT_US,
+             seed: str = "deployed-gate-v1", partition: str = "train",
              max_tables: int = 2000, players: int = 8, hand_cap: int = 200, max_reruns: int = stalls.MAX_RERUNS,
+             max_bot_timeout_rate: float = stalls.MAX_BOT_TIMEOUT_RATE, bot_p_min: float = stalls.BOT_P_MIN,
              max_control_timeout_rate: float = stalls.MAX_CONTROL_TIMEOUT_RATE,
              stall_p_min: float = stalls.STALL_P_MIN, control_iterations: int | None = None,
-             log: Any = print) -> dict[str, Any]:
+             cost_tables: int = 0, cost_jobs: int | None = None, log: Any = print) -> dict[str, Any]:
     from arena.agents.baselines import BASELINES
     from arena.domain.models import TournamentConfig
 
@@ -242,18 +253,24 @@ def run_gate(bundle: Path, *, ruleset_id: str = "practice_nlhe", min_decisions: 
             w = quantiles(cand.wall)
             other = {k: v for k, v in cand.fallbacks.items() if k != "timeout"}
             k_tally, c_tally = cand.tally(budget), ctrl.tally(budget)
-            assessment = stalls.assess(k_tally, c_tally, strict=True, max_bot_timeouts=0,
-                                       max_control_timeout_rate=max_control_timeout_rate, stall_p_min=stall_p_min)
+            assessment = stalls.assess(k_tally, c_tally, strict=True, max_bot_timeout_rate=max_bot_timeout_rate,
+                                       bot_p_min=bot_p_min, max_control_timeout_rate=max_control_timeout_rate,
+                                       stall_p_min=stall_p_min)
+            bot_rate = assessment["bot_caused_rate"]
+            p_bot = assessment["bot_vs_control_p_value"]
             checks = {
                 "decisions": cand.decisions >= min_decisions,
-                "p99": bool(w) and w["p99_us"] < p99_limit_us,
+                "decide_p99_headroom": bool(w) and w["p99_us"] <= p99_limit_us,
+                "decide_p999_headroom": bool(w) and w["p999_us"] <= p999_limit_us,
                 "arena_fallbacks_other_than_timeout": not other,
                 "restarts": cand.restarts == 0,
                 "internal_fallbacks": cand.internal == 0,
-                "bot_caused_timeouts": k_tally["classes"]["bot_caused"] == 0,
+                "bot_caused_ceiling": bot_rate is not None and bot_rate <= max_bot_timeout_rate,
+                "bot_caused_within_control": k_tally["classes"]["bot_caused"] == 0
+                or (p_bot is not None and p_bot >= bot_p_min),
                 "timeouts_within_host_control": assessment["stall_verdict"] == "pass",
             }
-            hard = [k for k, ok in checks.items() if not ok and k != "timeouts_within_host_control"]
+            hard = [k for k, ok in checks.items() if not ok and k not in RERUNNABLE]
             detail = f" ({assessment['reason']})" if assessment["verdict"] == "fail" else ""
             verdict = ({"verdict": "fail", "reason": "failed: " + ", ".join(hard) + detail} if hard
                        else {"verdict": assessment["verdict"], "reason": assessment["reason"]})
@@ -270,6 +287,14 @@ def run_gate(bundle: Path, *, ruleset_id: str = "practice_nlhe", min_decisions: 
                 break
     used = attempts[selection["used"]] if selection["used"] is not None else attempts[-1]
     c = used["candidate"]
+    cost = None
+    if cost_tables > 0:
+        from strategy.policy.timeout_cost import points_cost
+
+        rate = c["fallbacks"].get("timeout", 0) / c["decisions"] if c["decisions"] else 0.0
+        tasks = list(itertools.islice(gate_tasks(source, config, seed=seed, ruleset_id=ruleset_id,
+                                                 partition=partition), cost_tables))
+        cost = points_cost(Path(bundle), tasks, config, rate, jobs=cost_jobs or 1, log=log)
     mf = Path(bundle) / "manifest.json"
     return {"bundle": str(bundle), "manifest": json.loads(mf.read_text()) if mf.exists() else None,
             "ruleset_id": ruleset_id, "partition": partition, "seed": seed, "tables": c["tables"],
@@ -278,7 +303,8 @@ def run_gate(bundle: Path, *, ruleset_id: str = "practice_nlhe", min_decisions: 
             "internal_fallbacks": c["internal_fallbacks"], "max_state_bytes": c["max_state_bytes"],
             "timeout_classes": c["timeouts"]["classes"], "timeout_rules": c["timeouts"]["rules"],
             "control": control_info, "control_timeouts": used["control"]["timeouts"],
-            "p99_limit_us": p99_limit_us, "checks": used["checks"], "selection": {**selection, "max_reruns": max_reruns},
+            "p99_limit_us": p99_limit_us, "p999_limit_us": p999_limit_us, "points_cost": cost,
+            "checks": used["checks"], "selection": {**selection, "max_reruns": max_reruns},
             "attempts": attempts, "passed": selection["action"] == "use", "wall_s": round(time.time() - t0, 1)}
 
 
@@ -287,17 +313,22 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--bundle", required=True)
     p.add_argument("--ruleset", default="practice_nlhe")
     p.add_argument("--decisions", type=int, default=50_000)
-    p.add_argument("--p99-us", type=float, default=500.0)
+    p.add_argument("--p99-us", type=float, default=P99_LIMIT_US, help="decide p99 headroom limit")
+    p.add_argument("--p999-us", type=float, default=P999_LIMIT_US, help="decide p99.9 headroom limit")
+    p.add_argument("--cost-tables", type=int, default=1000,
+                   help="tables replayed in-process for the points cost of the measured timeout rate (0: skip)")
+    p.add_argument("--cost-jobs", type=int, help="processes for the points cost (default: CPUs minus one)")
     p.add_argument("--seed", default="deployed-gate-v1")
     p.add_argument("--max-reruns", type=int, default=stalls.MAX_RERUNS,
-                   help="reruns of a host-invalid or stall-excess attempt (same seeds; every attempt reported)")
+                   help="reruns of a host-invalid, bot-excess or stall-excess attempt (same seeds; every attempt reported)")
     p.add_argument("--control-iterations", type=int,
                    help="loop iterations per decision of the matched control (default: calibrated to the bundle's "
                         "median decide time)")
     p.add_argument("--out")
     args = p.parse_args(argv)
     rep = run_gate(Path(args.bundle), ruleset_id=args.ruleset, min_decisions=args.decisions,
-                   p99_limit_us=args.p99_us, seed=args.seed, max_reruns=args.max_reruns,
+                   p99_limit_us=args.p99_us, p999_limit_us=args.p999_us, seed=args.seed, max_reruns=args.max_reruns,
+                   cost_tables=args.cost_tables, cost_jobs=args.cost_jobs or max(1, (os.cpu_count() or 2) - 1),
                    control_iterations=args.control_iterations,
                    log=lambda s: print(s, file=sys.stderr, flush=True))
     rep.pop("manifest")

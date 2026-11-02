@@ -215,7 +215,8 @@ def run_arm_gated(cell: Cell, arm: Arm, policy: ResolvedPolicy, *, out_dir: Path
         run.timeout_classes["control_calibration"] = calibration
         run.timeout_classes["assessment"] = stalls.assess(
             run.timeout_classes["candidate"], run.timeout_classes["control"], strict=arm.label == STRICT_ARM,
-            max_bot_timeouts=g.get("max_bot_timeouts", 0),
+            max_bot_timeout_rate=g.get("max_bot_timeout_rate", stalls.MAX_BOT_TIMEOUT_RATE),
+            bot_p_min=g.get("bot_p_min", stalls.BOT_P_MIN), max_bot_timeouts=g.get("max_bot_timeouts"),
             max_control_timeout_rate=g.get("max_control_timeout_rate", stalls.MAX_CONTROL_TIMEOUT_RATE),
             stall_p_min=g.get("stall_p_min", stalls.STALL_P_MIN))
         rows.append(_attempt_row(len(attempts), target, run))

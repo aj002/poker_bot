@@ -82,10 +82,19 @@ def tally(decisions=50_000, timeouts=0, bot=0, stall=0, unc=0, exposure=10.0):
             "rules": {}, "unrecorded": 0, "records": []}
 
 
-def test_assess_orders_bot_then_host_then_stall():
+def test_assess_orders_ceiling_host_bot_then_stall():
     control = tally(12_000, 4, stall=4, exposure=2.4)
-    assert assess(tally(timeouts=1, bot=1), control, strict=True)["verdict"] == "fail"
-    assert assess(tally(timeouts=1, bot=1), control, strict=False)["verdict"] == "pass"
+    # One bot-caused timeout is within the control's range (p = share = 0.81).
+    assert assess(tally(timeouts=1, bot=1), control, strict=True)["verdict"] == "pass"
+    # Above the 0.02% ceiling: fail, whatever the control.
+    assert assess(tally(timeouts=11, bot=11), control, strict=True)["verdict"] == "fail"
+    assert assess(tally(timeouts=11, bot=11), control, strict=False)["verdict"] == "pass"
+    # Under the ceiling but in excess of the control: rerunnable.
+    excess = assess(tally(timeouts=9, bot=9, exposure=2.4), control, strict=True)
+    assert excess["verdict"] == "bot_excess" and excess["bot_vs_control_p_value"] < 0.01
+    assert stalls.needs_rerun(excess)
+    assert assess(tally(timeouts=1, bot=1), tally(12_000, 1, bot=1, exposure=2.4), strict=True,
+                  max_bot_timeouts=0)["verdict"] == "fail"
     assert assess(tally(timeouts=10, stall=10), control, strict=True)["verdict"] == "pass"
     excess = assess(tally(timeouts=60, stall=60), control, strict=True)
     assert excess["verdict"] == "stall_excess" and excess["excess_p_value"] < 0.01
@@ -104,18 +113,21 @@ def test_assess_compares_stalls_with_the_controls_stalls_and_reports_its_bot_flo
     a = assess(tally(timeouts=14, stall=14, exposure=15.0), control, strict=True)
     assert a["verdict"] == "stall_excess" and a["control_stall_like_or_unclassified"] == 2
     b = assess(tally(timeouts=8, bot=8, exposure=15.0), control, strict=True)
-    assert b["verdict"] == "fail" and b["control_bot_caused"] == 8
+    assert b["verdict"] == "pass" and b["control_bot_caused"] == 8
     assert b["bot_vs_control_p_value"] == pytest.approx(binomial_upper_tail(8, 16, 0.5))
-    assert "workload-matched control had 8 on 50000" in b["reason"]
-    # The host and stall tests are still evaluated under a bot-caused fail.
-    assert b["stall_verdict"] == "pass" and b["ceiling_p_value"] is not None
-    assert assess(tally(timeouts=15, bot=1, stall=14, exposure=15.0), control,
+    # The host and stall tests are still evaluated under a ceiling fail.
+    f = assess(tally(timeouts=12, bot=12, exposure=15.0), control, strict=True)
+    assert f["verdict"] == "fail" and "0.020% ceiling" in f["reason"]
+    assert f["stall_verdict"] == "pass" and f["ceiling_p_value"] is not None
+    assert assess(tally(timeouts=26, bot=12, stall=14, exposure=15.0), control,
                   strict=True)["stall_verdict"] == "stall_excess"
     assert assess(tally(timeouts=2, stall=2, exposure=15.0), control, strict=True)["verdict"] == "pass"
 
 
 def test_rerun_policy_uses_the_first_pass_and_reports_every_attempt():
-    ok, bad, fail = ({"verdict": v, "reason": v} for v in ("pass", "stall_excess", "fail"))
+    ok, bad, fail, bot = ({"verdict": v, "reason": v} for v in ("pass", "stall_excess", "fail", "bot_excess"))
+    assert select_attempt([bot])["action"] == "rerun" and select_attempt([bot, ok])["used"] == 1
+    assert select_attempt([bad, bot, bad])["action"] == "fail" and select_attempt([bad, bot, bad])["used"] == 1
     assert select_attempt([ok])["action"] == "use"
     assert select_attempt([bad])["action"] == "rerun"
     assert select_attempt([bad, ok]) == {"action": "use", "used": 1, "reason": "pass"}
@@ -126,7 +138,7 @@ def test_rerun_policy_uses_the_first_pass_and_reports_every_attempt():
 
 SCRIPTS = {
     "bot": {"A": [(tally(timeouts=1, stall=1), tally(12_000, 3, stall=3))],
-            "B": [(tally(timeouts=2, bot=2), tally(12_000, 3, stall=3))]},
+            "B": [(tally(timeouts=11, bot=11), tally(12_000, 3, stall=3))]},
     "rerun": {"A": [(tally(timeouts=80, stall=80), tally(12_000, 2, stall=2)), (tally(), tally(12_000, 2))],
               "B": [(tally(), tally(12_000, 2))]},
     "host": {"A": [(tally(), tally(12_000, 2))],
@@ -173,7 +185,8 @@ def test_bot_caused_timeouts_in_arm_b_fail_with_points_reported(monkeypatch, tmp
     assert code == 0 and not a["withheld"] and a["decision"]["verdict"] == "fail"
     assert "mean_difference" in a["primary"]
     gate = next(g for g in a["execution"]["gates"] if g["gate"] == "bot_caused_timeouts")
-    assert gate == {"gate": "bot_caused_timeouts", "limit": 0, "observed": 2, "passed": False}
+    assert gate == {"gate": "bot_caused_timeouts", "limit": 0.0002, "observed": 11 / 50_000, "count": 11,
+                    "control_count": 0, "p_min": 0.01, "passed": False}
     assert calls == {"A": 1, "B": 1}
     assert "bot_caused_timeouts FAILED" in md and "Classified timeouts" in md
 

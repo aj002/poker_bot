@@ -103,14 +103,19 @@ class ExecutionGates(_S):
     median decide time."""
     timeout_replays_per_seat: StrictInt = Field(3, ge=0)
     """Timed-out explicit-state decisions replayed per seat per table."""
-    max_bot_timeouts: StrictInt | None = 0
-    """Arm B fails with more bot-caused (replay-confirmed) timeouts than this."""
+    max_bot_timeout_rate: StrictFloat | None = Field(0.0002, ge=0, le=1)
+    """Arm B fails outright (no rerun) above this bot-caused timeout rate."""
+    bot_p_min: StrictFloat = Field(0.01, gt=0, lt=1)
+    """C-test level for arm B's bot-caused timeouts in excess of the workload-matched
+    control's (rerun like a stall excess; a fail once reruns are exhausted)."""
+    max_bot_timeouts: StrictInt | None = None
+    """Optional absolute limit on arm B's bot-caused timeouts (fail, no rerun)."""
     max_control_timeout_rate: StrictFloat | None = Field(0.0005, ge=0, le=1)
     """Host ceiling: an arm whose control runs significantly above this rate is host-invalid."""
     stall_p_min: StrictFloat = Field(0.01, gt=0, lt=1)
     """C-test level for stall-like timeouts in excess of the control."""
     max_reruns: StrictInt = Field(2, ge=0)
-    """Reruns of a host-invalid or stall-excess arm (same seeds; every attempt reported)."""
+    """Reruns of a host-invalid, bot-excess or stall-excess arm (same seeds; every attempt reported)."""
 
 
 class NullCalibrationSpec(_S):

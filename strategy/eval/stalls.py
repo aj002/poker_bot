@@ -48,26 +48,31 @@ Control
     calling station (about 20 us per decision) is the fallback when no calibration
     is possible.
 
-Gates (:func:`assess`)
-    1. Bot-caused timeouts are strict: more than ``max_bot_timeouts`` (default 0)
-       on a strict entrant fails it, with no rerun. A timeout is a fold in
-       competition whatever its cause. The control's own bot-caused count and a
-       C-test p-value of the entrant's against it are reported alongside
-       (``control_bot_caused``, ``bot_vs_control_p_value``).
+Gates (:func:`assess`, strict entrants; first failing gate wins)
+    1. Bot-caused ceiling: a bot-caused rate above ``max_bot_timeout_rate`` (0.02%)
+       fails the entrant outright, with no rerun, so a bot that is truly slow can
+       never pass however noisy the control was. ``max_bot_timeouts`` (default
+       off) is an optional absolute count with the same effect.
     2. Host ceiling: the control's timeouts (all classes) must not run significantly
        above ``max_control_timeout_rate`` (0.05%): one-sided Poisson test,
        ``P(X >= k | n * rate) < CEILING_ALPHA`` means the host was invalid.
-    3. Stall-like plus unclassified timeouts are compared with the control's
-       stall-like plus unclassified timeouts by a conditional two-Poisson test (the
-       C-test). Exposure is the time spent waiting for replies (sum of end-to-end
-       times), so under H0 the entrant's share of the pooled count is
-       Binomial(n, E_entrant / (E_entrant + E_control)). A one-sided p-value under
-       ``stall_p_min`` (0.01) is a stall excess.
+    3. Bot-caused against the control: the entrant's bot-caused timeouts are compared
+       with the control's bot-caused timeouts (host events the same rules
+       misattribute) by a one-sided conditional two-Poisson test (the C-test).
+       Exposure is the time spent waiting for replies (sum of end-to-end times), so
+       under H0 the entrant's share of the pooled count is
+       Binomial(n, E_entrant / (E_entrant + E_control)). p < ``bot_p_min`` (0.01) is
+       a bot excess.
+    4. Stall-like plus unclassified timeouts are compared with the control's
+       stall-like plus unclassified timeouts by the same C-test; p < ``stall_p_min``
+       (0.01) is a stall excess.
+    Both C-tests pool every interleaved table of the attempt. Non-strict entrants
+    get only gates 2 and 4.
 
 Reruns (:func:`select_attempt`)
-    A host-invalid or stall-excess attempt is rerun with the same seeds, up to
-    ``max_reruns`` (2) times. Every attempt is reported; the first passing attempt
-    is used; a bot-caused failure in any attempt is final.
+    A host-invalid, bot-excess or stall-excess attempt is rerun with the same seeds,
+    up to ``max_reruns`` (2) times. Every attempt is reported; the first passing
+    attempt is used; a ceiling failure in any attempt is final.
 """
 
 from __future__ import annotations
@@ -85,6 +90,8 @@ STALL_REPLAY_FRACTION = 0.5
 CPU_WALL_RATIO = 0.9
 CEILING_ALPHA = 0.01
 MAX_CONTROL_TIMEOUT_RATE = 0.0005
+MAX_BOT_TIMEOUT_RATE = 0.0002
+BOT_P_MIN = 0.01
 STALL_P_MIN = 0.01
 MAX_RERUNS = 2
 CONTROL_EVERY = 4
@@ -278,13 +285,19 @@ def _host_and_stalls(entrant: Mapping[str, Any], control: Mapping[str, Any] | No
 
 
 def assess(entrant: Mapping[str, Any], control: Mapping[str, Any] | None, *, strict: bool,
-           max_bot_timeouts: int | None = 0, max_control_timeout_rate: float | None = MAX_CONTROL_TIMEOUT_RATE,
+           max_bot_timeout_rate: float | None = MAX_BOT_TIMEOUT_RATE, bot_p_min: float = BOT_P_MIN,
+           max_bot_timeouts: int | None = None, max_control_timeout_rate: float | None = MAX_CONTROL_TIMEOUT_RATE,
            stall_p_min: float = STALL_P_MIN) -> dict[str, Any]:
     """Verdict for one entrant tally against the control tally of the same run:
-    ``fail`` (bot-caused, strict entrants only), ``host_invalid``, ``stall_excess`` or ``pass``.
-    The host and stall tests are always evaluated (``stall_verdict``), even under a fail."""
-    bot = entrant["classes"]["bot_caused"]
-    out: dict[str, Any] = {"strict": strict, "bot_caused": bot, "stall_like_or_unclassified": _stall(entrant),
+    ``fail`` (bot-caused ceiling, strict entrants only), ``host_invalid``,
+    ``bot_excess`` (strict only), ``stall_excess`` or ``pass``. Every test is
+    evaluated and reported whatever the verdict (``stall_verdict`` is the host and
+    stall part alone)."""
+    bot, n = entrant["classes"]["bot_caused"], entrant["decisions"]
+    rate = bot / n if n else None
+    out: dict[str, Any] = {"strict": strict, "bot_caused": bot, "bot_caused_rate": rate,
+                           "stall_like_or_unclassified": _stall(entrant),
+                           "max_bot_timeout_rate": max_bot_timeout_rate, "bot_p_min": bot_p_min,
                            "max_bot_timeouts": max_bot_timeouts, "max_control_timeout_rate": max_control_timeout_rate,
                            "stall_p_min": stall_p_min, "ceiling_p_value": None, "excess_p_value": None,
                            "control_bot_caused": None, "control_stall_like_or_unclassified": None,
@@ -295,27 +308,37 @@ def assess(entrant: Mapping[str, Any], control: Mapping[str, Any] | None, *, str
         out["bot_vs_control_p_value"] = excess_p_value(bot, entrant["exposure_s"], control["classes"]["bot_caused"],
                                                        control["exposure_s"])
     out |= _host_and_stalls(entrant, control, max_control_timeout_rate, stall_p_min)
-    if strict and max_bot_timeouts is not None and bot > max_bot_timeouts:
-        rules = ", ".join(f"{r} {n}" for r, n in sorted(entrant.get("rules", {}).items())
-                          if r in ("cpu_bound", "replay_slow", "replay_timeout"))
-        floor = "" if control is None else (
-            f"; the workload-matched control had {control['classes']['bot_caused']} on {control['decisions']} "
-            f"decisions by the same rules")
+    rules = ", ".join(f"{r} {k}" for r, k in sorted(entrant.get("rules", {}).items())
+                      if r in ("cpu_bound", "replay_slow", "replay_timeout"))
+    if strict and bot and max_bot_timeout_rate is not None and rate is not None and rate > max_bot_timeout_rate:
         return {**out, "verdict": "fail",
-                "reason": f"{bot} bot-caused timeouts (limit {max_bot_timeouts}; {rules}): the bot was computing "
-                          f"past the deadline (CPU ~ wall) or its replay used at least half the budget{floor}"}
+                "reason": f"{bot} bot-caused timeouts in {n} decisions ({rate:.3%}; {rules}), above the "
+                          f"{max_bot_timeout_rate:.3%} ceiling"}
+    if strict and max_bot_timeouts is not None and bot > max_bot_timeouts:
+        return {**out, "verdict": "fail", "reason": f"{bot} bot-caused timeouts ({rules}; limit {max_bot_timeouts})"}
+    if out["stall_verdict"] == "host_invalid":
+        return {**out, "verdict": "host_invalid", "reason": out["stall_reason"]}
+    p_bot = out["bot_vs_control_p_value"]
+    if strict and bot and (p_bot is None or p_bot < bot_p_min):
+        kc = "no control" if control is None else (
+            f"{control['classes']['bot_caused']} in the control (exposure {entrant['exposure_s']:.3g} s vs "
+            f"{control['exposure_s']:.3g} s)")
+        return {**out, "verdict": "bot_excess",
+                "reason": f"{bot} bot-caused timeouts ({rules}) against {kc}, "
+                          f"p={'n/a' if p_bot is None else f'{p_bot:.2g}'} < {bot_p_min}"}
     return {**out, "verdict": out["stall_verdict"], "reason": out["stall_reason"]}
 
 
 def needs_rerun(assessment: Mapping[str, Any]) -> bool:
-    return assessment["verdict"] in ("host_invalid", "stall_excess")
+    return assessment["verdict"] in ("host_invalid", "bot_excess", "stall_excess")
 
 
 def select_attempt(assessments: Sequence[Mapping[str, Any]], max_reruns: int = MAX_RERUNS) -> dict[str, Any]:
     """Apply the rerun policy to the attempts so far (oldest first).
 
     ``action`` is ``use`` (with ``used``, the attempt index), ``rerun``, ``fail`` or
-    ``invalid`` (reruns exhausted)."""
+    ``invalid`` (reruns exhausted). Exhausted reruns with a bot excess in any attempt
+    are a ``fail``: the excess was measured on a host within its ceiling."""
     for i, a in enumerate(assessments):
         if a["verdict"] == "fail":
             return {"action": "fail", "used": i, "reason": a["reason"]}
@@ -324,10 +347,14 @@ def select_attempt(assessments: Sequence[Mapping[str, Any]], max_reruns: int = M
             return {"action": "use", "used": i, "reason": a["reason"]}
     if len(assessments) <= max_reruns:
         return {"action": "rerun", "used": None, "reason": assessments[-1]["reason"] if assessments else ""}
+    excess = [i for i, a in enumerate(assessments) if a["verdict"] == "bot_excess"]
+    if excess:
+        return {"action": "fail", "used": excess[-1],
+                "reason": f"{len(assessments)} attempts, none passed: {assessments[excess[-1]]['reason']}"}
     return {"action": "invalid", "used": None,
             "reason": f"{len(assessments)} attempts, none passed: {assessments[-1]['reason']}"}
 
 
-__all__ = ["CLASSES", "CONTROL_POLICY", "CPU_WALL_RATIO", "STALL_REPLAY_FRACTION", "assess", "binomial_upper_tail",
+__all__ = ["BOT_P_MIN", "CLASSES", "CONTROL_POLICY", "CPU_WALL_RATIO", "MAX_BOT_TIMEOUT_RATE", "STALL_REPLAY_FRACTION", "assess", "binomial_upper_tail",
            "classify", "cpu_bound", "excess_p_value", "merge_tallies", "needs_rerun", "overhead_ns",
            "poisson_upper_tail", "select_attempt", "tally", "tally_samples"]

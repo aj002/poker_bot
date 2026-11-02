@@ -212,11 +212,13 @@ def classified(cells: Sequence[CellResult]) -> dict[str, Any]:
 
 def _bot_gate(classes: Mapping[str, Any], gates: Mapping[str, Any]) -> list[dict[str, Any]]:
     b = classes.get(STRICT_ARM)
-    if b is None or gates.get("max_bot_timeouts") is None:
+    if b is None or (gates.get("max_bot_timeout_rate") is None and gates.get("max_bot_timeouts") is None):
         return []
-    observed = b["candidate"]["classes"]["bot_caused"]
-    return [{"gate": "bot_caused_timeouts", "limit": gates["max_bot_timeouts"], "observed": observed,
-             "passed": not b["failed"]}]
+    k = b["candidate"]
+    rate = k["classes"]["bot_caused"] / k["decisions"] if k["decisions"] else None
+    return [{"gate": "bot_caused_timeouts", "limit": gates.get("max_bot_timeout_rate"), "observed": rate,
+             "count": k["classes"]["bot_caused"], "control_count": b["control"]["classes"]["bot_caused"],
+             "p_min": gates.get("bot_p_min"), "passed": not b["failed"]}]
 
 
 def _brief(failures: Sequence[str], keep: int = 4) -> str:
@@ -246,7 +248,7 @@ def withheld(cells: Sequence[CellResult], declared: Declared, check: dict[str, A
     note = WITHHELD_NOTE if not check["passed"] else STALL_WITHHELD_NOTE
     decision = {"verdict": "invalid", "reason": "; ".join(reasons), "stage": declared.stage, "note": note}
     if failed:
-        decision = {"verdict": "fail", "reason": "bot-caused timeouts in arm B: " + "; ".join(failed[:4])
+        decision = {"verdict": "fail", "reason": "bot-caused timeout gate failed in arm B: " + "; ".join(failed[:4])
                     + ("; points also withheld: " + "; ".join(reasons) if reasons else ""),
                     "stage": declared.stage, "note": note}
     return {
