@@ -20,6 +20,8 @@ Classes (:func:`classify`, first matching rule wins)
           exact observation and committed state in a fresh worker (explicit-state
           bots only), missed the 100 ms replay budget or had a median ``parse +
           decide`` of at least ``STALL_REPLAY_FRACTION`` (half) of the budget.
+          The first replay in the fresh worker is a cold start (lazy loads, caches)
+          and is left out of the median when there are at least three.
     ``stall_like``
         * transport: ``parse + decide`` fitted in the allowance; the time was lost
           outside the worker.
@@ -143,7 +145,8 @@ def classify(record: Mapping[str, Any], budget_ns: int, overhead: int | None) ->
         return "bot_caused", "cpu_bound"
     replay = record.get("replay") or {}
     runs = replay.get("runs") or []
-    times = [t for t in (_worker_ns(r) for r in runs) if t is not None]
+    warm = runs[1:] if len(runs) >= 3 else runs
+    times = [t for t in (_worker_ns(r) for r in warm) if t is not None]
     if any(r.get("fallback") == "timeout" for r in runs):
         return "bot_caused", "replay_timeout"
     if times and statistics.median(times) >= STALL_REPLAY_FRACTION * budget_ns:

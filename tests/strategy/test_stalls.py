@@ -32,8 +32,15 @@ def test_classify_transport_replay_and_unclassified():
     assert classify(rec(), BUDGET, 220_000) == ("stall_like", "transport")
     slow_reply = rec(worker_wall_ns=900_000)
     assert classify(slow_reply, BUDGET, 220_000) == ("unclassified", "no_replay")
-    assert classify({**slow_reply, **replay(20_000, 30_000, 2_000_000)}, BUDGET, 220_000) == ("stall_like", "replay_fast")
+    assert classify({**slow_reply, **replay(20_000, 30_000, 40_000)}, BUDGET, 220_000) == ("stall_like", "replay_fast")
     assert classify({**slow_reply, **replay(450_000, 700_000, 800_000)}, BUDGET, 220_000) == ("bot_caused", "replay_slow")
+    # The first replay in a fresh worker is a cold start and is not counted...
+    assert classify({**slow_reply, **replay(29_900_000, 463_000, 104_000)}, BUDGET, 220_000) == ("stall_like",
+                                                                                                 "replay_fast")
+    assert classify({**slow_reply, **replay(20_000, 30_000, 2_000_000)}, BUDGET, 220_000) == ("bot_caused",
+                                                                                              "replay_slow")
+    # ...unless there are fewer than three runs.
+    assert classify({**slow_reply, **replay(2_000_000, 30_000)}, BUDGET, 220_000) == ("bot_caused", "replay_slow")
     assert classify({**slow_reply, **replay(10, fallback="timeout")}, BUDGET, 220_000) == ("bot_caused",
                                                                                              "replay_timeout")
     assert classify({"outcome": "unresponsive", "replay": {"error": "x"}}, BUDGET, 220_000) == ("unclassified",

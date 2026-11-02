@@ -154,8 +154,8 @@ never treated as independent.
     CPU time at least 0.9 of its wall time (`cpu_bound`: the bot was computing); or a
     replay of the exact decision (explicit-state bots, first
     `gates.timeout_replays_per_seat` (3) timeouts per seat per table, 3 repeats in a
-    fresh worker) has a median of at least half the budget or misses even its 100 ms
-    budget;
+    fresh worker; the first, a cold start, is left out of the median) has a median of
+    at least half the budget, or a repeat misses even its 100 ms budget;
   - *stall-like*: parse plus decide fitted the allowance (`transport`); the decide
     or the parse was off-CPU for over a tenth of its wall time (`descheduled`); the
     decide fitted but the harness's parse did not (`parse`); or, with no reply
@@ -169,23 +169,30 @@ never treated as independent.
   They are reported as the floor (`control_bot_caused`, with a C-test p-value of the
   candidate's bot-caused count against it, `bot_vs_control_p_value`).
 
-  Arm B is strict. More than `gates.max_bot_timeouts` (0) bot-caused timeouts fail
-  the run with verdict `fail`, whatever the floor: a timeout is a fold in
-  competition. The points are still reported, and the arm is not rerun. In each
-  arm, the control's timeouts (every class) must not run significantly above the
-  `gates.max_control_timeout_rate` host ceiling (0.05%; one-sided Poisson test at
-  0.01). Otherwise the attempt is *host-invalid*.
+  The gates, in order:
+  - *Bot-caused ceiling* (arm B): a bot-caused rate above
+    `gates.max_bot_timeout_rate` (0.02%) fails the run with verdict `fail`, with no
+    rerun, so a bot that is truly slow cannot pass on a noisy control. The points
+    are still reported. `gates.max_bot_timeouts` is an optional absolute count with
+    the same effect (off by default).
+  - *Host ceiling* (both arms): the control's timeouts (every class) must not run
+    significantly above `gates.max_control_timeout_rate` (0.05%; one-sided Poisson
+    test at 0.01). Otherwise the attempt is *host-invalid*.
+  - *Bot-caused against the control* (arm B): the candidate's bot-caused timeouts
+    are compared with the control's bot-caused timeouts by a one-sided conditional
+    two-Poisson C-test, pooled over every interleaved table of the attempt.
+    Exposure is the summed end-to-end time, and p < `gates.bot_p_min` (0.01) is a
+    *bot excess*.
+  - *Stall-like* (both arms): stall-like and unclassified timeouts are compared
+    with the control's by the same C-test; p < `gates.stall_p_min` (0.01) is a
+    *stall excess*.
 
-  Stall-like and unclassified timeouts are compared with the control's stall-like
-  and unclassified timeouts by a conditional two-Poisson C-test. Exposure is the
-  summed end-to-end time, and p < `gates.stall_p_min` (0.01) is a *stall excess*.
-
-  A host-invalid or stall-excess arm is rerun with the same seeds under
+  A host-invalid, bot-excess or stall-excess arm is rerun with the same seeds under
   `cells/<cell>/<arm>/rerun-<n>/`, up to `gates.max_reruns` (2) times, against the
   same calibrated control. The first passing attempt is used, and every attempt is
   listed in `execution.timeout_classes` (with each cell's `control_calibration`). If
   no attempt passes, the run is `invalid` with points withheld, as for the integrity
-  gate. `gates.control_every: 0` switches the gate off. Control tables add a quarter
+  gate; if any attempt was a bot excess, it is `fail` instead, with points reported. `gates.control_every: 0` switches the gate off. Control tables add a quarter
   more tables to a sandboxed run, plus one probe table per arm.
 - **Report**: `report.md` (concise) and `report.json` (full, including every block
   pair).

@@ -163,8 +163,9 @@ Each timeout, candidate and control alike, is classified (`strategy.eval.stalls`
 described in [strategy-evaluation.md](strategy-evaluation.md)):
 
 - *bot-caused*: the decide alone ran past the budget minus the median harness
-  overhead with CPU time at least 0.9 of its wall time (`cpu_bound`), or three
-  replays of the exact decision in a fresh worker have a median of 500 µs or more;
+  overhead with CPU time at least 0.9 of its wall time (`cpu_bound`), or the warm
+  replays of the exact decision in a fresh worker (three repeats, the cold first one
+  dropped) have a median of 500 µs or more;
 - *stall-like*: the worker's own time fitted (`transport`), the decide was off-CPU
   (`descheduled`), only the harness parse was slow (`parse`), or the replay was fast.
 
@@ -174,19 +175,34 @@ the report gives them as the rule's false-attribution floor.
 The gate passes, in the attempt used, when all of the following hold:
 
 - at least 50,000 decisions;
-- worker wall time p99 below 500 µs;
+- headroom: decide wall time (state decode + decide, as the sandboxed worker measures
+  it) p99 at or below 400 µs and p99.9 at or below 600 µs;
 - zero arena fallbacks other than timeouts, and zero restarts;
-- zero bot-caused timeouts;
+- bot-caused timeouts at or below 0.02% of decisions;
+- bot-caused timeouts within the matched control's bot-caused rate (C-test, p ≥ 0.01);
 - stall-like timeouts within the control's stall-like rate (C-test, p ≥ 0.01), on a
   host whose control is not significantly above the 0.05% ceiling;
 - zero internal fallbacks.
 
-A host-invalid or stall-excess attempt is rerun with the same seeds, up to 2 times
-(`--max-reruns`). Every attempt is in the report under `attempts`, and the first
-passing one decides. A bot-caused timeout, or any other failed check, ends the gate
-with a failure. The report gives p50, p95, p99, p99.9 and max for worker time and
+A host-invalid, bot-excess or stall-excess attempt is rerun with the same seeds, up
+to 2 times (`--max-reruns`). Every attempt is in the report under `attempts`, and
+the first passing one decides. Any other failed check (headroom, the bot-caused
+ceiling) ends the gate with a failure, as do exhausted reruns that include a bot
+excess. The report gives p50, p95, p99, p99.9 and max for worker time and
 end-to-end time, for the candidate and the control. The harness process's collector
 is off from dispatch until each reply is read, and its heap is frozen per table.
+
+**Points cost of timeouts** (`strategy.policy.timeout_cost`, run by the gate after its
+attempts; `--cost-tables`, default 1,000). The gate's tables, extended past the
+attempt with more tasks from the same seed, are replayed in-process three times with
+common random numbers: as is, and with the candidate's decisions forced to time out
+at the attempt's measured timeout rate and at 10 times that rate. A forced timeout is
+the arena's timeout fallback (check if legal, otherwise fold), and an explicit-state
+bot keeps its last committed state. Whether decision `i` of a table times out is a
+fixed draw shared by the arms. The report (`points_cost`) gives the paired cost per
+table, `points(as is) - points(forced)`, with a 95% interval, and the cost per forced
+timeout. Tables without a forced timeout must replay exactly
+(`unforced_tables_changed` = 0).
 `make gate-control` still runs the plain gate with the calling station as the
 candidate.
 
@@ -218,7 +234,7 @@ VM, 9.3 min), the gate **passed on its first attempt**. Over 369 tables:
 
 Both rates were about 2.5 times those of the earlier runs, so the host was noisier
 that day. The first replay in a fresh worker takes about 23 ms because the tables
-load lazily; the replay median of 3 absorbs it.
+load lazily; the classifier leaves that first replay out of the median.
 
 **CPU-aware classifier and matched control.** Under the `cpu_bound` rule and the
 workload-matched burner, nlhe-v2 passed one of three gate runs on an idle VM. That run had
