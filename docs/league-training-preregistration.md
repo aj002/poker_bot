@@ -80,6 +80,26 @@ The selected pack is exported to `strategy/tables/data/league-practice_nlhe.npz`
 `python -m strategy.policy.gate` (50,000 sandboxed decisions, worker p99 below 500 µs, no
 bot-caused timeouts or fallbacks) and stay under 100 MB.
 
+## Amendment 1 (written after selection, before any confirmation run)
+
+The declared selection chose the **blueprint**. C1, the only promoted league checkpoint,
+was ineligible: its abstract antisymmetric advantage over the exploiter E2 is −0.350
+(tolerance −0.15). So the pre-registered confirmations above were not run, a null result
+that stands. Its learning-curve score against the blueprint was +11.15 [+8.86, +13.43].
+
+This amendment runs the same confirmation family for C1 (`confirm --name C1`):
+`vs-blueprint` (400 blocks, H1 > 0), `ni-blueprint` and `ni-baseline` (200 blocks each,
+H1 > −1.0). The family is Holm-corrected together, with one-sided α = 0.05. These are
+the spec ids declared above (`league-main-v1-confirm-*`), and they had never run. The
+results are reported as an amendment family. They do not change the declared selection:
+the default deployed bot stays the blueprint. C1 ships only as the optional league bot
+(`strategy/league/bots/league.py`), which must pass the deployment gate.
+
+A secondary real-engine exploitability check, added after iteration 2 and not
+pre-registered (`artifacts/league/main-v1/exploitability.py`), runs each exploiter
+against its target in target-rich lineups: E1 vs the blueprint and E2 vs C1, 96 blocks
+each.
+
 ## Secondary (descriptive, no claims)
 
 Payoff matrices and σ per iteration, NashConv in the linearised meta-game and the exact
