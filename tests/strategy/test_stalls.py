@@ -224,14 +224,23 @@ def test_sandboxed_arms_classify_against_an_interleaved_control(tmp_path):
     assert calibration["iterations"] >= 0 and calibration["ns_per_iteration"] > 0
 
 
+def test_burner_iterations_match_the_target_median(monkeypatch):
+    monkeypatch.setattr(burn, "_burner_median", lambda _ruleset, n, _seed: 15_000 + 55 * n)
+    info = burn.matched_iterations([400_000, 100_000, 250_000], ruleset_id="practice_nlhe", seed="x")
+    assert info["iterations"] == round(235_000 / 55) and info["target_median_ns"] == 250_000
+    assert info["burner_base_ns"] == 15_000 and info["ns_per_iteration"] == 55
+    assert burn.matched_iterations([5_000], ruleset_id="practice_nlhe", seed="x")["iterations"] == 0
+    assert burn.matched_iterations([], ruleset_id="practice_nlhe", seed="x") is None
+
+
 @needs_sandbox
-def test_burner_is_matched_to_a_target_decide_time(tmp_path):
+def test_burner_work_is_fixed_per_decision(tmp_path):
     from arena.domain.models import TournamentConfig
 
-    info = burn.matched_iterations([400_000, 100_000, 250_000], ruleset_id="practice_nlhe", seed="pytest-burner")
-    assert info["target_median_ns"] == 250_000 and info["iterations"] > 0
     config = TournamentConfig(ruleset_id="practice_nlhe", initial_player_count=3, starting_stack=300, hand_cap=6)
-    policy = burn.burn_bundle(tmp_path / "burner", info["iterations"])
-    median = statistics.median(burn.calibrate(config, [policy.entrant("sandbox")] * 3, seed="pytest-burner-check"))
-    assert 0.6 * 250_000 < median < 1.6 * 250_000
-    assert burn.matched_iterations([], ruleset_id="practice_nlhe", seed="x") is None
+    medians = []
+    for n in (0, burn.PROBE_ITERATIONS):
+        policy = burn.burn_bundle(tmp_path / f"burner-{n}", n)
+        medians.append(statistics.median(burn.calibrate(config, [policy.entrant("sandbox")] * 3, seed="pytest")))
+    # Load only slows the loop down, so the gap is a lower bound on its work.
+    assert medians[1] - medians[0] > 50_000

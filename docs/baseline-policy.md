@@ -220,6 +220,17 @@ Both rates were about 2.5 times those of the earlier runs, so the host was noisi
 that day. The first replay in a fresh worker takes about 23 ms because the tables
 load lazily; the replay median of 3 absorbs it.
 
+**CPU-aware classifier and matched control.** Under the `cpu_bound` rule and the
+workload-matched burner, nlhe-v2 passed one of three gate runs on an idle VM. That run had
+20 timeouts, all stall-like, against 6 of 12,860 in the control. The other two runs
+failed. One failed on 3 CPU-bound decides, after a first attempt the host invalidated;
+the other on 1. Those decides took 821–933 µs. In the same replies the harness parse
+ran 3–6 times its usual time, and the replays took 200–360 µs. Over seven gate
+attempts, the controls had 1 CPU-bound timeout in 86,000 decisions. Pooled, nlhe-v2's
+4 CPU-bound timeouts in 200,000 decisions are not distinguishable from the controls'
+(C-test p = 0.48), so a strict gate fails a bot at this workload in a large share of
+50,000-decision runs.
+
 **GC.** The worker collects and freezes the heap after loading the bot, and packaged
 bots also freeze after loading the variant tables (`gc_mode="freeze"`). The decision
 path keeps no garbage cycles, so the bench sees no collection inside a decision.
