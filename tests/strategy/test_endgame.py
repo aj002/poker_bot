@@ -79,6 +79,37 @@ def test_icm_invariants():
     assert v[0] == pytest.approx(35 + 30 * 0.3)
 
 
+def test_decision_time_icm_is_bit_identical_to_the_keys_and_leaves_no_garbage():
+    import gc
+    import random
+    import struct
+
+    from strategy.endgame import icm
+
+    rng = random.Random(11)
+    for _ in range(5000):
+        n = rng.randint(1, 9)
+        stacks = [rng.choice([0, rng.randint(1, 20000), rng.random() * 5000]) for _ in range(n)]
+        prizes = sorted((rng.random() for _ in range(rng.randint(0, 6))), reverse=True) + [0.0] * rng.randint(0, 3)
+        hero = rng.randrange(n)
+        want, got = icm_player(stacks, hero, prizes), icm.icm_player(stacks, hero, prizes)
+        assert struct.pack("<d", got) == struct.pack("<d", want), (stacks, hero, prizes)
+    for _ in range(2000):
+        n = rng.randint(2, 8)
+        stacks = [rng.choice([0, rng.randint(1, 20000)]) for _ in range(n)]
+        hero, villain = rng.sample(range(n), 2)
+        want, got = pressure(stacks, hero, villain, PAYOUTS8), icm.pressure(stacks, hero, villain, PAYOUTS8)
+        assert struct.pack("<d", got) == struct.pack("<d", want), (stacks, hero, villain)
+    gc.collect()
+    gc.disable()
+    try:
+        for _ in range(50):
+            icm.pressure([1500, 900, 2400, 300, 1200, 800, 2000, 700], 0, 2, list(PAYOUTS8))
+        assert gc.collect() == 0
+    finally:
+        gc.enable()
+
+
 def test_eliminations_follow_the_arena_standings():
     rng = np.random.default_rng(5)
     for _ in range(300):

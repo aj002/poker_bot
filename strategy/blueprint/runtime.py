@@ -33,7 +33,7 @@ from strategy.blueprint import abstraction as A
 from strategy.blueprint.cards import CardAbstraction
 from strategy.blueprint.policy import PolicyPack
 from strategy.endgame.bot import BasePolicy, PushFoldBot
-from strategy.endgame.keys import pressure
+from strategy.endgame.icm import pressure
 from strategy.features.cards import capabilities, card_ints
 from strategy.tables import store
 
@@ -63,13 +63,20 @@ def _uniform(seed: str, decision_id: str) -> float:
 
 
 class HandReplay:
-    """Per-street betting facts of the current hand from its public events."""
+    """Per-street betting facts of the current hand from its public events.
+
+    ``HandReplay(obs)`` replays the observation's events. A caller that already walks the
+    events can build the same facts incrementally: :meth:`begin` on ``HandStarted``,
+    :meth:`feed` for every later event of the hand, then :meth:`at` for the decision's
+    street (which leaves the incremental replay untouched)."""
 
     __slots__ = ("street", "cur", "last_full", "raises", "aggr", "prev_aggr", "acted_round", "acted_street",
                  "start", "bb", "ok")
 
-    def __init__(self, obs) -> None:
+    def __init__(self, obs=None) -> None:
         self.ok = False
+        if obs is None:
+            return
         events = []
         for e in reversed(obs.action_history):
             if e.hand_id != obs.hand_id:
@@ -80,8 +87,17 @@ class HandReplay:
         events.reverse()
         if not events or events[0].type != "HandStarted":
             return
-        d = events[0].data
-        self.start = {int(s): int(c) for s, c in d["start_stacks"].items()}
+        self.begin(events[0].data)
+        for e in events[1:]:
+            self.feed(e.type, e.data)
+        s = STREETS.index(obs.street)
+        if s != self.street:
+            self._new_street(s)
+        self.ok = True
+
+    def begin(self, d, start: dict[int, int] | None = None) -> None:
+        """``start``: the hand's ``{seat: start stack}`` if the caller already built it (kept as is)."""
+        self.start = {int(s): int(c) for s, c in d["start_stacks"].items()} if start is None else start
         self.bb = int(d["big_blind"])
         self.street = 0
         self.cur = 0
@@ -91,29 +107,38 @@ class HandReplay:
         self.prev_aggr = -1
         self.acted_round: set[int] = set()
         self.acted_street: set[int] = set()
-        for e in events[1:]:
-            t = e.type
-            if t == "BlindPosted":
-                self.cur = max(self.cur, int(e.data["amount"]))
-            elif t == "ActionApplied":
-                s = STREETS.index(e.data["street"])
-                if s != self.street:
-                    self._new_street(s)
-                seat = int(e.data["seat"])
-                self.acted_round.add(seat)
-                self.acted_street.add(seat)
-                if e.data["action"]["type"] == "raise_to":
-                    new = int(e.data["street_committed"])
-                    if new - self.cur >= self.last_full:
-                        self.last_full = new - self.cur
-                        self.acted_round = {seat}
-                    self.cur = max(self.cur, new)
-                    self.raises += 1
-                    self.aggr = seat
-        s = STREETS.index(obs.street)
-        if s != self.street:
-            self._new_street(s)
-        self.ok = True
+
+    def feed(self, t: str, d) -> None:
+        if t == "BlindPosted":
+            self.cur = max(self.cur, int(d["amount"]))
+        elif t == "ActionApplied":
+            s = STREETS.index(d["street"])
+            if s != self.street:
+                self._new_street(s)
+            seat = int(d["seat"])
+            self.acted_round.add(seat)
+            self.acted_street.add(seat)
+            if d["action"]["type"] == "raise_to":
+                new = int(d["street_committed"])
+                if new - self.cur >= self.last_full:
+                    self.last_full = new - self.cur
+                    self.acted_round = {seat}
+                self.cur = max(self.cur, new)
+                self.raises += 1
+                self.aggr = seat
+
+    def at(self, street: str) -> HandReplay:
+        """The replay as :class:`HandReplay` (obs) would leave it for a decision on ``street``."""
+        out = HandReplay()
+        out.street, out.cur, out.last_full, out.raises = self.street, self.cur, self.last_full, self.raises
+        out.aggr, out.prev_aggr, out.acted_round, out.acted_street = (self.aggr, self.prev_aggr, self.acted_round,
+                                                                      self.acted_street)
+        out.start, out.bb = self.start, self.bb
+        s = STREETS.index(street)
+        if s != out.street:
+            out._new_street(s)
+        out.ok = True
+        return out
 
     def _new_street(self, s: int) -> None:
         self.prev_aggr = self.aggr if s == self.street + 1 else -1
@@ -162,9 +187,12 @@ class BlueprintPolicy:
             self._pressure[k] = b
         return b
 
-    def features(self, obs):
-        """``(key, mask, targets)`` of the hero's decision, or None outside the abstraction."""
-        rp = HandReplay(obs)
+    def features(self, obs, rp: HandReplay | None = None):
+        """``(key, mask, targets)`` of the hero's decision, or None outside the abstraction.
+
+        ``rp``: the hand's replay if the caller already has it (see :meth:`HandReplay.at`)."""
+        if rp is None:
+            rp = HandReplay(obs)
         if not rp.ok:
             return None
         legal = obs.legal
@@ -215,10 +243,13 @@ class BlueprintPolicy:
         """:meth:`act` given ``f = self.features(obs)``."""
         if f is None:
             return None
-        key, mask, targets = f
-        hit = self.pack.lookup(key)
+        return self.act_row(obs, u, f, self.pack.lookup(f[0]))
+
+    def act_row(self, obs, u: float, f, hit):
+        """:meth:`act_on` given ``hit = self.pack.lookup(f[0])`` (``f`` not None)."""
         if hit is None:
             return None
+        _, mask, targets = f
         row, level = hit
         weights = [row[a] if (mask >> a) & 1 else 0 for a in range(A.NUM_ACTIONS)]
         total = sum(weights)

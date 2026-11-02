@@ -117,7 +117,7 @@ class PolicyPack:
             keys = self.keys[level]
             i = int(keys.searchsorted(keys.dtype.type(k)))
             if i < keys.size and int(keys[i]) == k:
-                return tuple(int(x) for x in self.probs[level][i]), level
+                return tuple(self.probs[level][i].tolist()), level
         return None
 
     def dense(self, level: int = 0) -> np.ndarray:
