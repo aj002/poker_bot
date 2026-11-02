@@ -140,6 +140,16 @@ uv run --group train python -m strategy.league.runner iterate --run artifacts/le
 uv run python -m strategy.league.summary artifacts/league/main-v1
 ```
 
+The Stage 6 exploitation layer (`strategy/exploit/README.md`,
+`docs/opponent-exploitation-preregistration.md`) adds per-seat archetype beliefs and
+confidence-capped response experts to the blueprint, within a per-table loss budget. Its bot
+`strategy/exploit/bots/exploit.py` loads the pack `strategy/tables/data/exploit-practice_nlhe.npz`:
+
+```bash
+make exploit-bundles exploit-validate   # the pre-registered paired validation runs
+make gate-exploit                       # the sandboxed deployed-path gate
+```
+
 The CLI plays seeded headless hands and tournaments with simple built-in policies
 (`legal_random`, `check_or_call`, `check_or_fold`, `shove`):
 
