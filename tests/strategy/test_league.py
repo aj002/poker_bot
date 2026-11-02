@@ -200,7 +200,6 @@ def test_the_league_bot_plays_legal_tournaments_within_budget(monkeypatch):
     orig = runtime.BlueprintBot.decide
 
     def timed(self, obs, state):
-        assert self.name == "league"
         t = time.perf_counter_ns()
         out = orig(self, obs, state)
         timings.append(time.perf_counter_ns() - t)
@@ -209,6 +208,11 @@ def test_the_league_bot_plays_legal_tournaments_within_budget(monkeypatch):
         return out
 
     monkeypatch.setattr(runtime.BlueprintBot, "decide", timed)
+    from arena.agents.sdk import load_bot
+
+    bot, _ = load_bot(REPO / "strategy" / "league" / "bots" / "league.py")
+    assert bot.name == "league" and bot.policy("practice_nlhe").pack.path == LEAGUE_PACK
+    timings.clear()
     config = TournamentConfig(initial_player_count=4, hand_cap=120)
     rollouts = run_rollouts(config, ["strategy/league/bots/league.py", "style:aggressive", "baseline:calling_station",
                                      "style:rock"], blocks=1, base_seed="league-bot-test", jobs=1)
