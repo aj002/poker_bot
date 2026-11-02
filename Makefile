@@ -302,5 +302,6 @@ exploit-bundles: blueprint-bundles
 	$(UV) run python -m strategy.exploit.package --out $(EX)/bundles/exploit > /dev/null
 
 exploit-validate:
-	for s in exploit-vs-blueprint-validation exploit-robust-equilibrium exploit-robust-deceptive; do \
+	for s in exploit-vs-blueprint-validation exploit-targeted-validation exploit-robust-equilibrium \
+		exploit-robust-deceptive; do \
 		$(UV) run python -m strategy.exploit.evaluate run $$s --jobs $(EX_JOBS) || exit 1; done
