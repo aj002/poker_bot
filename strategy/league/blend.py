@@ -301,10 +301,29 @@ class Frontier:
         val_path.write_text(json.dumps(val, indent=1))
         return val
 
+    def posthoc(self, name: str = "B50") -> dict:
+        """Not pre-registered: the blueprint in the blend's seat on its regress-exploiter lineups and seeds."""
+        from strategy.league import gates as Gt
+
+        lg = self.lg
+        ex = next(p for p in self.rec["points"].values() if p["name"] == name)["exploiter"]
+        out = {}
+        for j in (CHILD_EXPLOITER, ex):
+            s = json.loads((lg.dir / "specs" / f"league-{lg.cfg.run}-{name}-regress-{j}.json").read_text())
+            s["experiment_id"] = f"league-{lg.cfg.run}-posthoc-blueprint-vs-{j}"
+            s["stage"] = "discovery"
+            s["title"] = f"Post hoc: blueprint vs {j} on the {name} regress-{j} lineups and seeds"
+            s["description"] = "Exploratory, after the B50 decision: the reference level for the regress-exploiter clause."
+            s["arms"]["B"] = {"policy": lg.bundle("blueprint")}
+            out[j] = Gt.run(Gt.write_spec(s, lg.dir / "specs"), jobs=lg.cfg.jobs)
+            lg.log(f"post hoc: blueprint vs {j}: {_fmt(out[j])}")
+        (self.dir / "posthoc.json").write_text(json.dumps(out, indent=1))
+        return out
+
 
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    ap.add_argument("command", choices=("frontier", "choose", "validate", "show"))
+    ap.add_argument("command", choices=("frontier", "choose", "validate", "posthoc", "show"))
     ap.add_argument("--run", type=Path, required=True)
     a = ap.parse_args(argv)
     f = Frontier(a.run)
@@ -316,6 +335,8 @@ def main(argv: list[str] | None = None) -> int:
         f.choose()
     elif a.command == "validate":
         print(json.dumps({k: v for k, v in f.validate().items() if k in ("outcome",)}, indent=1))
+    elif a.command == "posthoc":
+        f.posthoc()
     else:
         for key, pt in sorted(f.rec["points"].items()):
             tp, te = pt.get("train_pop") or {}, pt.get("train_exploit") or {}

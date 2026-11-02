@@ -15,6 +15,7 @@ the validation population. Pre-registration: `docs/league-training-preregistrati
 | `learner.py` | `AbstractLeague`: seat mixtures, response training, frozen paired evaluation, payoff matrix | via kernels |
 | `meta.py` | regret-matching meta-solver, NashConv, antisymmetric part, intransitive cycles | no |
 | `gates.py` | promotion specs (`improve`, `regress-<j>`), the declared rule, Holm confirmations | no |
+| `blend.py` | blueprint–C1 blend frontier `B_λ` (amendment 2): train-only frontier, λ rule, validation | lazy |
 | `bots/league.py` | deployed bot: the blueprint runtime on `strategy/tables/data/league-practice_nlhe.npz` | no |
 
 ## One iteration
@@ -51,6 +52,9 @@ uv run --group train python -m strategy.league.runner select  --run artifacts/le
 uv run --group train python -m strategy.league.runner confirm --run artifacts/league/main-v1
 uv run --group train python -m strategy.league.runner export  --run artifacts/league/main-v1
 uv run --group train python -m strategy.league.runner status  --run artifacts/league/main-v1
+uv run --group train python -m strategy.league.blend frontier --run artifacts/league/main-v1
+uv run --group train python -m strategy.league.blend validate --run artifacts/league/main-v1
+uv run python -m strategy.league.blend show --run artifacts/league/main-v1
 ```
 
 `init --smoke` builds a tiny league for checking the plumbing. Every step writes its

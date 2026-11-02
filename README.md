@@ -132,7 +132,9 @@ The Stage 5 league (`strategy/league/README.md`, `docs/league-training-preregist
 keeps frozen checkpoints, meta-solves an opponent mixture over their payoff matrix
 and promotes learners only through paired validation gates. Its optional bot
 `strategy/league/bots/league.py` plays the league checkpoint C1 (pack
-`strategy/tables/data/league-practice_nlhe.npz`) on the blueprint runtime:
+`strategy/tables/data/league-practice_nlhe.npz`) on the blueprint runtime. The
+blueprint stays the default: C1 and its blueprint blends (`strategy/league/blend.py`)
+fail the declared robustness clauses against the league's exploiters.
 
 ```bash
 uv run --group train python -m strategy.league.runner init --run artifacts/league/main-v1

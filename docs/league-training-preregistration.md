@@ -205,3 +205,19 @@ numbers are on the train partition, in points per tournament, with 95% paired t.
 
 **Chosen: λ = 0.5 (B50).** Its train lower bound +3.83 > 0, so validation proceeds
 as declared above, with `X_λ` = X50.
+
+### Amendment 2: outcome (appended after the runs)
+
+On validation, B50 passed `improve` vs the blueprint: +5.51 [+4.26, +6.76] over 288
+blocks. It also passed `regress` against the blueprint (+0.07), the baseline (+11.62)
+and C1 (+0.58), and the pooled bound (+1.16 [+0.30, +2.02]).
+
+It failed `regress-E2` (−3.27 [−5.38, −1.16]) and `regress-X50` (−3.76 [−5.70, −1.81]),
+on both the point estimate and the lower bound. **B50 was retired.** Selection,
+confirmations and export were not run, and the blueprint stays the default.
+
+- **X50** was promoted as an exploiter. Its abstract gain over B50 is +0.215 ± 0.006.
+- **Descriptive:** X50 vs B50 in B50-rich lineups, +1.87 [−0.08, +3.82].
+- **Post hoc, not part of this registration:** the blueprint in B50's seat on the same
+  lineups and seeds scores +4.11 vs E2 and +3.54 vs X50
+  (`league-main-v1-posthoc-blueprint-vs-*`).
