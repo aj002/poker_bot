@@ -255,8 +255,9 @@ class BlueprintBot(ExplicitStateBot):
         self._pack_path = Path(pack) if pack else None
         self._policies: dict[str, BlueprintPolicy] = {}
         self._leaf = PushFoldBot(leaf)
-        self._warmed: set[str] = set()
         self.stats = self._fresh_stats()
+        for ruleset_id in RULESETS:
+            self.warm(ruleset_id)
 
     @staticmethod
     def _fresh_stats() -> dict:
@@ -272,18 +273,18 @@ class BlueprintBot(ExplicitStateBot):
     def initial_state(self, table):
         self.policy(table.ruleset_id)
         self._leaf.initial_state(table)
-        if table.ruleset_id not in self._warmed:
-            self._warmed.add(table.ruleset_id)
-            self.warm(table.ruleset_id)
         return {"seed": table.policy_seed}
 
     def warm(self, ruleset_id: str) -> None:
-        """Play the recorded observations during the untimed load.
+        """Load the pack and tables and play the recorded observations, from the constructor.
 
-        A sandboxed worker loads the bot per table and times every decision. Without this
-        the first decisions run cold (unspecialised bytecode, cold caches) and can take half
-        the 1 ms budget. Only memo caches of pure functions are touched, so play is unchanged.
+        A sandboxed worker builds the bot in its untimed load but calls ``initial_state``
+        only on a fresh table: a worker restored after a restart, or replaying a timeout,
+        goes straight to a timed decision. Loading there costs about 80 ms, and cold first
+        decisions (unspecialised bytecode, cold caches) about half the 1 ms budget. Only
+        memo caches of pure functions are touched, so play is unchanged.
         """
+        self.policy(ruleset_id)
         recorded = warm_observations(ruleset_id)
         for _ in range(WARM_PASSES if recorded else 0):
             for raw in recorded:

@@ -229,6 +229,19 @@ def test_bundle_is_self_contained(tmp_path):
         str(p.relative_to(tmp_path / "bundle")) for p in (tmp_path / "bundle").rglob("*.npz")}
 
 
+def test_bot_is_loaded_and_warm_after_construction(tmp_path, monkeypatch):
+    """A restored sandbox worker decides without calling initial_state first."""
+    from strategy.blueprint import runtime
+
+    monkeypatch.setenv("BLUEPRINT_PACK", str(uniform_pack(tmp_path / "u.npz")))
+    played = []
+    monkeypatch.setattr(runtime.BlueprintBot, "decide", lambda self, obs, state: played.append(obs) or (None, state))
+    bot = runtime.BlueprintBot("points")
+    assert set(bot._policies) == set(runtime.RULESETS)
+    assert len(played) == runtime.WARM_PASSES * len(runtime.warm_observations("practice_nlhe")) > 0
+    assert bot.stats == runtime.BlueprintBot._fresh_stats()
+
+
 def _play(policies, *, players, hand_cap=120, seed="blueprint-test"):
     from arena.domain.models import TournamentConfig
     from strategy.value.rollouts import run_rollouts
