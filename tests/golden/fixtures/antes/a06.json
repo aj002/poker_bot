@@ -1,0 +1,22 @@
+{
+ "id": "A06",
+ "kind": "full_trace",
+ "description": "Heads-up big-blind ante 20: the button (SB) folds; the BB takes back its blind and ante and wins the small blind.",
+ "setup": {
+  "stacks": {"0": 1000, "1": 1000},
+  "button": 0,
+  "small_blind_seat": 0,
+  "big_blind_seat": 1,
+  "ante": 20,
+  "ante_posting": "big_blind"
+ },
+ "steps": [
+  {"state": {"pot_total": 50, "hand_committed": {"0": 10, "1": 40}}},
+  {"actor": 0, "legal": {"call_amount": 10}, "do": {"type": "fold"}}
+ ],
+ "expect": {
+  "final_stacks": {"0": 990, "1": 1010},
+  "ended_by_fold": true,
+  "event_counts": {"AntePosted": 1}
+ }
+}

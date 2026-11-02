@@ -85,6 +85,10 @@ PHH is secondary interchange. Each complete hand becomes a PHH TOML document:
 - players are in PokerKit index order;
 - `seats` holds 1-based physical seats;
 - `blinds_or_straddles` is PokerKit's vector;
+- `antes` is PokerKit's vector of the amounts actually posted, and
+  `ante_trimming_status` is true for classic antes (live contributions) and false for a
+  big-blind ante (dead money); `_arena_ante` and `_arena_ante_posting` record the
+  configured ante and are written only for hands with an ante;
 - practice-rule details are `_arena_*` user fields.
 
 Rules:

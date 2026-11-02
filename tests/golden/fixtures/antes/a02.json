@@ -1,0 +1,31 @@
+{
+ "id": "A02",
+ "kind": "full_trace",
+ "description": "Big-blind ante 20 is dead money: it is in the pot-sized raise, not in the call price, and goes to the main pot. The folded SB is not eligible.",
+ "setup": {
+  "stacks": {"0": 1000, "1": 1000, "2": 1000},
+  "button": 0,
+  "small_blind_seat": 1,
+  "big_blind_seat": 2,
+  "ante": 20,
+  "ante_posting": "big_blind",
+  "hole": {"0": "AsAh", "2": "KsKh"},
+  "board": "2c3d8hJs4d"
+ },
+ "steps": [
+  {"state": {"pot_total": 50, "street_committed": {"2": 20}, "hand_committed": {"2": 40}}},
+  {"actor": 0, "legal": {"call_amount": 20, "min_full_raise_to": 40, "pot_raise_to": 90}, "do": {"type": "raise_to", "amount": 60}},
+  {"actor": 1, "do": {"type": "fold"}},
+  {"actor": 2, "legal": {"call_amount": 40}, "do": {"type": "call"}},
+  {"check_down": true}
+ ],
+ "expect": {
+  "contributions": {"0": 60, "1": 10, "2": 80},
+  "pots": [
+   {"amount": 50, "eligible": [0, 2], "awards": {"0": 50}},
+   {"amount": 100, "eligible": [0, 2], "awards": {"0": 100}}
+  ],
+  "final_stacks": {"0": 1090, "1": 990, "2": 920},
+  "event_counts": {"AntePosted": 1, "BlindPosted": 2}
+ }
+}

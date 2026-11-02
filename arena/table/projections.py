@@ -34,7 +34,7 @@ from arena.domain.observations import (
 )
 
 if TYPE_CHECKING:
-    from arena.table.service import Table
+    from arena.table.service import HandRecord, Table
 
 
 class ProjectionDenied(PermissionError):
@@ -62,7 +62,9 @@ class Viewer:
 # Data fields any viewer may see, per event type. ``None`` hides the whole event.
 PUBLIC_FIELDS: dict[str, tuple[str, ...] | None] = {
     "TableStarted": ("config", "config_hash", "seat_ring", "start_stacks"),
-    "HandStarted": ("hand_number", "level", "small_blind", "big_blind", "positions", "small_blind_seat", "start_stacks"),
+    "HandStarted": ("hand_number", "level", "small_blind", "big_blind", "positions", "small_blind_seat", "start_stacks",
+                    "ante", "ante_posting"),
+    "AntePosted": ("seat", "amount"),
     "BlindPosted": ("seat", "amount"),
     "HoleDealt": ("seat",),
     "CardBurned": None,
@@ -102,7 +104,9 @@ def project_event(event: EventEnvelope, viewer: Viewer) -> PublicEvent | None:
         return None
     # JSON form (string map keys), so the in-memory view equals its wire form.
     wire = EVENT_MODELS[event.type].model_validate(event.data).model_dump(mode="json")
-    return PublicEvent(seq=event.seq, hand_id=event.hand_id, type=event.type, data={k: wire[k] for k in fields})
+    # Fields a payload omits when unset (HandStarted's ante) are skipped, not invented.
+    return PublicEvent(seq=event.seq, hand_id=event.hand_id, type=event.type,
+                       data={k: wire[k] for k in fields if k in wire})
 
 
 def project_events(events: Iterable[EventEnvelope], viewer: Viewer) -> list[PublicEvent]:
@@ -133,15 +137,19 @@ def table_history_view(table: Table, viewer: Viewer) -> HistoryView:
     return history_view(table.log, viewer, table_complete=table.complete)
 
 
-def display_pots(collected: dict[int, int], folded: Iterable[int]) -> list[PotView]:
+def display_pots(collected: dict[int, int], folded: Iterable[int],
+                 dead: dict[int, int] | None = None) -> list[PotView]:
     """Pots formed by chips already collected, merged where the eligible sets match.
 
     Current-street bets are not in a pot yet (see ``players[].street_committed``).
     Settlement still awards one pot per contribution level; only odd-chip
     placement can differ from this merged display, and ``PotAwarded`` events are
-    authoritative.
+    authoritative. ``dead`` (big-blind antes, by seat) is not a contribution level:
+    it sits in the main pot.
     """
     folded = set(folded)
+    if dead:
+        collected = {s: c - dead.get(s, 0) for s, c in collected.items()}
     pots: list[PotView] = []
     previous = 0
     for level in sorted({c for c in collected.values() if c > 0}):
@@ -153,6 +161,12 @@ def display_pots(collected: dict[int, int], folded: Iterable[int]) -> list[PotVi
             pots[-1] = PotView(amount=pots[-1].amount + amount, eligible=pots[-1].eligible)
         else:
             pots.append(PotView(amount=amount, eligible=eligible))
+    if dead:
+        extra = sum(dead.values())
+        if pots:
+            pots[0] = PotView(amount=pots[0].amount + extra, eligible=pots[0].eligible)
+        else:
+            pots.append(PotView(amount=extra, eligible=sorted(s for s in collected if s not in folded)))
     return pots
 
 
@@ -167,7 +181,17 @@ def _next_level(table: Table) -> NextLevelView | None:
     if starts > config.hand_cap:
         return None
     sb, bb = config.blind_levels[current + 1]
-    return NextLevelView(small_blind=sb, big_blind=bb, starts_at_hand=starts)
+    if config.antes is None:
+        return NextLevelView(small_blind=sb, big_blind=bb, starts_at_hand=starts)
+    return NextLevelView(small_blind=sb, big_blind=bb, starts_at_hand=starts, ante=config.antes[current + 1],
+                         ante_posting=config.ante_posting)
+
+
+def _blinds_view(record: HandRecord) -> BlindsView:
+    if not record.ante:
+        return BlindsView(small_blind=record.blinds[0], big_blind=record.blinds[1])
+    return BlindsView(small_blind=record.blinds[0], big_blind=record.blinds[1], ante=record.ante,
+                      ante_posting=record.ante_posting)
 
 
 def table_view(table: Table, viewer: Viewer) -> TableView:
@@ -196,7 +220,7 @@ def table_view(table: Table, viewer: Viewer) -> TableView:
                                       hand_committed=p.hand_committed, status=p.status,
                                       shown_cards=list(shown) if shown is not None else None))
         collected = hand.collected()
-        pots = display_pots(collected, hand.folded)
+        pots = display_pots(collected, hand.folded, hand.dead_money())
         board = list(hand.board)
         pot_total = hand.pot_total()
         settled = sum(collected.values())
@@ -249,7 +273,7 @@ def table_view(table: Table, viewer: Viewer) -> TableView:
         current_bet_to=level,
         pots=pots,
         players=players,
-        blinds=BlindsView(small_blind=record.blinds[0], big_blind=record.blinds[1]) if in_hand and record else None,
+        blinds=_blinds_view(record) if in_hand and record else None,
         next_level=_next_level(table),
         payouts=list(table.config.resolved_payouts),
         hands_played=hands_played,

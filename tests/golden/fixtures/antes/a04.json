@@ -1,0 +1,30 @@
+{
+ "id": "A04",
+ "kind": "full_trace",
+ "description": "Classic ante 5: both blind seats are all-in on their antes, so no blind is posted. Preflop opens unbet: the first actor may check and the minimum bet is the big blind.",
+ "setup": {
+  "stacks": {"0": 1000, "1": 4, "2": 5, "3": 1000},
+  "button": 0,
+  "small_blind_seat": 1,
+  "big_blind_seat": 2,
+  "ante": 5,
+  "ante_posting": "classic",
+  "hole": {"0": "7c2d", "1": "AsAh", "2": "KsKh", "3": "QsQh"},
+  "board": "2c3d8hJs4d"
+ },
+ "steps": [
+  {"state": {"pot_total": 19}},
+  {"actor": 3, "legal": {"fold": false, "check": true, "call_amount": null, "min_full_raise_to": 20}, "do": {"type": "check"}},
+  {"actor": 0, "legal": {"check": true}, "do": {"type": "check"}},
+  {"check_down": true}
+ ],
+ "expect": {
+  "contributions": {"0": 5, "1": 4, "2": 5, "3": 5},
+  "pots": [
+   {"amount": 16, "eligible": [0, 1, 2, 3], "awards": {"1": 16}},
+   {"amount": 3, "eligible": [0, 2, 3], "awards": {"2": 3}}
+  ],
+  "final_stacks": {"0": 995, "1": 16, "2": 3, "3": 995},
+  "event_counts": {"AntePosted": 4, "BlindPosted": 0}
+ }
+}

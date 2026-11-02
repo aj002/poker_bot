@@ -1,0 +1,22 @@
+{
+ "id": "A05",
+ "kind": "full_trace",
+ "description": "Heads-up classic ante 10: both seats ante; the button (SB) folds and loses ante plus small blind.",
+ "setup": {
+  "stacks": {"0": 1000, "1": 1000},
+  "button": 0,
+  "small_blind_seat": 0,
+  "big_blind_seat": 1,
+  "ante": 10,
+  "ante_posting": "classic"
+ },
+ "steps": [
+  {"state": {"pot_total": 50, "hand_committed": {"0": 20, "1": 30}}},
+  {"actor": 0, "legal": {"call_amount": 10}, "do": {"type": "fold"}}
+ ],
+ "expect": {
+  "final_stacks": {"0": 980, "1": 1020},
+  "ended_by_fold": true,
+  "event_counts": {"AntePosted": 2}
+ }
+}

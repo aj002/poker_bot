@@ -13,7 +13,8 @@ from __future__ import annotations
 
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, StrictBool, StrictInt, StrictStr
+from pydantic import (BaseModel, ConfigDict, SerializerFunctionWrapHandler, StrictBool, StrictInt, StrictStr,
+                      model_serializer)
 
 from arena.domain.models import LegalActions
 
@@ -42,15 +43,36 @@ class PotView(_View):
     eligible: list[StrictInt]
 
 
+def _without_zero_ante(data: dict[str, Any]) -> dict[str, Any]:
+    """Ante fields are on the wire only when an ante is set, so ante-free views are unchanged."""
+    if not data.get("ante"):
+        data.pop("ante", None)
+        data.pop("ante_posting", None)
+    return data
+
+
 class BlindsView(_View):
     small_blind: StrictInt
     big_blind: StrictInt
+    ante: StrictInt = 0
+    """Nominal ante this hand: per seat (``classic``) or the big blind's (``big_blind``)."""
+    ante_posting: Literal["classic", "big_blind"] | None = None
+
+    @model_serializer(mode="wrap")
+    def _omit_absent_ante(self, handler: SerializerFunctionWrapHandler) -> dict[str, Any]:
+        return _without_zero_ante(handler(self))
 
 
 class NextLevelView(_View):
     small_blind: StrictInt
     big_blind: StrictInt
     starts_at_hand: StrictInt
+    ante: StrictInt = 0
+    ante_posting: Literal["classic", "big_blind"] | None = None
+
+    @model_serializer(mode="wrap")
+    def _omit_absent_ante(self, handler: SerializerFunctionWrapHandler) -> dict[str, Any]:
+        return _without_zero_ante(handler(self))
 
 
 class DecisionBudget(_View):

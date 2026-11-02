@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import dataclasses
+
 from arena.domain.cards import full_deck
 from arena.domain.models import Action, LocalRules, default_blind_levels
 from arena.domain.rng import SeededRng, shuffled
@@ -30,7 +32,18 @@ def awkward_stack(rng: SeededRng, bb: int) -> int:
     return 1 + rng.randbelow(6000)
 
 
-def random_spec(seed: int, ruleset: str, n: int) -> HandSpec:
+def random_spec(seed: int, ruleset: str, n: int, ante_posting: str | None = None) -> HandSpec:
+    """``ante_posting`` adds an ante drawn from its own stream, so ante-free specs are unchanged."""
+    spec = _random_spec(seed, ruleset, n)
+    if ante_posting is None:
+        return spec
+    arng = SeededRng(seed, f"gen-ante-{ruleset}-{n}-{ante_posting}")
+    bb = spec.big_blind
+    ante = (1 + arng.randbelow(bb // 4)) if ante_posting == "classic" else (bb // 2 + arng.randbelow(bb))
+    return dataclasses.replace(spec, ante=ante, ante_posting=ante_posting)
+
+
+def _random_spec(seed: int, ruleset: str, n: int) -> HandSpec:
     rng = SeededRng(seed, f"gen-{ruleset}-{n}")
     profile = get_profile(ruleset)
     dead = rng.randbelow(3) if n >= 3 and n < 8 else 0
@@ -105,8 +118,9 @@ def illegal_probe(hand: PokerKitHand, rng: SeededRng) -> Action:
     return candidates[rng.randbelow(len(candidates))]
 
 
-def play_generated_hand(seed: int, ruleset: str, n: int, stats: dict[str, int] | None = None) -> PokerKitHand:
-    spec = random_spec(seed, ruleset, n)
+def play_generated_hand(seed: int, ruleset: str, n: int, stats: dict[str, int] | None = None,
+                        ante_posting: str | None = None) -> PokerKitHand:
+    spec = random_spec(seed, ruleset, n, ante_posting)
     hand = PokerKitHand(spec)
     rng = SeededRng(seed, "policy")
     street_order = ["preflop", "flop", "turn", "river"]

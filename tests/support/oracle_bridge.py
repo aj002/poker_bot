@@ -27,8 +27,26 @@ def oracle_strength(ruleset_id: str, hole: list[str], board: list[str]):
     raise ValueError(ruleset_id)
 
 
+def oracle_antes(hand: PokerKitHand) -> dict[int, int]:
+    """Antes each seat should post, re-derived from the spec: classic antes before the blinds,
+    a big-blind ante after the big blind."""
+    spec = hand.spec
+    if not spec.ante:
+        return {}
+    if spec.ante_posting == "classic":
+        return {s: spec.ante if v >= spec.ante else v for s, v in spec.stacks.items()}
+    behind = spec.stacks[spec.big_blind_seat] - spec.big_blind
+    return {spec.big_blind_seat: spec.ante if behind >= spec.ante else max(behind, 0)}
+
+
+def oracle_dead_money(hand: PokerKitHand) -> dict[int, int]:
+    return oracle_antes(hand) if hand.spec.ante_posting == "big_blind" else {}
+
+
 def assert_matches_oracles(hand: PokerKitHand) -> None:
     result = hand.result()
+    posted = {e.data["seat"]: e.data["amount"] for e in hand.events if e.type == "AntePosted"}
+    assert posted == {s: a for s, a in oracle_antes(hand).items() if a}, f"antes {posted} != oracle"
     live = [s for s in hand.seats if s not in result.folded]
     engine_pots = [(p.amount, tuple(sorted(p.eligible)), dict(sorted(p.awards.items()))) for p in result.pots]
     if len(live) == 1:
@@ -45,7 +63,7 @@ def assert_matches_oracles(hand: PokerKitHand) -> None:
         return
     assert len(result.board) == 5, "showdown without a full board"
     strengths = {s: oracle_strength(hand.profile.ruleset_id, hand.hole_cards[s], list(result.board)) for s in live}
-    settlement = settle(result.contributions, result.folded, strengths, hand.spec.button)
+    settlement = settle(result.contributions, result.folded, strengths, hand.spec.button, dead=oracle_dead_money(hand))
     oracle_pots = [(p.amount, tuple(sorted(p.eligible)), dict(sorted(p.shares.items()))) for p in settlement.pots]
     assert engine_pots == oracle_pots, f"pots differ from oracle:\nengine {engine_pots}\noracle {oracle_pots}"
     expected_final = {

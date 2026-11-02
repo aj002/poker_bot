@@ -105,6 +105,28 @@ def test_pokerkit_reader_agrees_except_declared_exclusions():
     print(dict(tally))
 
 
+ANTES = {"classic": [3, 4, 5, 10, 15, 25, 40, 50], "big_blind": [20, 30, 50, 100, 150, 200, 300, 400]}
+
+
+@pytest.mark.parametrize("posting", ["classic", "big_blind"])
+@pytest.mark.parametrize("n", (2, 3, 6, 8))
+def test_ante_hands_roundtrip_and_pokerkit_reader(posting, n):
+    tally = Counter()
+    for seed in range(4):
+        history = export_history(play_table("practice_nlhe", n, f"phh-ante-{posting}-{n}-{seed}", stack=1000,
+                                            antes=ANTES[posting], ante_posting=posting))
+        for number, doc in enumerate(export_history_phh(history), start=1):
+            check_roundtrip(doc, history.hand_events(number))
+            assert "_arena_ante = " in doc
+            assert f"ante_trimming_status = {'true' if posting == 'classic' else 'false'}" in doc
+            if "_arena_short_big_blind_correction = true" in doc or "_arena_odd_chip_correction = true" in doc:
+                continue
+            hh = HandHistory.loads(doc)
+            assert list(list(hh)[-1].stacks) == hh.finishing_stacks, doc
+            tally["agree"] += 1
+    assert tally["agree"] >= 10
+
+
 def test_phhs_bundle_and_rejections():
     history = export_history(play_table("practice_nlhe", 3, "bundle"))
     bundle = export_history_phhs(history)

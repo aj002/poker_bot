@@ -1,0 +1,30 @@
+{
+ "id": "A01",
+ "kind": "full_trace",
+ "description": "Classic ante 5, BB has only 3: it antes 3 all-in and posts no blind. The SB's 10 is short, so the call is still priced at the nominal BB 20. Pots: 9 for all three at level 3, 44 for seats 0 and 1.",
+ "setup": {
+  "stacks": {"0": 1000, "1": 1000, "2": 3},
+  "button": 0,
+  "small_blind_seat": 1,
+  "big_blind_seat": 2,
+  "ante": 5,
+  "ante_posting": "classic",
+  "hole": {"0": "KsKh", "1": "7c2d", "2": "AsAh"},
+  "board": "2c3d8hJsQd"
+ },
+ "steps": [
+  {"state": {"pot_total": 23, "hand_committed": {"0": 5, "1": 15, "2": 3}, "status": {"2": "all_in"}}},
+  {"actor": 0, "legal": {"call_amount": 20, "min_full_raise_to": 40, "pot_raise_to": 63}, "do": {"type": "call"}},
+  {"actor": 1, "legal": {"call_amount": 10}, "do": {"type": "call"}},
+  {"check_down": true}
+ ],
+ "expect": {
+  "contributions": {"0": 25, "1": 25, "2": 3},
+  "pots": [
+   {"amount": 9, "eligible": [0, 1, 2], "awards": {"2": 9}},
+   {"amount": 44, "eligible": [0, 1], "awards": {"0": 44}}
+  ],
+  "final_stacks": {"0": 1019, "1": 975, "2": 9},
+  "event_counts": {"AntePosted": 3, "BlindPosted": 1}
+ }
+}

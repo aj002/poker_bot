@@ -71,9 +71,18 @@ def settle(
     *,
     merge_equal_eligibility: bool = False,
     odd_chips: OddChips = "one_each_clockwise",
+    dead: Mapping[int, int] | None = None,
 ) -> Settlement:
+    """``dead`` is money in the middle that forms no contribution level (a big-blind ante):
+    it is part of ``contributions`` but goes to the main pot, which every live hand contests."""
     folded = frozenset(folded)
     contributions = {seat: _chip(c, f"contribution of seat {seat}") for seat, c in contributions.items()}
+    ledger = dict(contributions)
+    dead = {s: _chip(d, f"dead money of seat {s}") for s, d in (dead or {}).items() if d}
+    for seat, d in dead.items():
+        if d > contributions.get(seat, 0):
+            raise ValueError(f"seat {seat} has more dead money than contribution")
+        contributions[seat] -= d
     unknown = folded - contributions.keys()
     if unknown:
         raise ValueError(f"folded seats without a ledger entry: {sorted(unknown)}")
@@ -103,6 +112,10 @@ def settle(
             else:
                 layers.append([amount, previous, level, contributors, eligible])
         previous = level
+    if dead:
+        if not layers:
+            raise ValueError("dead money with no contested pot")
+        layers[0][0] += sum(dead.values())
 
     pots: list[PotResult] = []
     winnings: dict[int, int] = {}
@@ -121,5 +134,5 @@ def settle(
         pots.append(PotResult(amount, lo, hi, contributors, eligible, winners, shares))
 
     totals = {s: winnings.get(s, 0) + refunds.get(s, 0) for s in contributions}
-    assert sum(totals.values()) == sum(contributions.values())
+    assert sum(totals.values()) == sum(ledger.values())
     return Settlement(tuple(pots), refunds, winnings, totals)

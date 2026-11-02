@@ -77,7 +77,7 @@ and bots get the same `Observation`. UI conveniences must not add hidden state.
 | `current_bet_to` | The street total a call matches. It is the nominal big blind preflop even when the big blind is posted short. |
 | `pots` | Collected pots, `{amount, eligible}`, merged where eligible sets match. Current street bets are not in `pots`. At settlement `PotAwarded` events are authoritative (one pot per contribution level). |
 | `players[]` | Every seat in the ring: `seat`, `stack`, `street_committed`, `hand_committed`, `status` (`active`, `folded`, `all_in`, `eliminated`), and `shown_cards` (null unless revealed at showdown this hand) |
-| `blinds`, `next_level` | Current blinds; next level and the hand it starts at (null if none before the cap) |
+| `blinds`, `next_level` | Current blinds; next level and the hand it starts at (null if none before the cap). With antes configured both also carry `ante` and `ante_posting` (`classic` or `big_blind`); the keys are absent when the ante is 0. |
 | `payouts` | Initial payout points vector |
 | `hands_played`, `hands_remaining`, `hand_cap` | Completed hands; `hand_cap - hands_played` (counts the current hand) |
 | `decision_budget` | `bot_budget_ns` and `human_turn_ms` from the config |
@@ -141,7 +141,8 @@ private log position, so it has gaps where hidden events were dropped.
 | Event | Public `data` fields | Notes |
 | --- | --- | --- |
 | `TableStarted` | `config`, `config_hash`, `seat_ring`, `start_stacks` | RNG seed and engine build stay private |
-| `HandStarted` | `hand_number`, `level`, `small_blind`, `big_blind`, `positions`, `small_blind_seat`, `start_stacks` | Deck and start hash stay private |
+| `HandStarted` | `hand_number`, `level`, `small_blind`, `big_blind`, `positions`, `small_blind_seat`, `start_stacks`, and `ante`, `ante_posting` when the hand has an ante | Deck and start hash stay private |
+| `AntePosted` | `seat`, `amount` | Before the blinds; one per posting seat |
 | `BlindPosted` | `seat`, `amount` | |
 | `HoleDealt` | `seat` (the owner also gets `card`) | One event per card |
 | `BoardDealt` | `street`, `cards` | |

@@ -113,6 +113,25 @@
       "title": "ActionFallback",
       "type": "object"
     },
+    "AntePosted": {
+      "additionalProperties": false,
+      "properties": {
+        "amount": {
+          "title": "Amount",
+          "type": "integer"
+        },
+        "seat": {
+          "title": "Seat",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "seat",
+        "amount"
+      ],
+      "title": "AntePosted",
+      "type": "object"
+    },
     "BetsCollected": {
       "additionalProperties": false,
       "properties": {
@@ -367,6 +386,27 @@
       },
       "additionalProperties": false,
       "properties": {
+        "ante": {
+          "default": 0,
+          "title": "Ante",
+          "type": "integer"
+        },
+        "ante_posting": {
+          "anyOf": [
+            {
+              "enum": [
+                "classic",
+                "big_blind"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Ante Posting"
+        },
         "big_blind": {
           "title": "Big Blind",
           "type": "integer"

@@ -23,7 +23,7 @@ from dataclasses import dataclass
 from pokerkit import Card, Mode, State
 
 from arena.domain.cards import DeckError, validate_deck
-from arena.domain.models import Action, LegalActions, LocalRules
+from arena.domain.models import Action, AntePosting, LegalActions, LocalRules
 from arena.rules.base import (
     STREETS,
     EngineDiscrepancy,
@@ -99,10 +99,28 @@ class HandSpec:
     big_blind: int
     deck: tuple[str, ...]
     local_rules: LocalRules = LocalRules()
+    ante: int = 0
+    ante_posting: AntePosting | None = None
 
     @property
     def heads_up(self) -> bool:
         return len(self.stacks) == 2
+
+
+def seat_antes(spec: HandSpec) -> dict[int, int]:
+    """The ante each live seat owes this hand (docs/assumptions.md, "Antes").
+
+    ``classic``: every live seat owes the ante, before any blind; a stack that cannot cover
+    it posts what it has. ``big_blind``: only the big blind owes it, once for the table and
+    after its blind, so a short big blind antes only what is left over.
+    """
+    if not spec.ante:
+        return {}
+    if spec.ante_posting == "classic":
+        return {s: min(spec.ante, v) for s, v in spec.stacks.items()}
+    if spec.ante_posting == "big_blind":
+        return {spec.big_blind_seat: min(spec.ante, max(0, spec.stacks[spec.big_blind_seat] - spec.big_blind))}
+    raise ValueError(f"an ante needs ante_posting 'classic' or 'big_blind', not {spec.ante_posting!r}")
 
 
 def engine_order(spec: HandSpec) -> tuple[int, ...]:
@@ -151,29 +169,43 @@ class PokerKitHand:
         self.index_of = {seat: i for i, seat in enumerate(self.seats)}
         n = len(self.seats)
         self._bb = spec.big_blind
+        owed = seat_antes(spec)
+        after_ante = {s: v - owed.get(s, 0) for s, v in spec.stacks.items()}
 
         if spec.heads_up:
             raw_blinds: tuple[int, ...] = (spec.small_blind, spec.big_blind)
-            posted = [min(spec.big_blind, spec.stacks[self.seats[0]]), min(spec.small_blind, spec.stacks[self.seats[1]])]
+            posted = [min(spec.big_blind, after_ante[self.seats[0]]), min(spec.small_blind, after_ante[self.seats[1]])]
         else:
             blinds = [0] * n
             if spec.small_blind_seat is not None:
                 blinds[self.index_of[spec.small_blind_seat]] = spec.small_blind
             blinds[self.index_of[spec.big_blind_seat]] = spec.big_blind
             raw_blinds = tuple(blinds)
-            posted = [min(b, spec.stacks[s]) for b, s in zip(blinds, self.seats)]
+            posted = [min(b, after_ante[s]) for b, s in zip(blinds, self.seats)]
 
+        # PokerKit reads antes in its blind convention: heads-up, index 0 posts entry 1.
+        by_index = [owed.get(s, 0) for s in self.seats]
+        raw_antes: tuple[int, ...] | int = (by_index[1], by_index[0]) if spec.heads_up else tuple(by_index)
+        if not any(by_index):
+            raw_antes = 0
+        # Classic antes are ordinary contributions (a short ante caps a side pot). A big-blind
+        # ante is dead money in the main pot: PokerKit's ante trimming off (assumption G25).
+        self.dead_ante = spec.ante_posting == "big_blind" and any(by_index)
+        self.ante_owed = {s: a for s, a in owed.items() if a}
         self.raw_blinds = raw_blinds
         game = profile.game_class((), True, 0, raw_blinds, spec.big_blind, mode=Mode.TOURNAMENT)
-        self.short_blind_correction = max(posted) < spec.big_blind
+        # Only classic antes can leave no blind posted (every blind seat all-in for its ante).
+        # Then nothing prices a call: preflop opens unbet, with the big blind as the minimum bet.
+        self._nominal = max(posted) > 0
+        self.short_blind_correction = self._nominal and max(posted) < spec.big_blind
         self.pk = _ArenaState(
             (),
             game.deck,
             game.hand_types,
             game.streets,
             game.betting_structure,
-            True,
-            0,
+            not self.dead_ante,
+            raw_antes,
             raw_blinds,
             0,
             tuple(spec.stacks[s] for s in self.seats),
@@ -181,7 +213,7 @@ class PokerKitHand:
             mode=Mode.TOURNAMENT,
         )
         self.pk.deck_cards = deque(Card.clean("".join(spec.deck)))
-        self.pk.arena_level_floor = spec.big_blind
+        self.pk.arena_level_floor = spec.big_blind if self._nominal else 0
 
         self.starting_stacks = {s: spec.stacks[s] for s in self.seats}
         self.total_chips = sum(self.starting_stacks.values())
@@ -220,7 +252,7 @@ class PokerKitHand:
 
     def _level(self) -> int:
         pk_max = max(self.pk.bets)
-        if self.pk.street_index == 0 and pk_max < self._bb and self.pk.can_complete_bet_or_raise_to():
+        if self.pk.street_index == 0 and pk_max < self._bb and self._nominal and self.pk.can_complete_bet_or_raise_to():
             return self._bb
         return pk_max
 
@@ -264,7 +296,7 @@ class PokerKitHand:
         self._street_index = street_index
         self._full_increment = self._bb
         self._acted_level: dict[int, int] = {}
-        self.pk.arena_level_floor = self._bb if street_index == 0 else 0
+        self.pk.arena_level_floor = self._bb if street_index == 0 and self._nominal else 0
 
     def _has_raise_rights(self, i: int, level: int) -> bool:
         acted = self._acted_level.get(i)
@@ -429,7 +461,14 @@ class PokerKitHand:
                     self.apply(Action(type="check"), auto_reason="no_contestable_action")
                     return
                 return
-            if pk.can_post_blind_or_straddle():
+            if pk.can_post_ante():
+                op = _strict(pk.post_ante)
+                seat = self.seats[op.player_index]
+                if op.amount != self.ante_owed.get(seat):
+                    raise EngineDiscrepancy(f"PokerKit posted ante {op.amount} for seat {seat}, "
+                                            f"adapter owes {self.ante_owed.get(seat, 0)}")
+                self._emit("AntePosted", {"seat": seat, "amount": op.amount})
+            elif pk.can_post_blind_or_straddle():
                 op = _strict(pk.post_blind_or_straddle)
                 self._emit("BlindPosted", {"seat": self.seats[op.player_index], "amount": op.amount})
             elif pk.can_burn_card():
@@ -506,6 +545,9 @@ class PokerKitHand:
         if len(live) == 1:
             total = sum(contributions.values())
             return [PotResult(total, (live[0],), {live[0]: total})] if total else []
+        dead = self.dead_money()
+        for seat, amount in dead.items():
+            contributions[seat] -= amount
         hands = self._showdown_hands or {}
         pots: list[PotResult] = []
         previous = 0
@@ -514,6 +556,8 @@ class PokerKitHand:
             if len(contributors) < 2:
                 raise EngineDiscrepancy("unmatched excess left in the pot after collection")
             amount = (level - previous) * len(contributors)
+            if previous == 0:
+                amount += sum(dead.values())
             previous = level
             eligible = tuple(s for s in contributors if s in hands)
             if not eligible:
@@ -604,6 +648,12 @@ class PokerKitHand:
             folded=tuple(self.folded),
             ended_by_fold=sum(1 for s in self.seats if s not in self.folded) == 1,
         )
+
+    def dead_money(self) -> dict[int, int]:
+        """Big-blind antes posted, by seat: in the main pot, which every live hand contests."""
+        if not self.dead_ante:
+            return {}
+        return {ev.data["seat"]: ev.data["amount"] for ev in self.events if ev.type == "AntePosted"}
 
     def _contributions(self) -> dict[int, int]:
         """Chips each seat left in the pot (after unmatched excess was returned)."""

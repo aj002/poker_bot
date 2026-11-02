@@ -18,6 +18,7 @@ RULESET_IDS: tuple[str, ...] = ("practice_nlhe", "uncertainty_shortdeck", "uncer
 REVEAL_RULESET_ID = "reveal_variant"
 """The build-day slot: a variant described at run time by a spec file (arena.rules.reveal)."""
 ALL_RULESET_IDS: tuple[str, ...] = (*RULESET_IDS, REVEAL_RULESET_ID)
+AntePosting = Literal["classic", "big_blind"]
 REVEAL_ENV = "ARENA_REVEAL_VARIANT"
 """Directory of the active reveal variant (``variant.json``); sandboxed bots never see it."""
 
@@ -57,6 +58,12 @@ class TournamentConfig(_Strict):
     hands_per_level: StrictInt = Field(25, ge=1)
     blind_levels: list[list[StrictInt]] = Field(default_factory=default_blind_levels)
     ante: Literal[0] = 0
+    """Legacy flat-ante switch, always 0. Antes are set per level by ``antes``."""
+    antes: list[StrictInt] | None = None
+    """Ante per blind level (parallel to ``blind_levels``); ``None`` means no antes at any level."""
+    ante_posting: AntePosting | None = None
+    """``classic``: every dealt seat posts the ante. ``big_blind``: the big blind posts it once for
+    the table, after its blind. Required with ``antes``, forbidden without."""
     payout_points: list[StrictInt] | None = None
     bot_budget_ns: StrictInt = Field(1_000_000, ge=1)
     human_turn_ms: StrictInt = Field(20_000, ge=1)
@@ -88,6 +95,17 @@ class TournamentConfig(_Strict):
             prev_sb, prev_bb = sb, bb
         if len(self.blind_levels) * self.hands_per_level < self.hand_cap:
             raise ValueError("blind schedule does not cover hand_cap")
+        if (self.antes is None) != (self.ante_posting is None):
+            raise ValueError("antes and ante_posting are set together")
+        if self.antes is not None:
+            if len(self.antes) != len(self.blind_levels):
+                raise ValueError("antes must list one ante per blind level")
+            if any(not 0 <= a <= MAX_STARTING_STACK for a in self.antes):
+                raise ValueError("antes must be integers in 0..MAX_STARTING_STACK")
+            if any(a > b for a, b in zip(self.antes, self.antes[1:])):
+                raise ValueError("antes must not decrease")
+            if not any(self.antes):
+                raise ValueError("antes are all zero; leave antes and ante_posting unset")
         payouts = self.resolved_payouts
         if len(payouts) != n:
             raise ValueError("payout_points must have length initial_player_count")
@@ -112,7 +130,11 @@ class TournamentConfig(_Strict):
         return sorted(self.seats)
 
     def resolved(self) -> dict:
+        """The canonical config dict. Ante fields appear only when antes are set, so an
+        ante-free config resolves (and hashes) exactly as it did before antes existed."""
         data = self.model_dump()
+        if self.antes is None:
+            del data["antes"], data["ante_posting"]
         data["payout_points"] = self.resolved_payouts
         data["seats"] = self.resolved_seats
         return data
@@ -124,6 +146,11 @@ class TournamentConfig(_Strict):
     def blinds_for_hand(self, hand_number: int) -> tuple[int, int]:
         sb, bb = self.blind_levels[level_index(hand_number, self.hands_per_level)]
         return sb, bb
+
+    def ante_for_hand(self, hand_number: int) -> int:
+        if self.antes is None:
+            return 0
+        return self.antes[level_index(hand_number, self.hands_per_level)]
 
 
 def level_index(hand_number: int, hands_per_level: int) -> int:

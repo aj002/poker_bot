@@ -81,6 +81,8 @@ def make_hand(fx: dict[str, Any]) -> PokerKitHand:
         big_blind=bb,
         deck=deck,
         local_rules=LocalRules(**fx.get("local_rules", {})),
+        ante=setup.get("ante", 0),
+        ante_posting=setup.get("ante_posting"),
     )
     return PokerKitHand(spec)
 

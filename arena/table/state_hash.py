@@ -29,8 +29,9 @@ def _standings(table: Table) -> dict[int, list[int]]:
 
 
 def hand_start_state(table: Table, *, hand_number: int, positions: dict, blinds: tuple[int, int],
-                     start_stacks: dict[int, int], deck: tuple[str, ...]) -> dict[str, Any]:
-    return {
+                     start_stacks: dict[int, int], deck: tuple[str, ...],
+                     ante: tuple[int, str | None] = (0, None)) -> dict[str, Any]:
+    state = {
         "config_hash": table.config_hash,
         "hand_number": hand_number,
         "positions": positions,
@@ -40,6 +41,9 @@ def hand_start_state(table: Table, *, hand_number: int, positions: dict, blinds:
         "deck": list(deck),
         "standings": _standings(table),
     }
+    if ante[0]:
+        state["ante"] = list(ante)
+    return state
 
 
 def decision_state(table: Table) -> dict[str, Any]:
@@ -47,7 +51,7 @@ def decision_state(table: Table) -> dict[str, Any]:
     assert hand is not None and table.actor_seat is not None
     record = table.hands[-1]
     ledger = hand.card_ledger()
-    return {
+    state = {
         "config_hash": table.config_hash,
         "hand_number": record.hand_number,
         "positions": record.positions.as_dict(),
@@ -75,6 +79,10 @@ def decision_state(table: Table) -> dict[str, Any]:
         "betting_rights": hand.betting_rights(),
         "legal": hand.legal_actions().model_dump(),
     }
+    if record.ante:
+        state["ante"] = [record.ante, record.ante_posting]
+        state["dead_money"] = dict(sorted(hand.dead_money().items()))
+    return state
 
 
 def decision_hash(table: Table) -> str:

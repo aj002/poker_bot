@@ -35,7 +35,7 @@ from arena.domain.cards import full_deck
 from arena.domain.models import Action, LocalRules
 from arena.history.canonical import TableHistory
 from arena.rules.base import HandEvent
-from arena.rules.pokerkit_adapter import HandSpec, PokerKitHand, engine_order
+from arena.rules.pokerkit_adapter import HandSpec, PokerKitHand, engine_order, seat_antes
 from arena.rules.profiles import PROFILES, get_profile
 
 PHH_VARIANTS = {"practice_nlhe": "NT", "uncertainty_shortdeck": "NS", "uncertainty_plo4": "PO"}
@@ -60,10 +60,14 @@ class PhhHandMeta:
     big_blind: int
     start_stacks: dict[int, int]
     local_rules: dict[str, Any]
+    ante: int = 0
+    ante_posting: str | None = None
 
 
 def _spec(meta: PhhHandMeta, deck: tuple[str, ...]) -> HandSpec:
     return HandSpec(
+        ante=meta.ante,
+        ante_posting=meta.ante_posting,  # type: ignore[arg-type]
         profile=get_profile(meta.ruleset_id),
         seat_ring=meta.seat_ring,
         stacks=dict(meta.start_stacks),
@@ -85,6 +89,18 @@ def _blind_vector(meta: PhhHandMeta, order: tuple[int, ...]) -> list[int]:
         blinds[order.index(meta.small_blind_seat)] = meta.small_blind
     blinds[order.index(meta.big_blind_seat)] = meta.big_blind
     return blinds
+
+
+def _ante_fields(meta: PhhHandMeta, order: tuple[int, ...]) -> tuple[bool, list[int]]:
+    """``(ante_trimming_status, antes)`` in PokerKit's convention (heads-up: big blind first,
+    reading entry 1), with each seat's ante as actually owed (``seat_antes``)."""
+    if not meta.ante:
+        return False, [0] * len(order)
+    owed = seat_antes(_spec(meta, ()))
+    by_index = [owed.get(s, 0) for s in order]
+    if len(order) == 2:
+        by_index.reverse()
+    return meta.ante_posting == "classic", by_index
 
 
 def _toml_value(value: Any) -> str:
@@ -149,10 +165,11 @@ def export_hand(meta: PhhHandMeta, events: list[Any]) -> str:
         raise PhhError(f"hand {meta.hand_id} is not complete")
     flush_holes()
 
+    trimming, antes = _ante_fields(meta, order)
     fields: list[tuple[str, Any]] = [
         ("variant", PHH_VARIANTS[meta.ruleset_id]),
-        ("ante_trimming_status", False),
-        ("antes", [0] * len(order)),
+        ("ante_trimming_status", trimming),
+        ("antes", antes),
         ("blinds_or_straddles", _blind_vector(meta, order)),
         ("min_bet", meta.big_blind),
         ("starting_stacks", [meta.start_stacks[s] for s in order]),
@@ -174,10 +191,12 @@ def export_hand(meta: PhhHandMeta, events: list[Any]) -> str:
         ("_arena_big_blind", meta.big_blind),
         ("_arena_short_bet_reopens_checker", bool(meta.local_rules.get("short_bet_reopens_checker", False))),
         ("_arena_odd_chip_correction", corrected),
-        ("_arena_short_big_blind_correction", max(posted, default=0) < meta.big_blind),
+        ("_arena_short_big_blind_correction", 0 < max(posted, default=0) < meta.big_blind),
     ]
     if meta.small_blind_seat is not None:
         fields.append(("_arena_small_blind_seat", meta.small_blind_seat))
+    if meta.ante:
+        fields += [("_arena_ante", meta.ante), ("_arena_ante_posting", meta.ante_posting)]
     return "".join(f"{key} = {_toml_value(value)}\n" for key, value in fields)
 
 
@@ -199,6 +218,8 @@ def hand_meta(history: TableHistory, hand_number: int) -> PhhHandMeta:
         big_blind=d["big_blind"],
         start_stacks=dict(d["start_stacks"]),
         local_rules=dict(started["config"]["local_rules"]),
+        ante=d.get("ante", 0),
+        ante_posting=d.get("ante_posting"),
     )
 
 
@@ -264,9 +285,13 @@ def parse_phh(text: str) -> ParsedPhh:
         big_blind=doc["_arena_big_blind"],
         start_stacks=stacks,
         local_rules={"short_bet_reopens_checker": doc["_arena_short_bet_reopens_checker"]},
+        ante=doc.get("_arena_ante", 0),
+        ante_posting=doc.get("_arena_ante_posting"),
     )
     if _blind_vector(meta, order) != doc["blinds_or_straddles"]:
         raise PhhError("blinds_or_straddles disagrees with the arena blind markers")
+    if list(_ante_fields(meta, order)) != [doc["ante_trimming_status"], doc["antes"]]:
+        raise PhhError("antes disagree with the arena ante structure")
     holes: dict[int, list[str]] = {}
     boards: list[list[str]] = []
     actions: list[tuple[int, str, int | None, str | None]] = []

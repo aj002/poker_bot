@@ -1,0 +1,28 @@
+{
+ "id": "A03",
+ "kind": "full_trace",
+ "description": "Big-blind ante 20 with a 30-chip BB: the blind comes first (20), so only 10 is anted and the BB is all-in. The dead 10 is in the main pot, which all three contest.",
+ "setup": {
+  "stacks": {"0": 1000, "1": 1000, "2": 30},
+  "button": 0,
+  "small_blind_seat": 1,
+  "big_blind_seat": 2,
+  "ante": 20,
+  "ante_posting": "big_blind",
+  "hole": {"0": "KsKh", "1": "7c2d", "2": "AsAh"},
+  "board": "2c3d8hJsQd"
+ },
+ "steps": [
+  {"state": {"pot_total": 40, "stack": {"2": 0}, "status": {"2": "all_in"}}},
+  {"actor": 0, "legal": {"call_amount": 20}, "do": {"type": "call"}},
+  {"actor": 1, "legal": {"call_amount": 10}, "do": {"type": "call"}},
+  {"check_down": true}
+ ],
+ "expect": {
+  "contributions": {"0": 20, "1": 20, "2": 30},
+  "pots": [
+   {"amount": 70, "eligible": [0, 1, 2], "awards": {"2": 70}}
+  ],
+  "final_stacks": {"0": 980, "1": 980, "2": 70}
+ }
+}

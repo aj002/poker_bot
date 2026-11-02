@@ -3,6 +3,27 @@
     "BlindsView": {
       "additionalProperties": false,
       "properties": {
+        "ante": {
+          "default": 0,
+          "title": "Ante",
+          "type": "integer"
+        },
+        "ante_posting": {
+          "anyOf": [
+            {
+              "enum": [
+                "classic",
+                "big_blind"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Ante Posting"
+        },
         "big_blind": {
           "title": "Big Blind",
           "type": "integer"
@@ -150,6 +171,27 @@
     "NextLevelView": {
       "additionalProperties": false,
       "properties": {
+        "ante": {
+          "default": 0,
+          "title": "Ante",
+          "type": "integer"
+        },
+        "ante_posting": {
+          "anyOf": [
+            {
+              "enum": [
+                "classic",
+                "big_blind"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Ante Posting"
+        },
         "big_blind": {
           "title": "Big Blind",
           "type": "integer"

@@ -27,10 +27,35 @@ more than odd-chip placement, the hand raises `EngineDiscrepancy` rather than gu
 | Unmatched excess returned when bets are collected | always (PokerKit) | `ExcessReturned` event | G20c, G13 |
 | Same-hand busts ranked by start-of-hand stack; equal start stacks share positions | always | `Standings` | T09, T10 |
 | Hand-cap finish by Malmuth-Harville ICM, tolerance `1e-9` | always | `arena.tournament.scoring` | T04–T08, randomized vs oracle |
-| Dead button, one runout, no ante, no rake | fixed literals | `TournamentConfig` | G04, G05 family |
+| Dead button, one runout, no rake | fixed literals | `TournamentConfig` | G04, G05 family |
+| No ante | `antes` unset | `TournamentConfig.antes`, `ante_posting` | G04, G05 family; byte-identity pin |
+| Ante posting order and pot treatment | per `ante_posting` | adapter `seat_antes`, settlement | A01–A06 (`tests/golden/test_antes.py`), generated hands vs the pot oracle, PHH vs PokerKit's reader |
 
 Visibility: on a fold win no hole cards are revealed. At any showdown, all-in or river,
 every live hand is revealed (`CardsRevealed`) before the remaining board is dealt.
+
+### Antes
+
+`TournamentConfig.antes` is one ante per blind level (nondecreasing, not all zero) and
+must be set together with `ante_posting`. Without them the config, events, views and
+hashes are byte-identical to an ante-free build: every ante key is omitted when the
+ante is 0.
+- **`classic`.** Every dealt seat antes `min(ante, stack)` before the blinds, then
+  posts its blind from what is left. Antes are ordinary contributions: they count
+  toward contribution levels, so a seat all-in on its ante is eligible only for the
+  pot it matched. This is PokerKit's `ante_trimming_status=True`.
+- **`big_blind`** (TDA-style BB ante). The big blind's blind takes priority: it antes
+  only what is left after the blind (the `AntePosted` event still comes first, in
+  PokerKit's posting order), `min(ante, max(0, stack - big_blind))`. The ante is dead
+  money: it goes to the first (main) pot, every live hand is eligible for it, and it
+  does not count toward the BB's contribution level or toward the call price. This is
+  PokerKit's `ante_trimming_status=False`.
+- If no blind at all is posted (classic, both blind seats all-in on their antes), the
+  preflop opens unbet: the first actor may check, the minimum bet is the big blind, and
+  there is no nominal-BB call pricing (D1 does not apply).
+- The PokerKit cross-check settles with the same rule: the adapter removes dead money
+  from the contribution levels and adds it to the first layer before comparing chip
+  pushes. Any other difference still raises `EngineDiscrepancy`.
 
 ### Short-deck ranking
 

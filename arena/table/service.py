@@ -46,6 +46,8 @@ class HandRecord:
     events: list[HandEvent] = field(default_factory=list)
     result: HandResult | None = None
     eliminations: list[Placement] = field(default_factory=list)
+    ante: int = 0
+    ante_posting: str | None = None
 
 
 @dataclass(frozen=True)
@@ -95,6 +97,8 @@ def _hand_records(log: list[EventEnvelope]) -> list[HandRecord]:
                 positions=Positions(**d["positions"]),
                 start_stacks={int(s): v for s, v in d["start_stacks"].items()},
                 deck=tuple(d["deck"]),
+                ante=d.get("ante", 0),
+                ante_posting=d.get("ante_posting"),
             ))
         elif e.type == "PlayerEliminated":
             d = e.data
@@ -387,6 +391,8 @@ class Table:
                 self.positions = next_positions(self.positions, self.seat_ring, live)
             pos = self.positions
             sb, bb = self.config.blinds_for_hand(self.hand_number)
+            ante = self.config.ante_for_hand(self.hand_number)
+            posting = self.config.ante_posting if ante else None
             deck = self.deck_source(self.hand_number, self.profile)
             start = {s: self.stacks[s] for s in live}
             spec = HandSpec(
@@ -400,6 +406,8 @@ class Table:
                 big_blind=bb,
                 deck=deck,
                 local_rules=self.config.local_rules,
+                ante=ante,
+                ante_posting=posting,
             )
             record = HandRecord(
                 hand_number=self.hand_number,
@@ -409,28 +417,29 @@ class Table:
                 positions=pos,
                 start_stacks=start,
                 deck=deck,
+                ante=ante,
+                ante_posting=posting,
             )
             self.hands.append(record)
             start_state = hand_start_state(
                 self, hand_number=self.hand_number, positions=pos.as_dict(), blinds=(sb, bb),
-                start_stacks=start, deck=deck,
+                start_stacks=start, deck=deck, ante=(ante, posting),
             )
             self.hand_log_start = len(self.log)
-            self._emit(
-                record.hand_id,
-                "HandStarted",
-                {
-                    "hand_number": self.hand_number,
-                    "level": record.level,
-                    "small_blind": sb,
-                    "big_blind": bb,
-                    "positions": pos.as_dict(),
-                    "small_blind_seat": spec.small_blind_seat,
-                    "start_stacks": start,
-                    "deck": list(deck),
-                    "start_hash": hand_start_hash(start_state),
-                },
-            )
+            started = {
+                "hand_number": self.hand_number,
+                "level": record.level,
+                "small_blind": sb,
+                "big_blind": bb,
+                "positions": pos.as_dict(),
+                "small_blind_seat": spec.small_blind_seat,
+                "start_stacks": start,
+                "deck": list(deck),
+                "start_hash": hand_start_hash(start_state),
+            }
+            if ante:
+                started.update(ante=ante, ante_posting=posting)
+            self._emit(record.hand_id, "HandStarted", started)
             self.hand = PokerKitHand(spec)
             record.events.extend(self.hand.events)
             self._emit_hand_events(self.hand.events)

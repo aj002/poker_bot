@@ -16,7 +16,8 @@ from __future__ import annotations
 import json
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, StrictBool, StrictFloat, StrictInt, StrictStr
+from pydantic import (BaseModel, ConfigDict, Field, SerializerFunctionWrapHandler, StrictBool, StrictFloat, StrictInt,
+                      StrictStr, model_serializer)
 
 EVENT_SCHEMA_VERSION = 1
 
@@ -78,6 +79,26 @@ class HandStarted(_Data):
     start_stacks: dict[int, StrictInt]
     deck: list[StrictStr]
     start_hash: StrictStr
+    ante: StrictInt = 0
+    """The level's nominal ante; present in the payload only when nonzero."""
+    ante_posting: Literal["classic", "big_blind"] | None = None
+
+    @model_serializer(mode="wrap")
+    def _omit_absent_ante(self, handler: SerializerFunctionWrapHandler) -> dict[str, Any]:
+        return _without_zero_ante(handler(self))
+
+
+def _without_zero_ante(data: dict[str, Any]) -> dict[str, Any]:
+    """Ante-free payloads keep exactly the keys they had before antes existed."""
+    if not data.get("ante"):
+        data.pop("ante", None)
+        data.pop("ante_posting", None)
+    return data
+
+
+class AntePosted(_Data):
+    seat: StrictInt
+    amount: StrictInt
 
 
 class BlindPosted(_Data):
@@ -183,6 +204,7 @@ EVENT_MODELS: dict[str, type[_Data]] = {
     for cls in (
         TableStarted,
         HandStarted,
+        AntePosted,
         BlindPosted,
         HoleDealt,
         CardBurned,
