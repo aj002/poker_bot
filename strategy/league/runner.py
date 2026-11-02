@@ -622,9 +622,13 @@ def select(lg: League) -> dict:
     for i, n in enumerate(names):
         if lg.member(n)["kind"] != "learner_checkpoint":
             continue
-        worst = min((H[i][j] for j in range(len(names)) if j != i), default=0.0)
+        others = [j for j in range(len(names)) if j != i]
+        jw = min(others, key=lambda j: H[i][j]) if others else i
+        worst = float(H[i][jw]) if others else 0.0
         c = cv.get(n, {})
-        rows.append({"name": n, "worst_h": worst, "eligible": worst >= -lg.cfg.abstract_tolerance,
+        rows.append({"name": n, "worst_h": worst, "worst_vs": names[jw],
+                     "h": {names[j]: float(H[i][j]) for j in others},
+                     "eligible": bool(worst >= -lg.cfg.abstract_tolerance),
                      "curve": c.get("diff"), "curve_lo": c.get("lo")})
     eligible = [r for r in rows if r["eligible"] and r["curve"] is not None]
     choice = max(eligible, key=lambda r: r["curve"])["name"] if eligible else "blueprint"
@@ -665,14 +669,16 @@ def confirm_specs(lg: League, selected: str) -> dict[str, tuple[dict, float]]:
     return out
 
 
-def confirm(lg: League) -> dict:
+def confirm(lg: League, name: str | None = None) -> dict:
+    """The confirmation family for the selection, or for ``name`` (a declared amendment, own result file)."""
     from strategy.league import gates as Gt
 
-    selected = json.loads((lg.dir / "selection.json").read_text())["selected"]
+    selected = name or json.loads((lg.dir / "selection.json").read_text())["selected"]
+    result = lg.dir / (f"confirm-{name}.json" if name else "confirm.json")
     if lg.member(selected)["kind"] != "learner_checkpoint":
         out = {"selected": selected, "skipped": True,
                "reason": "no league checkpoint selected: the confirmations are not run (a null result)"}
-        (lg.dir / "confirm.json").write_text(json.dumps(out, indent=1))
+        result.write_text(json.dumps(out, indent=1))
         return out
     runs, rows = {}, {}
     for key, (spec, margin) in confirm_specs(lg, selected).items():
@@ -683,8 +689,8 @@ def confirm(lg: League) -> dict:
         rows[key] = {"diff": r.get("diff"), "sd": r.get("sd"), "blocks": r.get("blocks"), "margin": margin,
                      "lo": r.get("lo"), "hi": r.get("hi"), "gates_ok": r.get("gates_ok")}
     family = Gt.holm_family({k: v for k, v in rows.items() if v["diff"] is not None})
-    out = {"selected": selected, "runs": runs, "holm": family, "alpha": 0.05}
-    (lg.dir / "confirm.json").write_text(json.dumps(out, indent=1))
+    out = {"selected": selected, "amendment": bool(name), "runs": runs, "holm": family, "alpha": 0.05}
+    result.write_text(json.dumps(out, indent=1))
     for k, v in family.items():
         lg.log(f"confirm: {k}: {v['diff']:+.3f} (margin {v['margin']:+g}) p {v['p_one_sided']:.4g} "
                f"Holm {v['p_holm']:.4g} -> {'confirmed' if v['confirmed'] else 'not confirmed'}")
@@ -694,6 +700,8 @@ def confirm(lg: League) -> dict:
 def export(lg: League, name: str) -> dict:
     """Copy the selected checkpoint's pack to the committed table store for the deployed league bot."""
     m = lg.member(name)
+    if m["kind"] != "learner_checkpoint" or not m.get("pack"):
+        raise SystemExit(f"{name} is not a league checkpoint; nothing to export")
     src = lg.dir / m["pack"]
     dst = REPO / "strategy" / "tables" / "data" / f"league-{lg.cfg.ruleset_id}.npz"
     shutil.copyfile(src, dst)
@@ -711,7 +719,7 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--exploiter-pairs", type=int)
     ap.add_argument("--clone-lineups", type=int)
     ap.add_argument("--eval-deals", type=int)
-    ap.add_argument("--name", help="export: the checkpoint to export (default: the selection)")
+    ap.add_argument("--name", help="export/confirm: the checkpoint (default: the selection)")
     ap.add_argument("--smoke", action="store_true", help="init: a tiny league for checking the plumbing")
     a = ap.parse_args(argv)
     if a.command == "init":
@@ -736,7 +744,7 @@ def main(argv: list[str] | None = None) -> int:
     elif a.command == "select":
         select(lg)
     elif a.command == "confirm":
-        confirm(lg)
+        confirm(lg, a.name)
     elif a.command == "export":
         name = a.name or json.loads((lg.dir / "selection.json").read_text())["selected"]
         print(json.dumps(export(lg, name), indent=1))

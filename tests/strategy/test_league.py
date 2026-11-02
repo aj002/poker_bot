@@ -182,6 +182,41 @@ def test_gate_specs_are_never_edited(tmp_path):
         Gt.write_spec({"experiment_id": "s", "x": 2}, tmp_path)
 
 
+LEAGUE_PACK = REPO / "strategy" / "tables" / "data" / "league-practice_nlhe.npz"
+
+
+@pytest.mark.skipif(not LEAGUE_PACK.exists(), reason="no exported league pack")
+def test_the_league_bot_plays_legal_tournaments_within_budget(monkeypatch):
+    import time
+
+    from arena.domain.models import Action, TournamentConfig
+    from strategy.blueprint import runtime
+    from strategy.value.rollouts import run_rollouts
+
+    pack = PolicyPack(LEAGUE_PACK)
+    assert pack.provenance["kind"] == "learner" and pack.provenance["overrides"] > 0
+    assert pack.nbytes() < 100_000_000
+    timings: list[int] = []
+    orig = runtime.BlueprintBot.decide
+
+    def timed(self, obs, state):
+        assert self.name == "league"
+        t = time.perf_counter_ns()
+        out = orig(self, obs, state)
+        timings.append(time.perf_counter_ns() - t)
+        payload = {k: v for k, v in out[0].items() if k != "note"}
+        assert obs.legal.allows(Action.model_validate(payload)), (payload, obs.legal)
+        return out
+
+    monkeypatch.setattr(runtime.BlueprintBot, "decide", timed)
+    config = TournamentConfig(initial_player_count=4, hand_cap=120)
+    rollouts = run_rollouts(config, ["strategy/league/bots/league.py", "style:aggressive", "baseline:calling_station",
+                                     "style:rock"], blocks=1, base_seed="league-bot-test", jobs=1)
+    assert all(sum(r.points.values()) == pytest.approx(100.0) for r in rollouts)
+    assert len(timings) > 200
+    assert float(np.quantile(timings, 0.99)) < TournamentConfig().bot_budget_ns
+
+
 def test_the_league_config_round_trips(tmp_path):
     cfg = Config(run="t", learner_z=(3.0,), learner_mix=(1.0,))
     from dataclasses import asdict
