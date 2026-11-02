@@ -194,6 +194,21 @@ def test_deployed_path_does_not_import_numba():
     subprocess.run([sys.executable, "-c", code], check=True, cwd=ROOT)
 
 
+def test_bundle_is_self_contained(tmp_path):
+    from strategy.blueprint import package
+
+    pack = uniform_pack(tmp_path / "u.npz")
+    manifest = package.build(pack, tmp_path / "bundle")
+    package.smoke(tmp_path / "bundle")
+    assert manifest["bytes"] < package.SIZE_LIMIT
+    shipped = {str(p.relative_to(tmp_path / "bundle")) for p in (tmp_path / "bundle").rglob("*.py")}
+    assert "strategy/blueprint/runtime.py" in shipped and "bot.py" in shipped
+    assert not any(f in shipped for f in ("strategy/blueprint/kernels.py", "strategy/blueprint/train.py"))
+    assert not any(f.startswith("strategy/solve/") for f in shipped)
+    assert "strategy/tables/data/blueprint-practice_nlhe.npz" in {
+        str(p.relative_to(tmp_path / "bundle")) for p in (tmp_path / "bundle").rglob("*.npz")}
+
+
 def _play(policies, *, players, hand_cap=120, seed="blueprint-test"):
     from arena.domain.models import TournamentConfig
     from strategy.value.rollouts import run_rollouts
