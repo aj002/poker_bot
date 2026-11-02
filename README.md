@@ -128,6 +128,18 @@ make blueprint-exploit blueprint-response blueprint-audit  # HU exploitability, 
 make lab-blueprint        # paired points evaluations on the validation population, then a sandbox smoke
 ```
 
+The Stage 5 league (`strategy/league/README.md`, `docs/league-training-preregistration.md`)
+keeps frozen checkpoints, meta-solves an opponent mixture over their payoff matrix
+and promotes learners only through paired validation gates. Its optional bot
+`strategy/league/bots/league.py` plays the league checkpoint C1 (pack
+`strategy/tables/data/league-practice_nlhe.npz`) on the blueprint runtime:
+
+```bash
+uv run --group train python -m strategy.league.runner init --run artifacts/league/main-v1
+uv run --group train python -m strategy.league.runner iterate --run artifacts/league/main-v1
+uv run python -m strategy.league.summary artifacts/league/main-v1
+```
+
 The CLI plays seeded headless hands and tournaments with simple built-in policies
 (`legal_random`, `check_or_call`, `check_or_fold`, `shove`):
 
