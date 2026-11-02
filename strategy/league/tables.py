@@ -21,6 +21,8 @@ import numpy as np
 from strategy.blueprint import abstraction as A
 from strategy.blueprint.policy import LEVEL_DIVISORS, PolicyPack, quantize, write_levels
 
+REPO = Path(__file__).resolve().parents[2]
+
 ROW = A.NUM_ACTIONS
 SLOTS = A.NUM_KEYS * A.NUM_ACTIONS
 
@@ -96,6 +98,14 @@ def apply_deviations(base: np.ndarray, dev: Deviations) -> np.ndarray:
     return out.reshape(-1)
 
 
+def _repo_path(path: Path) -> str:
+    """``path`` relative to the repo when it lies inside it (as given otherwise)."""
+    try:
+        return Path(path).resolve().relative_to(REPO).as_posix()
+    except ValueError:
+        return str(path)
+
+
 def write_override_pack(parent: Path, dev: Deviations, out: Path, provenance: dict) -> dict:
     """``parent``'s pack with ``dev`` as level-0 rows (replacing or inserting), written to ``out``."""
     pack = PolicyPack(parent)
@@ -110,7 +120,7 @@ def write_override_pack(parent: Path, dev: Deviations, out: Path, provenance: di
     arrays["keys0"] = keys[order].astype(np.int32)
     arrays["probs0"] = np.concatenate([probs0[keep], dev.rows])[order]
     arrays["mass0"] = np.concatenate([mass0[keep], np.full(len(dev), 255, np.uint8)])[order]
-    prov = dict(provenance, parent={"path": str(parent), "data_sha256": pack.provenance["data_sha256"]},
+    prov = dict(provenance, parent={"path": _repo_path(parent), "data_sha256": pack.provenance["data_sha256"]},
                 overrides=len(dev), overrides_by_street=dev.by_street(), overrides_by_action=dev.by_action())
     min_mass = tuple(pack.provenance.get("min_mass", (0, 0, 0, 0)))
     return write_levels(out, arrays, prov, min_mass)

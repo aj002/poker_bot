@@ -89,6 +89,7 @@ def test_an_override_pack_changes_only_the_overridden_keys(tmp_path):
         assert child.lookup(k) == pack.lookup(k)
     assert child.provenance["overrides"] == 2
     assert child.provenance["parent"]["data_sha256"] == pack.provenance["data_sha256"]
+    assert child.provenance["parent"]["path"] == BLUEPRINT_PACK
 
 
 # ------------------------------------------------------------------ behaviour cloning
