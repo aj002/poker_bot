@@ -73,7 +73,9 @@ class Spot:
     hero_total: int
     """Stack plus chips committed this hand."""
     eff_bb: float
-    """min(hero total, largest live opponent total) in big blinds."""
+    """min(hero total, largest live opponent total) in big blinds. Preflop with antes it is the
+    M-equivalent depth ``eff * (sb + bb) / (sb + bb + antes)``: what the stack is worth in an
+    ante-free game with the same cost per orbit, so ante-free jam and re-steal cut-offs apply."""
     group: int
     opponents: int
     """Live (not folded) opponents."""
@@ -109,6 +111,8 @@ class Spot:
     stack_share: float
     """Hero hand-start chips over the average survivor's."""
     memory: Any = None
+    ante_pot: int = 0
+    """Preflop: the antes collected before the blinds (0 on later streets and without antes)."""
 
     @property
     def pot_odds(self) -> float:
@@ -330,14 +334,20 @@ class TableMemory:
                     bettor_all_in = p.status == "all_in"
                     break
         prev_aggr = ctx.street_aggressors[street - 1] if street > 0 else -1
+        ante_pot = obs.settled_pot if street == 0 else 0
+        eff_bb = eff / bb
+        if ante_pot:
+            blinds = obs.blinds.small_blind + bb if obs.blinds is not None else ctx.sb + bb
+            eff_bb = eff_bb * blinds / (blinds + ante_pot)
         return Spot(
             street=street, hero=hero, bb=bb, to_call=obs.legal.call_amount or 0, pot=obs.pot_total,
             current_bet_to=obs.current_bet_to, hero_stack=me.stack, hero_street=me.street_committed,
-            hero_total=hero_total, eff_bb=eff / bb, group=group, opponents=len(live), active_opponents=len(active),
+            hero_total=hero_total, eff_bb=eff_bb, group=group, opponents=len(live), active_opponents=len(active),
             behind=behind, in_position=in_pos, pre_raises=ctx.pre_raises, limpers=ctx.limpers, callers=ctx.callers,
             hero_raised_pre=hero in self._pfr,
             aggressor=aggr, aggressor_group=agroup, street_raises=ctx.raises, initiative=prev_aggr == hero,
             hero_aggr_street=ctx.street_aggressors[street] == hero, bettor_all_in=bettor_all_in,
             pct=pre.percentile, eq=eq, eq1=pre1.equity, made_level=level, draw_class=dcls, wet=wet,
             paired_board=paired, survivors=obs.surviving_player_count, paid=paid, hands_left=obs.hands_remaining,
-            hand_cap=obs.hand_cap, stack_share=start.get(hero, hero_total) / max(1.0, avg), memory=self)
+            hand_cap=obs.hand_cap, stack_share=start.get(hero, hero_total) / max(1.0, avg), memory=self,
+            ante_pot=ante_pot)

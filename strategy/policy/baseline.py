@@ -11,6 +11,11 @@ the stack share. Opponent counters move thresholds and bluff frequencies by at m
 
 The defaults are the hand-written control policy. Search only changes numbers.
 
+Antes (documented approximation, not a tuned parameter): preflop the Spot's ``eff_bb``
+is the M-equivalent depth, so the ante-free jam and re-steal cut-offs apply unchanged,
+and unopened open/jam thresholds drop by up to ``ANTE_WIDEN`` as the antes reach the
+size of the blinds (more dead money to steal). Without antes nothing changes.
+
 All parameters are variant-agnostic in form: the percentile, equity and texture come
 from the variant's own tables, and sizes are clamped to the legal (pot- or no-limit)
 interval at the runtime.
@@ -30,6 +35,7 @@ STREET_NAMES = ("pre", "flop", "turn", "river")
 PRIOR_VPIP = 0.30
 PRIOR_FOLD = 0.45
 PRIOR_AGGR = 0.35
+ANTE_WIDEN = 0.06
 
 
 def _p(name: str, default: float, lo: float, hi: float, group: str, doc: str) -> Param:
@@ -257,6 +263,8 @@ class BaselinePolicy:
         adj = p["icm_open"] * rp + p["cap_open_adj"] * self._cap_urgency(s)
         if s.survivors - s.paid <= 2 and s.stack_share > 1.3:
             adj -= p["bully"]
+        if s.ante_pot:
+            adj -= ANTE_WIDEN * min(1.0, s.ante_pot / (1.5 * s.bb))
         if eff <= p["jam_bb"]:
             thr = self.jam_thr[g] - p["jam_slope"] * (1.0 - eff / p["jam_bb"]) + adj + p["iso_pen"] * s.limpers
             if self._pass(pct, thr, p["temp_pre"], rand):

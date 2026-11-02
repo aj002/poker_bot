@@ -22,7 +22,7 @@ before they are trusted (see "Open organiser questions" below).
 | Equity tables | `strategy/tables/postflop.py`, `preflop.py` | Postflop always. Preflop when C(deck, hole) ≤ 300,000 |
 | Push/fold tables | `strategy/tables/endgame.py` | Only 2-hole, best-five, no-limit, hold'em category priority (not regenerated on the day) |
 | Pipeline | `strategy/rehearsal/runner.py`, `python -m strategy.rehearsal` | — |
-| Rehearsal specs | `strategy/rehearsal/heldback/*.json` | PLO5 8-max, short-deck trips-over-straight 6-max turbo, NLHE with antes (must be rejected) |
+| Rehearsal specs | `strategy/rehearsal/heldback/*.json` | PLO5 8-max, short-deck trips-over-straight 6-max turbo, NLHE 8-max with a big-blind ante, NLHE 8-max with a classic ante, NLHE 9-max (must be rejected) |
 
 ### What the slot can describe
 
@@ -35,11 +35,14 @@ before they are trusted (see "Open organiser questions" below).
 - No-limit or pot-limit betting.
 - Any structure `TournamentConfig` accepts: 2–8 seats, any stack, any increasing blind
   schedule, any hand cap and any non-increasing point vector.
+- Antes per blind level (`antes`, one per level, non-decreasing) with `ante_posting`
+  `classic` (every dealt seat antes) or `big_blind` (the big blind antes for the table,
+  dead money in the main pot). The rules are in `docs/assumptions.md` ("Antes").
 
 The slot **cannot** describe these, and the pipeline rejects them at its `load` step:
 
-- antes
 - 9 or more seats
+- antes posted any other way (a button ante, a straddle, antes that fall between levels)
 - draw, stud and high-low games
 - fixed-limit betting
 - other decks or street layouts
@@ -73,7 +76,8 @@ Print this. Tick each line with the time.
 
 - [ ] `load` is `ok`. A `fatal` here means the engine cannot play the variant; see below.
 - [ ] `conformance` shows metadata, ranking, differential, scoring, evaluator and smoke as `ok`.
-      Fixtures show `na`, because a new variant has no fixtures. `evaluator` must show 0
+      With antes it also shows `pokerkit` (lockstep against a plain PokerKit state with the
+      same antes) as `ok`. Fixtures show `na`, because a new variant has no fixtures. `evaluator` must show 0
       disagreements. Otherwise the card layer misreads hands and only the fallback's card-blind
       mode is trustworthy.
 
@@ -152,7 +156,7 @@ uv run python -m strategy.policy.package --params INCUMBENT.json --reveal $ARENA
 
 `structure.json` holds the `TournamentConfig` fields of the announcement. These are
 `initial_player_count`, `starting_stack`, `hand_cap`, `hands_per_level`,
-`blind_levels` and `payout_points`.
+`blind_levels` and `payout_points`, plus `antes` and `ante_posting` when there are antes.
 
 A packaged bot never reads the environment. The sandbox gives a bot only `PATH`,
 `LANG` and `PYTHONHASHSEED`, and file reads only inside its bundle. So the package step
@@ -165,7 +169,7 @@ another variant raise instead of loading.
 
 | Symptom | Meaning | Action |
 |---|---|---|
-| `load` fatal: `UnsupportedRules` or `ValueError: ante` | The engine cannot express the variant or structure | Out of scope; see the next section |
+| `load` fatal: `UnsupportedRules` or a `TournamentConfig` `ValidationError` | The engine cannot express the variant or structure | Out of scope; see the next section |
 | `conformance` evaluator disagreements > 0 | The card layer misranks hands | Submit the early fallback only. The baseline's strength features are wrong |
 | `conformance` smoke fatal | The engine cannot finish a tournament | Stop and debug the reveal profile. Nothing downstream is meaningful |
 | `gate_fallback` fail | The fallback misses the deadline on this machine | Read `gates/fallback.json` `timeout_classes`. If timeouts are stall-like or host-invalid, rerun on an idle machine. If bot-caused, there is no safe submission: escalate |
@@ -176,13 +180,14 @@ another variant raise instead of loading.
 
 ## When the variant is out of scope
 
-Antes, 9 or more seats, draw, stud, high-low, fixed-limit and other decks all fail at
-`load`, in under a second. That is deliberate: nothing falls back to a practice profile.
+9 or more seats, unsupported ante formats, draw, stud, high-low, fixed-limit and other
+decks all fail at `load`, in under a second. That is deliberate: nothing falls back to a practice profile.
 The options, in order:
 
-1. If only the **structure** is out of scope (antes, more than 8 seats), the game itself
-   can still be rehearsed. Run the pipeline with the nearest legal structure, for example
-   no ante or 8 seats, to get a legal bot. Say in the submission notes that the
+1. If only the **structure** is out of scope (more than 8 seats, an unsupported ante
+   format), the game itself can still be rehearsed. Run the pipeline with the nearest
+   legal structure, for example 8 seats or the closest `classic`/`big_blind` ante, to get
+   a legal bot. Say in the submission notes that the
    rehearsal did not match the structure.
 2. If the **game** is out of scope, the engine needs a new PokerKit game class in
    `arena/rules/reveal.py`. That is code work, not a pipeline run; nothing here is
@@ -203,6 +208,13 @@ The options, in order:
 - **Sandbox validation.** Validation runs in-process. Population members can play the
   reveal variant only where they see `$ARENA_REVEAL_VARIANT`, which sandboxed members do
   not. Only the candidate is sandboxed, in the deployed gate.
+- **Antes in the bots.** No table is solved with antes. The fallback and the tuned
+  baseline read stack depth preflop as the M-equivalent `eff * (sb + bb) / (sb + bb +
+  antes)` and open a little wider (up to 6 percentile points) as the antes reach the size
+  of the blinds; the push/fold lookup keys post-ante stacks by an M-equivalent big blind.
+  These are approximations: the dead ante money is not in the solved pots, so push/fold is
+  slightly too tight with antes, and the search tunes the baseline on the announced
+  structure, antes included.
 - **Push/fold.** Push/fold and endgame tables are never regenerated on the day. The
   generator needs numba, a hold'em category priority, two-card no-limit showdowns, the
   default 8-seat structure and 10–20 minutes per mode, and neither bundled bot reads
@@ -214,6 +226,6 @@ The plan's list applies in full. These matter most here:
 
 - The exact Agent interface.
 - How 100 MB is measured.
-- Whether antes or more than 8 seats are possible.
+- Whether more than 8 seats are possible, and exactly how antes are posted (classic, big-blind, button) and when they start.
 - What falls inside the 1 ms deadline.
 - How submission windows and rollback work.

@@ -54,6 +54,14 @@ The parameter groups (`SPACE.groups()`) are:
 
 The defaults are the **hand-written control**. The search only changes numbers.
 
+**Antes** are an approximation with no extra parameters (`ANTE_WIDEN` in
+`strategy/policy/baseline.py`). Preflop the spot's `eff_bb` is the M-equivalent depth
+`eff * (sb + bb) / (sb + bb + antes)`, where `antes` is what was collected before the
+blinds, so the ante-free `jam_bb`, `resteal_bb` and `fb_jam_bb` cut-offs apply to a stack
+that pays the same per orbit. Unopened open and shove thresholds drop by up to 0.06 as the
+antes grow to the size of the blinds. Without antes every number is the ante-free one,
+which `tests/golden/test_no_ante_identity.py` pins.
+
 ### Runtime
 
 `RuntimeBot` is the only path that plays: in search, validation, the gate and

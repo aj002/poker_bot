@@ -254,18 +254,14 @@ class Rehearsal:
                                              "hand_selection": profile.hand_selection, "ranks": profile.ranks,
                                              "hole_cards": profile.hole_card_count}
         structure = dict(ann["structure"])
-        if structure.get("ante"):
-            raise ValueError(f"ante {structure['ante']}: the arena deals no antes (TournamentConfig.ante is 0), "
-                             "so the announced structure cannot be played or rehearsed")
         config = TournamentConfig(ruleset_id=rid, **structure)
         from strategy.rules.adapter import RulesAdapter
 
         adapter = RulesAdapter.from_config(config)
         self.ctx.update(name=name, ruleset_id=rid, spec=spec, config=config,
-                        structure={k: v for k, v in config.model_dump().items()
+                        structure={k: v for k, v in config.resolved().items()
                                    if k in ("initial_player_count", "starting_stack", "hand_cap", "hands_per_level",
-                                            "blind_levels", "payout_points")})
-        self.ctx["structure"]["payout_points"] = config.resolved_payouts
+                                            "blind_levels", "payout_points", "antes", "ante_posting")})
         step.detail.update(ruleset_id=rid, config_hash=config.config_hash(), rules_hash=adapter.rules_hash,
                            capabilities=sorted(adapter.capabilities), structure=self.ctx["structure"])
 
@@ -273,7 +269,8 @@ class Rehearsal:
         from strategy.rules.conformance import run_conformance
 
         rid, spec = self.ctx["ruleset_id"], self.ctx["spec"] if self.ctx.get("reveal") else None
-        rep = run_conformance(rid, hands=self.budget["differential_hands"], spec=spec)
+        rep = run_conformance(rid, hands=self.budget["differential_hands"], spec=spec,
+                              ante_posting=self.ctx["config"].ante_posting)
         checks = {}
         for c in rep.checks:
             d = c.as_dict()
@@ -368,8 +365,8 @@ class Rehearsal:
                            players=s["initial_player_count"], starting_stack=s["starting_stack"],
                            hand_cap=s["hand_cap"], seed=f"rehearsal|{self.ctx['name']}", partition="train",
                            start=start,
-                           structure={"hands_per_level": s["hands_per_level"], "blind_levels": s["blind_levels"],
-                                      "payout_points": s["payout_points"]}, **cem)
+                           structure={k: s[k] for k in ("hands_per_level", "blind_levels", "payout_points", "antes",
+                                                        "ante_posting") if k in s}, **cem)
         root = self.out / "search"
         step.detail["resumed"] = (root / cfg.run_id / "state.json").exists()
         run_dir = run_search(cfg, root=root, jobs=self.jobs, log=self.log)
@@ -449,7 +446,8 @@ class Rehearsal:
             "variants": [self.ctx["ruleset_id"]],
             "table": {"players": s["initial_player_count"], "starting_stack": s["starting_stack"],
                       "hand_cap": s["hand_cap"], "hands_per_level": s["hands_per_level"],
-                      "blind_levels": s["blind_levels"], "payout_points": s["payout_points"]},
+                      "blind_levels": s["blind_levels"], "payout_points": s["payout_points"],
+                      **{k: s[k] for k in ("antes", "ante_posting") if k in s}},
             "population": {"source": POPULATION_SOURCE, "partition": "validation",
                            "lineups_per_variant": val["lineups"]},
             "blocks_per_lineup": val["blocks"],

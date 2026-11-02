@@ -42,6 +42,10 @@ class TournamentStructure:
     runout_count: int
     rake: int
     local_rules: Mapping[str, Any]
+    antes: tuple[int, ...] | None = None
+    """Ante per blind level, or None for an ante-free structure (then absent from the hash)."""
+    ante_posting: str | None = None
+    """``classic`` (every dealt seat antes) or ``big_blind`` (the big blind antes for the table)."""
 
     @classmethod
     def from_config(cls, config: Mapping[str, Any]) -> TournamentStructure:
@@ -62,6 +66,8 @@ class TournamentStructure:
             runout_count=int(config.get("runout_count", 1)),
             rake=int(config.get("rake", 0)),
             local_rules=dict(config.get("local_rules", {})),
+            antes=None if config.get("antes") is None else tuple(int(a) for a in config["antes"]),
+            ante_posting=None if config.get("ante_posting") is None else str(config["ante_posting"]),
         )
 
     @property
@@ -76,6 +82,9 @@ class TournamentStructure:
     def blinds(self, hand_number: int) -> tuple[int, int]:
         return self.blind_levels[self.level(hand_number)]
 
+    def ante_at(self, hand_number: int) -> int:
+        return 0 if self.antes is None else self.antes[self.level(hand_number)]
+
     def hands_to_next_level(self, hand_number: int) -> int | None:
         """Hands after this one before the blinds rise, or None if they never rise before the cap."""
         nxt = (self.level(hand_number) + 1) * self.hands_per_level + 1
@@ -88,7 +97,7 @@ class TournamentStructure:
         return max(0, self.hand_cap - hand_number)
 
     def as_dict(self) -> dict[str, Any]:
-        return {
+        out = {
             "seats": list(self.seats),
             "starting_stack": self.starting_stack,
             "hand_cap": self.hand_cap,
@@ -101,6 +110,10 @@ class TournamentStructure:
             "rake": self.rake,
             "local_rules": dict(sorted(self.local_rules.items())),
         }
+        if self.antes is not None:
+            out["antes"] = list(self.antes)
+            out["ante_posting"] = self.ante_posting
+        return out
 
 
 def rules_hash(variant: VariantSpec, structure: TournamentStructure) -> str:

@@ -63,7 +63,10 @@ export function LearningPanel({
   const current = aids && aids.hand_id === view.hand_id ? aids : null
   const hero = current?.hero ?? null
   const live = !!hero && me.status !== 'folded'
-  const blinds = view.blinds ? view.blinds.small_blind + view.blinds.big_blind : 0
+  const ante = view.blinds?.ante ?? 0
+  const dealt = view.players.filter((p) => p.status !== 'eliminated').length
+  const antes = ante ? (view.blinds?.ante_posting === 'classic' ? ante * dealt : ante) : 0
+  const blinds = view.blinds ? view.blinds.small_blind + view.blinds.big_blind + antes : 0
   const ratio = blinds > 0 ? me.stack / blinds : null
   const toCome = view.board.length === 3 ? 2 : view.board.length === 4 ? 1 : 0
   const position = hero?.position ?? null
@@ -151,7 +154,7 @@ export function LearningPanel({
           <div className="label">
             <Term k="stack_ratio">Stack ratio</Term>
           </div>
-          <p className="learn-big">{ratio.toFixed(ratio < 10 ? 1 : 0)} rounds of blinds</p>
+          <p className="learn-big">{ratio.toFixed(ratio < 10 ? 1 : 0)} rounds of blinds{antes ? ' and antes' : ''}</p>
           <p className="hint">{stackZone(ratio)}</p>
         </div>
       )}

@@ -16,6 +16,12 @@ Strategy, in the order it is tried each decision:
   shove or fold; deeper stacks open-raise or fold, tighter with more players behind;
   facing a raise they re-raise the top, call the next band when the price is small,
   and otherwise fold. The big blind checks its option.
+* **Antes** (documented approximation, no ante-specific tables): preflop the antes are
+  the chips already collected (``settled_pot``). Stack depth for the shove/fold and
+  re-shove cut-offs is the M-equivalent ``eff * (sb + bb) / (sb + bb + antes)``, the
+  limper count ignores the ante pot, and the open and shove thresholds drop by up to
+  ``ANTE_WIDEN`` percentile as the antes grow to the size of the blinds. With no ante
+  every number is exactly the ante-free one.
 * **Postflop** the made-hand level of :func:`~strategy.features.cards.made_hand`
   (whether the hole cards improve the board) and a cheap flush/straight draw count
   pick value bets, pot-odds calls and folds. Big bets need a strong hand.
@@ -42,6 +48,7 @@ from strategy.policy.fallback import fallback_action, is_legal, legalize
 STATE_VERSION = 1
 RULESETS = ("practice_nlhe", "uncertainty_shortdeck", "uncertainty_plo4", "reveal_variant")
 JAM_BB = 12.0
+ANTE_WIDEN = 0.06
 CDF_SAMPLES = 3000
 _SCALE = 1.0 / 18446744073709551616.0
 _RANKS = "23456789TJQKA"
@@ -211,15 +218,25 @@ class GenericBot(ExplicitStateBot):
             return "check", None, all_in_to
         behind = self._behind(obs, active)
         raised = obs.current_bet_to > bb
+        antes = obs.settled_pot
+        widen = 0.0
+        if antes:
+            blinds = obs.blinds.small_blind + bb if obs.blinds is not None else int(1.5 * bb)
+            eff = eff * blinds / (blinds + antes)
+            widen = ANTE_WIDEN * min(1.0, antes / blinds)
         if not raised:
             if eff <= JAM_BB:
                 thr = 0.62 + 0.03 * behind - 0.20 * (1.0 - eff / JAM_BB)
+                if widen:
+                    thr -= widen
                 if pct >= thr:
                     return "allin", None, all_in_to
                 return ("check" if legal.check else "fold"), None, all_in_to
             thr = 0.70 + 0.035 * behind
+            if widen:
+                thr -= widen
             if pct >= thr:
-                limpers = max(0, (pot - int(1.5 * bb)) // bb)
+                limpers = max(0, (pot - antes - int(1.5 * bb)) // bb)
                 return "raise", int((2.5 + limpers) * bb), all_in_to
             return ("check" if legal.check else "fold"), None, all_in_to
         price = to_call / max(1, total)

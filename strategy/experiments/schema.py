@@ -22,9 +22,10 @@ import stat
 from pathlib import Path
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, StrictBool, StrictFloat, StrictInt, StrictStr, model_validator
+from pydantic import (BaseModel, ConfigDict, Field, SerializerFunctionWrapHandler, StrictBool, StrictFloat, StrictInt,
+                      StrictStr, model_serializer, model_validator)
 
-from arena.domain.models import RulesetId, TournamentConfig, default_blind_levels
+from arena.domain.models import AntePosting, RulesetId, TournamentConfig, default_blind_levels
 from strategy.rules.canonical import canonical_hash, canonical_json
 
 SPEC_SCHEMA_VERSION = 1
@@ -57,13 +58,25 @@ class TableSpec(_S):
     hands_per_level: StrictInt = Field(25, ge=1)
     blind_levels: list[list[StrictInt]] | None = None
     payout_points: list[StrictInt] | None = None
+    antes: list[StrictInt] | None = None
+    ante_posting: AntePosting | None = None
+
+    @model_serializer(mode="wrap")
+    def _without_unset_antes(self, handler: SerializerFunctionWrapHandler) -> dict[str, Any]:
+        """Ante-free specs dump (and hash) exactly as before antes existed."""
+        out = handler(self)
+        if self.antes is None and self.ante_posting is None:
+            out.pop("antes", None)
+            out.pop("ante_posting", None)
+        return out
 
     def config(self, ruleset_id: str) -> TournamentConfig:
+        antes = {} if self.antes is None else {"antes": self.antes, "ante_posting": self.ante_posting}
         return TournamentConfig(ruleset_id=ruleset_id, initial_player_count=self.players,
                                 starting_stack=self.starting_stack, hand_cap=self.hand_cap,
                                 hands_per_level=self.hands_per_level,
                                 blind_levels=self.blind_levels or default_blind_levels(),
-                                payout_points=self.payout_points)
+                                payout_points=self.payout_points, **antes)
 
 
 DEFAULT_POPULATION_SOURCE = "strategy.population:PopulationSource"

@@ -23,8 +23,8 @@ where the engine corrects PokerKit.
 | `uncertainty_plo4` | Pot-limit Omaha, four hole cards |
 | `reveal_variant` | The build-day slot: whatever `$ARENA_REVEAL_VARIANT/variant.json` describes (see below) |
 
-Tables seat 2–8 players. They use a dead button, escalating blinds, no ante, and a hand
-cap (default 200). If the cap is reached, the survivors are scored by ICM.
+Tables seat 2–8 players. They use a dead button, escalating blinds, optional antes per
+level (`classic` or `big_blind`; none by default), and a hand cap (default 200). If the cap is reached, the survivors are scored by ICM.
 
 `reveal_variant` is for a variant announced only on build day. The engine builds it at
 run time from a variant description (deck ranks, 2–5 hole cards, best-five or

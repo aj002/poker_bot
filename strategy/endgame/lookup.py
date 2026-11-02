@@ -10,10 +10,18 @@ The abstraction: before the hero everyone folded (``open``), or exactly one play
 all-in and the rest folded (``call``), or one all-in and one call (``overcall``). Any
 all-in after the first is a call, as in the solved tree, where a call commits the
 caller's whole stack. Limps, non-all-in raises and postflop streets are out of scope.
+
+Antes (documented approximation; the tables are solved without antes): the snapshot
+holds the stacks left after the antes, and its depth unit is the M-equivalent big blind
+``bb * (sb + bb + antes) / (sb + bb)``, so a stack that pays the same per orbit maps to
+the same depth key. The dead ante money itself is not in the solved pots, which makes
+the tables a little too tight with antes. A seat all-in on its ante leaves the
+abstraction.
 """
 
 from __future__ import annotations
 
+import dataclasses
 from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
@@ -67,15 +75,22 @@ def _hand_events(obs):
     return events if events and events[0].type == "HandStarted" else None
 
 
-def seated_from_observation(obs, start: dict) -> SeatedSnapshot:
+def seated_from_observation(obs, start: dict, antes: dict | None = None) -> SeatedSnapshot:
     pos = start["positions"]
     stacks = {int(s): int(c) for s, c in start["start_stacks"].items()}
     heads_up = bool(pos["heads_up"])
     small = start.get("small_blind_seat")
-    return seated_snapshot(ring=sorted(obs.seats), start_stacks=stacks, button=pos["button"],
-                           small_blind_seat=small if small in stacks else None, big_blind=pos["big_blind"],
-                           heads_up=heads_up, blinds=(int(start["small_blind"]), int(start["big_blind"])),
-                           payouts=obs.payouts, hand_number=obs.hand_number, hand_cap=obs.hand_cap)
+    sb, bb = int(start["small_blind"]), int(start["big_blind"])
+    if antes:
+        stacks = {s: c - antes.get(s, 0) for s, c in stacks.items()}
+    seated = seated_snapshot(ring=sorted(obs.seats), start_stacks=stacks, button=pos["button"],
+                             small_blind_seat=small if small in stacks else None, big_blind=pos["big_blind"],
+                             heads_up=heads_up, blinds=(sb, bb), payouts=obs.payouts, hand_number=obs.hand_number,
+                             hand_cap=obs.hand_cap)
+    if not antes:
+        return seated
+    depth_bb = max(bb, round(bb * (sb + bb + sum(antes.values())) / (sb + bb)))
+    return dataclasses.replace(seated, snapshot=dataclasses.replace(seated.snapshot, bb=depth_bb))
 
 
 def preflop_spot(obs) -> Spot | None:
@@ -85,7 +100,12 @@ def preflop_spot(obs) -> Spot | None:
     events = _hand_events(obs)
     if events is None:
         return None
-    seated = seated_from_observation(obs, events[0].data)
+    antes = {int(e.data["seat"]): int(e.data["amount"]) for e in events if e.type == "AntePosted"}
+    if antes:
+        start_stacks = {int(s): int(c) for s, c in events[0].data["start_stacks"].items()}
+        if any(a >= start_stacks[s] for s, a in antes.items()):
+            return None
+    seated = seated_from_observation(obs, events[0].data, antes)
     snap = seated.snapshot
     seats = seated.seats
     if obs.hero_seat not in seats:

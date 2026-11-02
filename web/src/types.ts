@@ -65,8 +65,14 @@ export interface TableView {
   current_bet_to: number
   pots: PotView[]
   players: PlayerView[]
-  blinds: { small_blind: number; big_blind: number } | null
-  next_level: { small_blind: number; big_blind: number; starts_at_hand: number } | null
+  blinds: { small_blind: number; big_blind: number; ante?: number; ante_posting?: AntePosting } | null
+  next_level: {
+    small_blind: number
+    big_blind: number
+    starts_at_hand: number
+    ante?: number
+    ante_posting?: AntePosting
+  } | null
   payouts: number[]
   hands_played: number
   hands_remaining: number
@@ -528,3 +534,5 @@ export interface StudyHand {
     notes: string[]
   }
 }
+
+export type AntePosting = 'classic' | 'big_blind'

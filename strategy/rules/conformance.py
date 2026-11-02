@@ -13,6 +13,11 @@ second implementation. The suite checks, per variant:
 ``differential``  seeded random hands run in lockstep through a reference and a
                   candidate simulator; legal actions, actors and results must agree, every
                   canonical action must be legal and accepted, and chips are conserved.
+``pokerkit``      with antes only: seeded hands through the candidate and, in lockstep, a
+                  plain PokerKit state (no arena overlay) given the same deck, blinds and
+                  antes. Actors, call prices and final stacks must agree; hands that depend
+                  on a documented practice-rule correction (D1 short big blind, D5 odd
+                  chip) are counted as exclusions, never as passes.
 ``scoring``       the ICM fixtures (``tests/golden/fixtures/tournament/icm.json``) through
                   the scorer the objective uses.
 
@@ -68,6 +73,8 @@ class HandSetup:
     big_blind: int
     deck: tuple[str, ...]
     local_rules: Mapping[str, Any] = field(default_factory=dict)
+    ante: int = 0
+    ante_posting: str | None = None
 
 
 class SimHand(Protocol):
@@ -139,6 +146,7 @@ class ArenaSimulator:
             button=setup.button, small_blind_seat=setup.small_blind_seat, big_blind_seat=setup.big_blind_seat,
             small_blind=setup.small_blind, big_blind=setup.big_blind, deck=tuple(setup.deck),
             local_rules=LocalRules(**dict(setup.local_rules)),
+            ante=setup.ante, ante_posting=setup.ante_posting,  # type: ignore[arg-type]
         )
         return PokerKitHand(spec)
 
@@ -314,7 +322,8 @@ def fixture_setup(fx: Mapping[str, Any]) -> HandSetup:
     return HandSetup(ruleset_id=ruleset_id, seat_ring=tuple(ring), stacks=stacks, button=setup["button"],
                      small_blind_seat=setup.get("small_blind_seat"), big_blind_seat=setup["big_blind_seat"],
                      small_blind=sb, big_blind=bb, deck=build_deck(spec, order, hole, _cards(setup.get("board", ""))),
-                     local_rules=dict(fx.get("local_rules", {})))
+                     local_rules=dict(fx.get("local_rules", {})), ante=setup.get("ante", 0),
+                     ante_posting=setup.get("ante_posting"))
 
 
 _ENGINE_EVENT_KEYS = ("excess_returned", "event_counts", "auto_actions", "events_include", "events_exclude",
@@ -475,7 +484,8 @@ def check_fixtures(sim: Simulator, ruleset_id: str, fixtures: Iterable[Mapping[s
 # --------------------------------------------------------------- differential
 
 
-def random_setup(spec: VariantSpec, rng: random.Random) -> HandSetup:
+def random_setup(spec: VariantSpec, rng: random.Random, ante_posting: str | None = None) -> HandSetup:
+    """A seeded hand. With ``ante_posting`` the ante is drawn last, so ante-free draws are unchanged."""
     n = rng.choice((2, 2, 3, 4, 6, 8))
     ring = tuple(sorted(rng.sample(range(8), n)))
     sb, bb = rng.choice(((10, 20), (25, 50), (100, 200), (150, 300)))
@@ -492,7 +502,11 @@ def random_setup(spec: VariantSpec, rng: random.Random) -> HandSetup:
         small, big = ring[(i + 1) % n], ring[(i + 2) % n]
     deck = [r + s for r in spec.ranks for s in spec.suits]
     rng.shuffle(deck)
-    return HandSetup(spec.ruleset_id, ring, stacks, button, small, big, sb, bb, tuple(deck))
+    if ante_posting is None:
+        return HandSetup(spec.ruleset_id, ring, stacks, button, small, big, sb, bb, tuple(deck))
+    ante = rng.randint(1, bb // 4) if ante_posting == "classic" else rng.randint(bb // 2, bb)
+    return HandSetup(spec.ruleset_id, ring, stacks, button, small, big, sb, bb, tuple(deck), ante=ante,
+                     ante_posting=ante_posting)
 
 
 def _result_view(result: Any) -> dict[str, Any]:
@@ -506,14 +520,14 @@ def _result_view(result: Any) -> dict[str, Any]:
 
 
 def check_differential(reference: Simulator, candidate: Simulator, spec: VariantSpec, *, hands: int = 200,
-                       seed: str = "conformance-v1") -> CheckResult:
+                       seed: str = "conformance-v1", ante_posting: str | None = None) -> CheckResult:
     """Lockstep seeded hands. ``passed`` counts agreeing hands; decisions are noted."""
     out = CheckResult("differential")
-    rng = random.Random(f"{seed}|{spec.ruleset_id}")
+    rng = random.Random(f"{seed}|{spec.ruleset_id}" + (f"|ante-{ante_posting}" if ante_posting else ""))
     decisions = 0
     kinds_seen: set[str] = set()
     for h in range(hands):
-        setup = random_setup(spec, rng)
+        setup = random_setup(spec, rng, ante_posting)
         try:
             a, b = reference.new_hand(setup), candidate.new_hand(setup)
         except Exception as exc:
@@ -575,6 +589,177 @@ def _level(hand: SimHand, legal: LegalActions) -> int:
     return hand.current_level()
 
 
+# ------------------------------------------------------- against plain PokerKit
+
+_PK_AUTOMATIONS = ("ANTE_POSTING", "BET_COLLECTION", "BLIND_OR_STRADDLE_POSTING", "HOLE_CARDS_SHOWING_OR_MUCKING",
+                   "HAND_KILLING", "CHIPS_PUSHING", "CHIPS_PULLING")
+
+
+def setup_antes(setup: HandSetup) -> dict[int, int]:
+    """Antes owed by seat, from the rule in docs/assumptions.md ("Antes"), not from the engine."""
+    if not setup.ante:
+        return {}
+    if setup.ante_posting == "classic":
+        return {s: min(setup.ante, v) for s, v in setup.stacks.items()}
+    bb = setup.big_blind_seat
+    return {bb: min(setup.ante, max(0, setup.stacks[bb] - setup.big_blind))}
+
+
+class _PlainPokerKit:
+    """PokerKit 0.7.7 with no arena overlay, dealt from the setup's deck."""
+
+    def __init__(self, setup: HandSetup) -> None:
+        from collections import deque
+
+        from pokerkit import Automation, Mode
+
+        from arena.rules.pokerkit_adapter import HandSpec, engine_order
+        from arena.rules.profiles import get_profile
+
+        profile = get_profile(setup.ruleset_id)
+        order = engine_order(HandSpec(profile=profile, seat_ring=tuple(setup.seat_ring), stacks=dict(setup.stacks),
+                                      button=setup.button, small_blind_seat=setup.small_blind_seat,
+                                      big_blind_seat=setup.big_blind_seat, small_blind=setup.small_blind,
+                                      big_blind=setup.big_blind, deck=tuple(setup.deck)))
+        self.index_of = {s: i for i, s in enumerate(order)}
+        owed = setup_antes(setup)
+        by_index = [owed.get(s, 0) for s in order]
+        heads_up = len(order) == 2
+        if heads_up:
+            blinds: tuple[int, ...] = (setup.small_blind, setup.big_blind)
+            antes: tuple[int, ...] | int = (by_index[1], by_index[0])
+        else:
+            blind = {setup.big_blind_seat: setup.big_blind}
+            if setup.small_blind_seat is not None:
+                blind[setup.small_blind_seat] = setup.small_blind
+            blinds = tuple(blind.get(s, 0) for s in order)
+            antes = tuple(by_index)
+        if not any(by_index):
+            antes = 0
+        game = profile.game_class(tuple(getattr(Automation, a) for a in _PK_AUTOMATIONS),
+                                  setup.ante_posting != "big_blind", antes, blinds, setup.big_blind,
+                                  mode=Mode.TOURNAMENT)
+        self.state = game(tuple(setup.stacks[s] for s in order), len(order))
+        self.cards = deque(setup.deck)
+        self.order = order
+        after = {s: v - owed.get(s, 0) for s, v in setup.stacks.items()}
+        posted = [min(setup.big_blind, after[setup.big_blind_seat])]
+        if setup.small_blind_seat is not None:
+            posted.append(min(setup.small_blind, after[setup.small_blind_seat]))
+        self.short_big_blind = 0 < max(posted) < setup.big_blind
+        self.deal()
+
+    def deal(self) -> None:
+        st = self.state
+        while st.status and st.actor_index is None:
+            if st.can_burn_card():
+                st.burn_card(self.cards.popleft())
+            elif st.can_deal_hole():
+                st.deal_hole(self.cards.popleft())
+            elif st.can_deal_board():
+                st.deal_board("".join(self.cards.popleft() for _ in range(st.board_dealing_count)))
+            else:
+                break
+
+    def actor(self) -> int | None:
+        i = self.state.actor_index
+        return None if i is None else self.order[i]
+
+    def call_amount(self) -> int | None:
+        return self.state.checking_or_calling_amount or None if self.state.can_check_or_call() else None
+
+    def apply(self, action: Mapping[str, Any]) -> None:
+        st = self.state
+        if action["type"] == "fold":
+            st.fold()
+        elif action["type"] in ("check", "call"):
+            st.check_or_call()
+        else:
+            st.complete_bet_or_raise_to(int(action["amount"]))
+        self.deal()
+
+    def final_stacks(self) -> dict[int, int]:
+        return {s: int(self.state.stacks[i]) for i, s in enumerate(self.order)}
+
+
+def check_pokerkit(candidate: Simulator, spec: VariantSpec, *, ante_posting: str, hands: int = 200,
+                   seed: str = "conformance-v1") -> CheckResult:
+    """Seeded hands with antes through ``candidate`` and plain PokerKit in lockstep.
+
+    The candidate's actions are mirrored into PokerKit from its ``ActionApplied`` events
+    (so automatic checks are mirrored too). PokerKit must accept every one: the arena's
+    corrections only narrow PokerKit's legal set. Short-big-blind hands (D1) are excluded
+    before they start and odd-chip hands (D5) after they finish.
+    """
+    out = CheckResult("pokerkit")
+    rng = random.Random(f"{seed}|{spec.ruleset_id}|pokerkit-ante-{ante_posting}")
+    excluded = {"short_big_blind": 0, "odd_chip": 0}
+    posted = 0
+    for h in range(hands):
+        setup = random_setup(spec, rng, ante_posting)
+        plain = _PlainPokerKit(setup)
+        if plain.short_big_blind:
+            excluded["short_big_blind"] += 1
+            continue
+        hand = candidate.new_hand(setup)
+        events = getattr(hand, "events", None)
+        if events is None:
+            out.skipped += 1
+            out.notes.append(f"{candidate.name} exposes no events to mirror")
+            break
+        seen = 0
+        error = None
+
+        def mirror() -> str | None:
+            nonlocal seen
+            for e in events[seen:]:
+                if e.type == "ActionApplied":
+                    if plain.actor() != e.data["seat"]:
+                        return f"PokerKit actor {plain.actor()}, {candidate.name} acted at {e.data['seat']}"
+                    try:
+                        plain.apply(e.data["action"])
+                    except ValueError as exc:
+                        return f"PokerKit refused {e.data['action']} at seat {e.data['seat']}: {exc}"
+            seen = len(events)
+            return None
+
+        error = mirror()
+        steps = 0
+        while error is None and not hand.is_complete:
+            steps += 1
+            if steps > 400:
+                error = "hand did not finish in 400 decisions"
+                break
+            legal = hand.legal_actions()
+            if plain.actor() != hand.actor_seat:
+                error = f"actor {hand.actor_seat} vs PokerKit {plain.actor()}"
+                break
+            if legal.call_amount != plain.call_amount():
+                error = f"call at seat {hand.actor_seat}: {legal.call_amount} vs PokerKit {plain.call_amount()}"
+                break
+            menu = canonical_actions(legal, pot_total=hand.pot_total(), current_bet_to=hand.current_level(),
+                                     fractions=DIFFERENTIAL_FRACTIONS)
+            hand.apply(rng.choice(menu).action())
+            error = mirror()
+        if error is None and plain.state.status:
+            error = "PokerKit hand still running after the candidate finished"
+        if error is None:
+            got, want = dict(hand.result().final_stacks), plain.final_stacks()
+            if got != want:
+                if any(e.type == "OddChipCorrection" for e in events):
+                    excluded["odd_chip"] += 1
+                    continue
+                error = f"final stacks {got} vs PokerKit {want}"
+        posted += sum(1 for e in events if e.type == "AntePosted")
+        if error is None:
+            out.passed += 1
+        else:
+            out.fail(f"hand {h} ({len(setup.stacks)} players, ante {setup.ante} {ante_posting}): {error}")
+    out.notes.append(f"{posted} antes posted; excluded as practice-rule corrections: "
+                     f"{excluded['short_big_blind']} short big blind (D1), {excluded['odd_chip']} odd chip (D5)")
+    return out
+
+
 # -------------------------------------------------------------------- scoring
 
 
@@ -602,13 +787,18 @@ def check_scoring(scorer: Scorer, fixtures: Sequence[Mapping[str, Any]], toleran
 
 def run_conformance(ruleset_id: str, *, simulator: Simulator | None = None, reference: Simulator | None = None,
                     hands: int = 200, seed: str = "conformance-v1", fixture_root: Path = DEFAULT_FIXTURE_ROOT,
-                    spec: VariantSpec | None = None, scorer: Scorer | None = None) -> ConformanceReport:
+                    spec: VariantSpec | None = None, scorer: Scorer | None = None,
+                    ante_posting: str | None = None) -> ConformanceReport:
+    """With ``ante_posting`` the fixtures add the ``antes`` group, the differential deals antes,
+    and the plain-PokerKit check runs; without it the report is the ante-free one."""
     sim = simulator or ArenaSimulator()
     ref = reference or ArenaSimulator()
     spec = spec or get_variant(ruleset_id)
     checks = [check_metadata(sim, spec), check_ranking(sim, spec)]
     if fixture_root.exists():
         fixtures = load_fixture_group("core", fixture_root) + load_fixture_group("eval", fixture_root)
+        if ante_posting is not None:
+            fixtures += load_fixture_group("antes", fixture_root)
         checks.append(check_fixtures(sim, ruleset_id, fixtures))
         icm_path = fixture_root / "tournament" / "icm.json"
         if icm_path.exists():
@@ -617,7 +807,9 @@ def run_conformance(ruleset_id: str, *, simulator: Simulator | None = None, refe
         missing = CheckResult("fixtures", skipped=1)
         missing.notes.append(f"fixture root {fixture_root} not found")
         checks.append(missing)
-    checks.append(check_differential(ref, sim, spec, hands=hands, seed=seed))
+    checks.append(check_differential(ref, sim, spec, hands=hands, seed=seed, ante_posting=ante_posting))
+    if ante_posting is not None:
+        checks.append(check_pokerkit(sim, spec, ante_posting=ante_posting, hands=hands, seed=seed))
     return ConformanceReport(sim.name, ruleset_id, spec.variant_hash(), checks)
 
 

@@ -157,7 +157,8 @@ class HandContext:
     __slots__ = ("last_seq", "hand_id", "hand_number", "level_index", "sb", "bb", "button", "sb_seat", "bb_seat",
                  "heads_up", "start", "dealt", "pre_order", "post_order", "committed", "street_committed",
                  "folded", "street", "level", "raises", "acted", "aggressor", "street_aggressors", "pre_raises",
-                 "limpers", "callers", "pot", "records", "shown", "ring", "_pos_group")
+                 "limpers", "callers", "pot", "records", "shown", "ring", "_pos_group", "ante", "ante_posting",
+                 "antes_posted")
 
     def __init__(self, ring: Sequence[int] = ()) -> None:
         self.ring = list(ring)
@@ -191,6 +192,9 @@ class HandContext:
         self.pot = 0
         self.shown: dict[int, list[str]] = {}
         self._pos_group: dict[int, int] = {}
+        self.ante = 0
+        self.ante_posting: str | None = None
+        self.antes_posted: dict[int, int] = {}
 
     # ------------------------------------------------------------ ordering
 
@@ -242,6 +246,8 @@ class HandContext:
             self._board(d)
         elif etype == "BlindPosted":
             self._blind(d)
+        elif etype == "AntePosted":
+            self._ante(d)
         elif etype == "HandStarted":
             self._start(hand_id, d)
         elif etype == "CardsRevealed":
@@ -263,10 +269,24 @@ class HandContext:
         if amt > self.level:
             self.level = amt
 
+    def _ante(self, d: Mapping[str, Any]) -> None:
+        """An ante is in the pot but not in the street: it never sets the price of a call."""
+        s, amt = d["seat"], d["amount"]
+        self.committed[s] += amt
+        self.pot += amt
+        self.antes_posted[s] = amt
+
+    @property
+    def dead_ante(self) -> int:
+        """Big-blind antes: dead money in the main pot, contested by every live hand."""
+        return sum(self.antes_posted.values()) if self.ante_posting == "big_blind" else 0
+
     def _start(self, hand_id: str | None, d: Mapping[str, Any]) -> None:
         self._reset(hand_id, d["hand_number"])
         self.level_index = d["level"]
         self.sb, self.bb = d["small_blind"], d["big_blind"]
+        self.ante = d.get("ante", 0)
+        self.ante_posting = d.get("ante_posting")
         pos = d["positions"]
         self.button, self.bb_seat, self.heads_up = pos["button"], pos["big_blind"], pos["heads_up"]
         sbs = d.get("small_blind_seat")
@@ -475,6 +495,23 @@ class PointModel:
         return res
 
 
+def orbit_cost(sb: int, bb: int, ante: int = 0, ante_posting: str | None = None, dealt: int = 0) -> int:
+    """Chips one orbit costs the table (Harrington's M denominator): blinds plus every ante.
+
+    Classic antes are paid by each of ``dealt`` seats every hand; a big-blind ante once.
+    """
+    if not ante:
+        return sb + bb
+    return sb + bb + (ante * dealt if ante_posting == "classic" else ante)
+
+
+def ante_of(obs: Any) -> tuple[int, str | None]:
+    """The current hand's ante and posting from the observation (``(0, None)`` without antes)."""
+    blinds = getattr(obs, "blinds", None)
+    ante = getattr(blinds, "ante", 0) if blinds is not None else 0
+    return (ante, blinds.ante_posting) if ante else (0, None)
+
+
 def state_features(obs: Any, ctx: HandContext, points: PointModel | None = None) -> StateFeatures:
     hero = obs.hero_seat
     players = {p.seat: p for p in obs.players}
@@ -529,6 +566,10 @@ def state_features(obs: Any, ctx: HandContext, points: PointModel | None = None)
             uncontestable += c - cap
         if p.status == "folded":
             dead += c
+    dead_ante = ctx.dead_ante
+    if dead_ante:
+        # The BB's dead ante is not part of its contribution level; it sits whole in the main pot.
+        winnable, uncontestable, dead = _without_dead_ante(players, hero, cap, ctx.antes_posted, dead_ante)
     pot_odds_eff = call_amount / winnable if call_amount and winnable else 0.0
     caps_levels = {players[s].hand_committed for s in live if players[s].status == "all_in"}
     top = max((players[s].hand_committed for s in live), default=0)
@@ -563,14 +604,21 @@ def state_features(obs: Any, ctx: HandContext, points: PointModel | None = None)
     hands_to_cap = max(0, hands_left - 1)
     nl = obs.next_level
     survivors = obs.surviving_player_count
+    ante, posting = ante_of(obs)
+    next_ante = getattr(nl, "ante", 0) if nl is not None else 0
+    orbit = orbit_cost(sb, bb, ante, posting, n_dealt) if ante else sb + bb
     if nl is not None:
         hands_to_level = nl.starts_at_hand - obs.hand_number
         next_bb_ratio = nl.big_blind / bb
-        m_next = start_stack / max(1, nl.small_blind + nl.big_blind)
+        if next_ante:
+            m_next = start_stack / max(1, orbit_cost(nl.small_blind, nl.big_blind, next_ante, nl.ante_posting,
+                                                     n_dealt))
+        else:
+            m_next = start_stack / max(1, nl.small_blind + nl.big_blind)
     else:
         hands_to_level = hands_left
         next_bb_ratio = 1.0
-        m_next = start_stack / max(1, sb + bb)
+        m_next = start_stack / max(1, orbit)
 
     biggest = max(opp_live, key=lambda s: (start.get(s, 0), -s), default=-1)
     default_opp = aggressor if aggressor in start and aggressor != hero else biggest
@@ -585,7 +633,7 @@ def state_features(obs: Any, ctx: HandContext, points: PointModel | None = None)
         street, obs.hand_number, obs.hand_cap, hands_left, hands_to_cap, hands_to_level, ctx.level_index,
         next_bb_ratio, hands_to_cap / max(1, survivors), hands_to_level / max(1, survivors),
         (obs.hand_number - 1) / max(1, obs.hand_cap),
-        sb, bb, me.stack, me.hand_committed, start_stack, start_stack / bb, start_stack / max(1, sb + bb), m_next,
+        sb, bb, me.stack, me.hand_committed, start_stack, start_stack / bb, start_stack / max(1, orbit), m_next,
         effective, effective / bb, effective_behind,
         obs.initial_player_count, survivors, n_dealt, len(live), len(can_act), len(opp_live),
         sum(1 for s in opp_live if players[s].status == "all_in"),
@@ -598,6 +646,26 @@ def state_features(obs: Any, ctx: HandContext, points: PointModel | None = None)
         covered_by, covers, eff_aggr, side_pots, winnable, uncontestable, dead,
         stack_rank, stack_rank - 1, shortest_bb, largest_bb, average_bb, chip_share, stack_vector,
         icm_pts, icm_share, icm_ratio, bust_points, ladder, bust_points > 0, bust_points == 0 and ladder > 0, clash)
+
+
+def _without_dead_ante(players: Mapping[int, Any], hero: int, cap: int, antes: Mapping[int, int],
+                       dead_ante: int) -> tuple[int, int, int]:
+    """``(winnable, uncontestable, dead)`` with big-blind antes counted as main-pot dead money."""
+    cap -= antes.get(hero, 0)
+    winnable = dead_ante
+    uncontestable = 0
+    dead = dead_ante
+    for s, p in players.items():
+        c = p.hand_committed - antes.get(s, 0)
+        if s == hero:
+            winnable += cap
+            continue
+        winnable += c if c < cap else cap
+        if c > cap:
+            uncontestable += c - cap
+        if p.status == "folded":
+            dead += c
+    return winnable, uncontestable, dead
 
 
 def _hand_statics(key: Any, start: Mapping[int, int], start_stack: int, hero: int, payouts: Sequence[float], bb: int,

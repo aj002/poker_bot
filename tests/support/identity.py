@@ -38,6 +38,16 @@ def _sha(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
 
 
+def family_firsts(registry: Any) -> list[Any]:
+    """The first member of every population family (the behaviour fingerprint's choice)."""
+    from strategy.population.params import PARTITIONS
+
+    firsts: dict[str, Any] = {}
+    for m in sorted(registry.members.values(), key=lambda m: (PARTITIONS.index(m.partition), m.index)):
+        firsts.setdefault(m.family, m)
+    return [firsts[f] for f in sorted(firsts)]
+
+
 def _bot_factories(ruleset_id: str, practice: bool) -> list[Callable[[], Any]]:
     """Seat mix, keeping only bots that claim the ruleset. The tuned baseline needs the practice
     equity tables, so it sits only there."""
@@ -46,8 +56,8 @@ def _bot_factories(ruleset_id: str, practice: bool) -> list[Callable[[], Any]]:
     from strategy.policy.generic import GenericBot
     from strategy.population.registry import default_registry
 
-    members = default_registry().partition("validation")[:3]
-    makers: list[Callable[[], Any]] = [GenericBot, *(m.make_bot for m in members), aggressive.make_bot,
+    makers: list[Callable[[], Any]] = [GenericBot, *(m.make_bot for m in family_firsts(default_registry())),
+                                       aggressive.make_bot,
                                        rock.make_bot, station.make_bot, nlhe_heuristic.make_bot,
                                        calling_station.make_bot, legal_random.make_bot]
     makers = [m for m in makers if ruleset_id in m().rulesets]
@@ -79,13 +89,14 @@ def _play_case(ruleset_id: str, spec: str | None, players: int) -> dict[str, str
     config = TournamentConfig.model_validate({"ruleset_id": ruleset_id, **structure})
     out = {"config_hash": config.config_hash(), "rules_hash": RulesAdapter.from_config(config).rules_hash}
     logs, observations, phh = hashlib.sha256(), hashlib.sha256(), hashlib.sha256()
-    for t in range(TABLES):
+    makers = _bot_factories(ruleset_id, spec is None)
+    n = config.initial_player_count
+    for t in range(max(TABLES, -(-len(makers) // n))):
         seed = f"identity|{ruleset_id}|{spec}|{t}"
         a = Assignment(0, t, 0, seed, {s: k for k, s in enumerate(config.resolved_seats)})
-        makers = _bot_factories(ruleset_id, spec is None)
         agents = {}
         for k, s in enumerate(a.seats):
-            bot = makers[(k + t) % len(makers)]()
+            bot = makers[(k + n * t) % len(makers)]()
             agent = InProcessSeat(s, bot, bot_info(bot), table_info(config, a, s, config.bot_budget_ns), "identity")
             agent.start()
             decide = agent.decide

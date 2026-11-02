@@ -51,7 +51,7 @@ FRACTION_NAMES = {0.33: "⅓ pot", 0.5: "½ pot", 0.75: "¾ pot", 1.0: "pot", 1.
 FRAME_KEYS = ("street", "actor_seat", "board", "pot_total", "settled_pot", "current_bet_to", "pots", "players")
 
 
-EVENT_TYPES = frozenset({"HandStarted", "BlindPosted", "ActionApplied", "BoardDealt", "CardsRevealed", "PotAwarded",
+EVENT_TYPES = frozenset({"HandStarted", "AntePosted", "BlindPosted", "ActionApplied", "BoardDealt", "CardsRevealed", "PotAwarded",
                          "ExcessReturned", "HandCompleted"})
 """Public events the study log narrates; dealing, decision requests and bet collection are left out."""
 

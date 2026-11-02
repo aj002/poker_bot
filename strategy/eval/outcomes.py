@@ -93,6 +93,8 @@ def opportunities(events: Iterable[Mapping[str, Any]], seat: int, hand_cap: int)
             s = int(d["seat"])
             committed[s] += int(d["amount"])
             street_bets[s] += int(d["amount"])
+        elif kind == "AntePosted":
+            committed[int(d["seat"])] += int(d["amount"])
         elif kind == "BoardDealt":
             street = d["street"]
             street_bets = dict.fromkeys(street_bets, 0)

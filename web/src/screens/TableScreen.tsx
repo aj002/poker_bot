@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useAids, useStyles, type StreamStatus } from '../api'
 import { Card } from '../cards'
-import { RULESETS, chips, describeEvents } from '../format'
+import { RULESETS, anteLabel, chips, describeEvents } from '../format'
 import { recapLines } from '../learn/HandRecap'
 import { LearningPanel } from '../learn/LearningPanel'
 import { NotesPanel } from '../learn/NotesPanel'
@@ -124,12 +124,15 @@ export function TableScreen({
             <span className="label">Level {level}</span>{' '}
             <span className="mono">
               {chips(view.blinds.small_blind)}/{chips(view.blinds.big_blind)}
+              {view.blinds.ante ? ` · ${anteLabel(view.blinds.ante_posting)} ${chips(view.blinds.ante)}` : ''}
             </span>
           </span>
         )}
         {view.next_level && (
           <span className="muted">
-            next {chips(view.next_level.small_blind)}/{chips(view.next_level.big_blind)} at hand {view.next_level.starts_at_hand}
+            next {chips(view.next_level.small_blind)}/{chips(view.next_level.big_blind)}
+            {view.next_level.ante ? ` · ${anteLabel(view.next_level.ante_posting)} ${chips(view.next_level.ante)}` : ''} at
+            hand {view.next_level.starts_at_hand}
           </span>
         )}
         <span className="muted" data-testid="survivors">

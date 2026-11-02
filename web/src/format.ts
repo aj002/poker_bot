@@ -20,6 +20,7 @@ export const RULESETS: Record<string, { name: string; short: string; detail: str
 }
 
 export const chips = (n: number) => n.toLocaleString('en-US')
+export const anteLabel = (posting: unknown) => (posting === 'big_blind' ? 'BB ante' : 'ante')
 
 export function points(n: number) {
   return Number.isInteger(n) ? String(n) : n.toFixed(2)
@@ -73,7 +74,11 @@ function describeEvent(
   const who = (s: number) => nameOf?.(s) ?? seatName(s, seats)
   switch (e.type) {
     case 'HandStarted':
-      return `Hand ${d.hand_number} · blinds ${chips(d.small_blind)}/${chips(d.big_blind)}`
+      return `Hand ${d.hand_number} · blinds ${chips(d.small_blind)}/${chips(d.big_blind)}${
+        d.ante ? ` · ${anteLabel(d.ante_posting)} ${chips(d.ante)}` : ''
+      }`
+    case 'AntePosted':
+      return `${who(d.seat)} antes ${chips(d.amount)}`
     case 'BlindPosted':
       return `${who(d.seat)} posts ${chips(d.amount)}`
     case 'BoardDealt':

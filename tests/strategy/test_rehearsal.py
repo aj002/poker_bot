@@ -237,19 +237,39 @@ def test_rehearsal_smoke_end_to_end(tmp_path):
     assert (out / "report.md").read_text().startswith("# Rehearsal: shortdeck-trips-6max-turbo")
 
 
-def test_rehearsal_rejects_antes_loudly(tmp_path):
+def test_rehearsal_rejects_nine_seats_loudly(tmp_path):
     from strategy.rehearsal.runner import Rehearsal
 
-    rep = Rehearsal(HELDBACK / "nlhe-ante-6max.json", tmp_path / "rh", budget="smoke", log=lambda s: None).run()
-    assert rep["chosen"] is None and rep["failure"].startswith("load: ValueError: ante 50")
+    rep = Rehearsal(HELDBACK / "nlhe-9max.json", tmp_path / "rh", budget="smoke", log=lambda s: None).run()
+    assert rep["chosen"] is None and rep["failure"].startswith("load: ValidationError")
+    assert "initial_player_count" in rep["failure"]
     assert [s["status"] for s in rep["steps"]] == ["fatal"]
+
+
+@pytest.mark.parametrize("name, posting", [("nlhe-bbante-8max", "big_blind"), ("nlhe-ante-8max", "classic")])
+def test_ante_announcements_load_as_practice_nlhe_with_their_antes(tmp_path, name, posting):
+    from strategy.rehearsal.runner import Rehearsal, Step
+
+    r = Rehearsal(HELDBACK / f"{name}.json", tmp_path / "rh", budget="smoke", log=lambda s: None)
+    step = Step("load")
+    r.step_load(step)
+    assert step.detail["known_variant"] == "practice_nlhe" and r.ctx["ruleset_id"] == "practice_nlhe"
+    s = r.ctx["structure"]
+    assert s["ante_posting"] == posting and len(s["antes"]) == len(s["blind_levels"]) and s["antes"][0] == 0
+    assert r.ctx["config"].ante_for_hand(161 - 20) == s["antes"][-1]
+    from strategy.rules.adapter import RulesAdapter
+
+    plain = r.ctx["config"].model_copy(update={"antes": None, "ante_posting": None})
+    assert step.detail["rules_hash"] != RulesAdapter.from_config(plain).rules_hash
 
 
 def test_announcement_equal_to_a_practice_variant_uses_its_ruleset(tmp_path):
     from strategy.rehearsal.runner import Rehearsal, Step
 
-    ann = json.loads((HELDBACK / "nlhe-ante-6max.json").read_text())
-    del ann["structure"]["ante"]
+    ann = json.loads((HELDBACK / "nlhe-bbante-8max.json").read_text())
+    for key in ("antes", "ante_posting"):
+        del ann["structure"][key]
+    ann["structure"].update(initial_player_count=6, payout_points=[50, 30, 20, 0, 0, 0])
     ann["name"] = "nlhe-6max"
     spec = tmp_path / "nlhe.json"
     spec.write_text(json.dumps(ann))
@@ -258,3 +278,4 @@ def test_announcement_equal_to_a_practice_variant_uses_its_ruleset(tmp_path):
     r.step_load(step)
     assert step.detail["known_variant"] == "practice_nlhe" and r.ctx["ruleset_id"] == "practice_nlhe"
     assert "reveal" not in r.ctx and r.ctx["structure"]["initial_player_count"] == 6
+    assert "antes" not in r.ctx["structure"]
