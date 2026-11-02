@@ -274,6 +274,39 @@ timeouts cost 0.055 points each (95% CI -0.57 to 0.68). A timeout falls back to 
 when one is legal, which is often what the bot would do anyway. At the measured rates
 timeouts cost under 0.03 points per table, far below the table-to-table noise.
 
+**Burst-aware classifier.** On a bursty host the plain blueprint failed the 0.02%
+ceiling with 17 bot-caused timeouts, minutes after the exploit bot passed it on the
+same host: 22 of 34 timeouts fell on one table, and the late replies' harness parses
+took 337–2,099 µs against replays of 103–437 µs (see the exploitation report). The
+host rules (`host_slowdown`, `host_burst`) now clear such CPU-bound timeouts when the
+harness parse in the same reply, or around it, ran several times its median and the
+decide fits at normal speed. Re-classified with them, the CPU-bound timeouts of
+earlier gate runs fall from 1–5 to 0–1 per run (taking a 100 µs parse median, since
+those runs kept no per-decision parse times). The ones left are isolated stalls
+inside the decide with a normal parse, which no harness measurement can tell apart
+from bot work. A test bot that spends 3 ms on a sixth of its decisions keeps every
+such timeout bot-caused (`cpu_bound` or `replay_slow`, and `threaded` once it starts
+a thread), although they cluster on every table. Rerun on main (idle VM, quieter host
+than the failing day), both bots passed on their first attempt:
+
+| | blueprint (`cb277c81…`) | exploit (`ea08a3bc…`) |
+|---|---|---|
+| decisions / tables | 50,183 / 330 | 50,201 / 324 |
+| decide p99 / p99.9 / max | 208 / 249 / 528 µs | 322 / 392 / 684 µs |
+| parse p50 / p99.9 | 94 / 180 µs | 94 / 181 µs |
+| timeouts (bot-caused / stall-like) | 13 (1 / 12) | 14 (0 / 14, 2 of them `host_slowdown`) |
+| control timeouts / decisions (bot-caused) | 5 / 11,452 (1) | 5 / 11,349 (1) |
+| bot vs control p; stall test p | 0.96; 0.78 | 1.0; 0.74 |
+| points cost per table, 1× / 10× rate | 0.02 / 0.18 | 0.08 / 0.20 |
+
+The exploit bot's two `host_slowdown` timeouts had parses of 928 and 564 µs (9.8 and
+6.0 times the median) around decides of 843 and 834 µs whose warm replays took
+187–288 µs; the old rule counted both as bot-caused. The blueprint's one bot-caused
+timeout is a 1,164 µs decide with a 110 µs parse and replays of 139–217 µs: a host
+stall inside the decide, which stays charged. Only 0.006–0.02% of decisions had a
+host-slowed parse, so the host rules can hide at most that share of a bot's own slow
+decides.
+
 **GC.** The worker collects and freezes the heap after loading the bot, and packaged
 bots also freeze after loading the variant tables (`gc_mode="freeze"`). The decision
 path keeps no garbage cycles, so the bench sees no collection inside a decision.
