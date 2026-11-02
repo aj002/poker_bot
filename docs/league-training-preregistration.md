@@ -105,3 +105,36 @@ each.
 Payoff matrices and σ per iteration, NashConv in the linearised meta-game and the exact
 mixed-seat check, exploiter gains (the exploitability proxy), intransitive cycles, family
 slices and fifth-percentile lineups of the gates.
+
+## Results (added after the runs)
+
+The pre-registration commit is tag `prereg-league-main-v1` (`62dd7fb`) and amendment 1 is
+tag `prereg-league-main-v1-amendment-1` (`dac4667`). Both were pushed before the runs they
+govern. Rebasing onto main turned them into `cbcc009` and `e5fdcb7`, with the same code
+and text.
+
+| iteration | candidate | improve (B − A vs incumbent) | decision |
+| --- | --- | --- | --- |
+| 1 | C1 | +9.12 [+7.81, +10.44] | promoted |
+| 2 | C2 | −0.37 [−1.52, +0.77] | retired (also regress-E2 −4.65) |
+| 3 | C3 | +0.44 [−0.77, +1.65] | retired (also regress-E2 −2.67) |
+| 4 | C4 | −0.82 [−1.90, +0.26] | retired (also regress-E2 −5.06) |
+
+Declared selection: **blueprint**. C1 was ineligible, with an antisymmetric advantage of
+−0.350 over E2. The pre-registered confirmations were not run (null).
+
+Amendment 1, C1's family (Holm, one-sided α = 0.05):
+
+| id | blocks | B − A | 95% paired t | Holm p | outcome |
+| --- | --- | --- | --- | --- | --- |
+| `vs-blueprint` | 400 | +10.38 | [+9.21, +11.55] | < 1e-15 | confirmed |
+| `ni-blueprint` (margin −1) | 200 | +3.40 | [+2.04, +4.76] | 6.3e-10 | confirmed |
+| `ni-baseline` (margin −1) | 200 | +16.37 | [+14.96, +17.77] | < 1e-15 | confirmed |
+
+Secondary exploitability, real engine (exploiter vs target in target-rich lineups, 96 blocks):
+
+- E1 vs the blueprint: +0.68 [−1.22, +2.59];
+- E2 vs C1: +2.35 [+0.30, +4.40].
+
+Deployment gate for the league bot: passed on attempt 1. 50,197 decisions, worker p99
+229 µs, 2 bot-caused timeouts within the control's rate, 6.4 MB bundle.
