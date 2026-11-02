@@ -217,7 +217,7 @@ def _play(policies, *, players, hand_cap=120, seed="blueprint-test"):
     return run_rollouts(config, policies, blocks=1, base_seed=seed, jobs=1)
 
 
-@pytest.mark.parametrize("leaf", ["blueprint", "blueprint_noleaf"])
+@pytest.mark.parametrize("leaf", ["blueprint", "blueprint_capped", "blueprint_noleaf"])
 def test_bot_plays_legal_tournaments_within_budget(tmp_path, monkeypatch, leaf):
     import time
 

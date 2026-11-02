@@ -1,0 +1,33 @@
+{
+  "experiment_id": "blueprint-capped-vs-endgame-capped",
+  "title": "M5 exit with the capped leaf: blueprint vs the capped endgame bot (NLHE, full 8-player SNGs)",
+  "description": "Pre-registered before the final pack existed. A is the strongest Stage 3 bot (base policy with confidence-capped population-response push/fold tables); B is the final main-v3 pack with the same capped tables as its short-stack leaf (artifacts/blueprint/bundles/final-capped, from `make blueprint-bundles`), so the comparison isolates the blueprint above the leaf's range. min_effect 0. One of two co-primary M5 exit tests (blueprint-vs-endgame-points, blueprint-capped-vs-endgame-capped), Holm-corrected at 0.05.",
+  "stage": "confirmation",
+  "min_effect": 0.0,
+  "interval": "paired_t",
+  "arms": {
+    "A": {
+      "policy": "strategy/endgame/bots/capped.py"
+    },
+    "B": {
+      "policy": "artifacts/blueprint/bundles/final-capped"
+    }
+  },
+  "variants": [
+    "practice_nlhe"
+  ],
+  "table": {
+    "players": 8,
+    "starting_stack": 2000,
+    "hand_cap": 200
+  },
+  "population": {
+    "source": "strategy.population:PopulationSource",
+    "partition": "validation",
+    "lineups_per_variant": 16
+  },
+  "blocks_per_lineup": 25,
+  "base_seed": "blueprint-capped-vs-endgame-capped-v1",
+  "isolation": "in_process",
+  "bootstrap_resamples": 2000
+}

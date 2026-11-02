@@ -9,8 +9,9 @@ with a stream keyed by the table's policy seed and the decision id.
 
 Layers, in order:
 
-1. the Stage 3 point-aware push/fold tables (``leaf="points"``) for the short-stack
-   preflop spots they cover (:class:`strategy.endgame.bot.PushFoldBot`);
+1. Stage 3 push/fold tables for the short-stack preflop spots they cover
+   (:class:`strategy.endgame.bot.PushFoldBot`): point-aware (``leaf="points"``), chip-EV
+   (``"chips"``), confidence-capped population responses (``"capped"``) or none;
 2. the blueprint;
 3. on a miss at every back-off level, the endgame bots' base policy.
 
@@ -35,7 +36,7 @@ from strategy.features.cards import capabilities, card_ints
 from strategy.tables import store
 
 RULESETS = ("practice_nlhe",)
-LEAVES = ("points", "chips", "none")
+LEAVES = ("points", "chips", "capped", "none")
 STREETS = ("preflop", "flop", "turn", "river")
 
 
@@ -243,7 +244,7 @@ class BlueprintBot(ExplicitStateBot):
         self.name = "blueprint" if leaf == "points" else f"blueprint_{leaf}"
         self._pack_path = Path(pack) if pack else None
         self._policies: dict[str, BlueprintPolicy] = {}
-        self._leaf = PushFoldBot(leaf if leaf != "none" else "none")
+        self._leaf = PushFoldBot(leaf)
         self.stats = {"leaf": 0, "blueprint": 0, "fallback": 0, "levels": [0, 0, 0, 0]}
 
     def policy(self, ruleset_id: str) -> BlueprintPolicy:

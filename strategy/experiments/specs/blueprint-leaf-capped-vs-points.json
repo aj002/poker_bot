@@ -1,0 +1,33 @@
+{
+  "experiment_id": "blueprint-leaf-capped-vs-points",
+  "title": "Blueprint leaf: capped vs point-aware push/fold tables under the same pack",
+  "description": "Discovery. Same final main-v3 pack in both arms; A has the point-aware leaf (bundles/final), B the confidence-capped leaf (bundles/final-capped). Measures the leaf effect inside the blueprint bot, separately from the blueprint's own effect.",
+  "stage": "discovery",
+  "min_effect": 0.5,
+  "interval": "paired_t",
+  "arms": {
+    "A": {
+      "policy": "artifacts/blueprint/bundles/final"
+    },
+    "B": {
+      "policy": "artifacts/blueprint/bundles/final-capped"
+    }
+  },
+  "variants": [
+    "practice_nlhe"
+  ],
+  "table": {
+    "players": 8,
+    "starting_stack": 2000,
+    "hand_cap": 200
+  },
+  "population": {
+    "source": "strategy.population:PopulationSource",
+    "partition": "validation",
+    "lineups_per_variant": 16
+  },
+  "blocks_per_lineup": 15,
+  "base_seed": "blueprint-leaf-capped-vs-points-v1",
+  "isolation": "in_process",
+  "bootstrap_resamples": 2000
+}

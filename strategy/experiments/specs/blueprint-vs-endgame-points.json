@@ -1,7 +1,7 @@
 {
   "experiment_id": "blueprint-vs-endgame-points",
   "title": "M5 exit: MCCFR blueprint vs the Stage 3 endgame bot (NLHE, full 8-player SNGs)",
-  "description": "Pre-registered before the final pack existed. A is the Stage 3 product (shared base policy with point-aware push/fold tables); B is the final main-v3 pack built into a bundle by `make blueprint-bundles` (artifacts/blueprint/bundles/final; its MANIFEST.json records the pack hash). The blueprint keeps the same push/fold leaf, so the comparison isolates the blueprint's play above the leaf's stack range. min_effect 0: the M5 exit needs B to beat A with the paired interval excluding zero.",
+  "description": "Pre-registered before the final pack existed. A is the Stage 3 product (shared base policy with point-aware push/fold tables); B is the final main-v3 pack built into a bundle by `make blueprint-bundles` (artifacts/blueprint/bundles/final; its MANIFEST.json records the pack hash). The blueprint keeps the same push/fold leaf, so the comparison isolates the blueprint's play above the leaf's stack range. min_effect 0: the M5 exit needs B to beat A with the paired interval excluding zero. One of two co-primary M5 exit tests (blueprint-vs-endgame-points, blueprint-capped-vs-endgame-capped), Holm-corrected at 0.05. (Family amended before any final-pack run, when the capped tables landed on main.)",
   "stage": "confirmation",
   "min_effect": 0.0,
   "interval": "paired_t",

@@ -240,6 +240,7 @@ blueprint-pack:
 
 blueprint-bundles:
 	$(UV) run python -m strategy.blueprint.package --pack $(BP_PACK) --out $(BP)/bundles/final > /dev/null
+	$(UV) run python -m strategy.blueprint.package --pack $(BP_PACK) --leaf capped --out $(BP)/bundles/final-capped > /dev/null
 	$(UV) run python -m strategy.blueprint.package --pack $(BP_PACK) --leaf none --out $(BP)/bundles/final-noleaf > /dev/null
 	for m in $(BP_MILESTONES); do \
 		$(UV) run python -m strategy.blueprint.policy --run $(BP_RUN) --milestone pairs-$$m --out $(BP)/packs/main-v3-$$m.npz && \
@@ -258,7 +259,8 @@ blueprint-audit:
 
 # Needs `make blueprint-bundles`. The sandboxed smoke runs with one job: default parallelism times out.
 lab-blueprint:
-	for s in blueprint-vs-endgame-points blueprint-vs-endgame-chips blueprint-vs-heuristic blueprint-leaf-ablation \
+	for s in blueprint-vs-endgame-points blueprint-capped-vs-endgame-capped blueprint-leaf-capped-vs-points \
+		blueprint-vs-endgame-chips blueprint-vs-heuristic blueprint-leaf-ablation \
 		blueprint-progress-1m blueprint-progress-10m blueprint-vs-style-aggressive blueprint-vs-style-rock \
 		blueprint-vs-style-station blueprint-vs-style-super-aggressive blueprint-vs-style-switcher \
 		blueprint-vs-style-weak-tight; do \
