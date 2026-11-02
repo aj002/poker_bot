@@ -115,7 +115,7 @@ class PolicyPack:
         for level, div in enumerate(LEVEL_DIVISORS):
             k = key // div
             keys = self.keys[level]
-            i = int(np.searchsorted(keys, k))
+            i = int(keys.searchsorted(keys.dtype.type(k)))
             if i < keys.size and int(keys[i]) == k:
                 return tuple(int(x) for x in self.probs[level][i]), level
         return None

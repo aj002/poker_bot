@@ -139,6 +139,26 @@ def test_pack_round_trip_and_back_off(tmp_path):
     assert dense.shape == (A.NUM_KEYS, A.NUM_ACTIONS) and dense[5, 5] == pytest.approx(191 / 255)
 
 
+def test_lookup_is_a_binary_search_on_a_full_size_pack(tmp_path):
+    import time
+
+    n = 500_000
+    arrays = {}
+    for level in range(len(LEVEL_DIVISORS)):
+        keys = np.arange(0, A.NUM_KEYS // LEVEL_DIVISORS[level], 7, dtype=np.int32)[:n]
+        arrays[f"keys{level}"] = keys
+        arrays[f"probs{level}"] = quantize(np.ones((keys.size, A.NUM_ACTIONS)))
+        arrays[f"mass{level}"] = np.full(keys.size, 255, np.uint8)
+    path = tmp_path / "big.npz"
+    write_levels(path, arrays, {"ruleset_id": "practice_nlhe"})
+    pack = PolicyPack(path)
+    probe = [int(k) for k in np.random.default_rng(0).integers(0, A.NUM_KEYS, 2000)]
+    t = time.perf_counter()
+    for k in probe:
+        pack.lookup(k)
+    assert (time.perf_counter() - t) / len(probe) < 50e-6
+
+
 def test_resolved_table_matches_lookup(tmp_path):
     rng = np.random.default_rng(0)
     strat = np.zeros((A.NUM_KEYS, A.NUM_ACTIONS), np.float32)

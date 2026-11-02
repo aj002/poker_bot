@@ -1,13 +1,13 @@
 {
   "experiment_id": "blueprint-sandbox-smoke",
-  "title": "Sandboxed blueprint bundle vs the endgame bot: timeout and error rates",
-  "description": "Run with --jobs 1. Checks that the bundle loads and plays under the submission sandbox (1 GiB, 1 ms decisions) and reports its timeout rate; too small for an effect estimate.",
+  "title": "Sandboxed blueprint bundle vs a trivial control bot: timeout and error rates",
+  "description": "Run with --jobs 1 on an otherwise idle machine. Checks that the bundle loads and plays under the submission sandbox (1 GiB, 1 ms decisions) and reports its timeout rate next to a trivial control in the same seat (the machine's timeout floor); too small for an effect estimate. Single-file strategy bots such as strategy/endgame/bots/points.py cannot load in the sandbox (they import the repository), so the control is a built-in baseline.",
   "stage": "discovery",
   "min_effect": 0.5,
   "interval": "paired_t",
   "arms": {
     "A": {
-      "policy": "strategy/endgame/bots/points.py"
+      "policy": "baseline:calling_station"
     },
     "B": {
       "policy": "artifacts/blueprint/bundles/final"
