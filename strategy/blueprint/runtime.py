@@ -22,11 +22,13 @@ hero's own sized raises are clamped to the nearest legal raise.
 
 from __future__ import annotations
 
+import gzip
 import hashlib
+import json
 import os
 from pathlib import Path
 
-from arena.agents.sdk import ExplicitStateBot, call, check, clamp_raise_to, fold, raise_to, with_note
+from arena.agents.sdk import ExplicitStateBot, Observation, call, check, clamp_raise_to, fold, raise_to, with_note
 from strategy.blueprint import abstraction as A
 from strategy.blueprint.cards import CardAbstraction
 from strategy.blueprint.policy import PolicyPack
@@ -38,6 +40,14 @@ from strategy.tables import store
 RULESETS = ("practice_nlhe",)
 LEAVES = ("points", "chips", "capped", "none")
 STREETS = ("preflop", "flop", "turn", "river")
+WARM_DIR = Path(__file__).resolve().parent / "data"
+WARM_PASSES = 3
+
+
+def warm_observations(ruleset_id: str) -> list[str]:
+    """Recorded observations (JSON) replayed through :meth:`BlueprintBot.decide` at load."""
+    path = WARM_DIR / f"warm-{ruleset_id}.json.gz"
+    return json.loads(gzip.decompress(path.read_bytes())) if path.exists() else []
 
 
 def pack_path(ruleset_id: str) -> Path:
@@ -245,7 +255,12 @@ class BlueprintBot(ExplicitStateBot):
         self._pack_path = Path(pack) if pack else None
         self._policies: dict[str, BlueprintPolicy] = {}
         self._leaf = PushFoldBot(leaf)
-        self.stats = {"leaf": 0, "blueprint": 0, "fallback": 0, "levels": [0, 0, 0, 0]}
+        self._warmed: set[str] = set()
+        self.stats = self._fresh_stats()
+
+    @staticmethod
+    def _fresh_stats() -> dict:
+        return {"leaf": 0, "blueprint": 0, "fallback": 0, "levels": [0, 0, 0, 0]}
 
     def policy(self, ruleset_id: str) -> BlueprintPolicy:
         p = self._policies.get(ruleset_id)
@@ -257,7 +272,24 @@ class BlueprintBot(ExplicitStateBot):
     def initial_state(self, table):
         self.policy(table.ruleset_id)
         self._leaf.initial_state(table)
+        if table.ruleset_id not in self._warmed:
+            self._warmed.add(table.ruleset_id)
+            self.warm(table.ruleset_id)
         return {"seed": table.policy_seed}
+
+    def warm(self, ruleset_id: str) -> None:
+        """Play the recorded observations during the untimed load.
+
+        A sandboxed worker loads the bot per table and times every decision. Without this
+        the first decisions run cold (unspecialised bytecode, cold caches) and can take half
+        the 1 ms budget. Only memo caches of pure functions are touched, so play is unchanged.
+        """
+        recorded = warm_observations(ruleset_id)
+        for _ in range(WARM_PASSES if recorded else 0):
+            for raw in recorded:
+                self.decide(Observation.model_validate_json(raw), {"seed": "warm"})
+        self.policy(ruleset_id)._pressure.clear()
+        self.stats = self._fresh_stats()
 
     def decide(self, obs, state):
         seed = (state or {}).get("seed", "")

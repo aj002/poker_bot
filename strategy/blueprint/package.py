@@ -7,6 +7,9 @@ a fresh interpreter and recording imported modules and loaded tables. The pack g
 :func:`strategy.blueprint.runtime.pack_path` finds it. A sandboxed worker then needs
 nothing from the repository beyond the arena SDK it preloads.
 
+The load-time warm-up observations (``strategy/blueprint/data``, re-recorded with
+``--write-warm``) are copied too.
+
 Checks: total size under :data:`SIZE_LIMIT`, no numba / llvmlite / solver modules in the
 closure, and the bundle's ``bot.py`` loads and plays from a scratch directory.
 
@@ -119,6 +122,11 @@ def build(pack: Path, out: Path, *, leaf: str = "points", ruleset_id: str = "pra
             continue
         (out / rel).parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(REPO / rel, out / rel)
+    warm = REPO / "strategy" / "blueprint" / "data"
+    for f in sorted(warm.glob("*.json.gz")):
+        rel = f.relative_to(REPO)
+        (out / rel).parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(f, out / rel)
     tables = _table_files(info["tables"])
     for rel in tables:
         (out / rel).parent.mkdir(parents=True, exist_ok=True)
@@ -143,6 +151,42 @@ def build(pack: Path, out: Path, *, leaf: str = "points", ruleset_id: str = "pra
     return manifest
 
 
+WARM_COUNTS = {"preflop": 24, "flop": 8, "turn": 8, "river": 8}
+
+
+def write_warm(ruleset_id: str = "practice_nlhe") -> Path:
+    """Record the load-time warm-up observations from one seeded in-process tournament block."""
+    import gzip
+
+    from arena.domain.models import TournamentConfig
+    from strategy.blueprint import runtime
+    from strategy.value.rollouts import run_rollouts
+
+    seen: dict[str, list[str]] = {k: [] for k in WARM_COUNTS}
+    decide, recorded = runtime.BlueprintBot.decide, runtime.warm_observations
+
+    def record(self, obs, state):
+        seen[obs.street].append(obs.model_dump_json())
+        return decide(self, obs, state)
+
+    runtime.BlueprintBot.decide, runtime.warm_observations = record, lambda _r: []
+    try:
+        lineup = ["strategy/blueprint/bots/blueprint.py", "style:aggressive", "baseline:calling_station", "style:rock",
+                  "style:station", "style:switcher", "style:weak_tight", "baseline:nlhe_heuristic"]
+        run_rollouts(TournamentConfig(initial_player_count=8, hand_cap=200), lineup, blocks=1,
+                     base_seed=f"blueprint-warm|{ruleset_id}", jobs=1)
+    finally:
+        runtime.BlueprintBot.decide, runtime.warm_observations = decide, recorded
+    picked = []
+    for street, n in WARM_COUNTS.items():
+        obs = seen[street]
+        picked += [obs[i * len(obs) // n] for i in range(min(n, len(obs)))]
+    out = runtime.WARM_DIR / f"warm-{ruleset_id}.json.gz"
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_bytes(gzip.compress(json.dumps(picked).encode(), mtime=0))
+    return out
+
+
 def smoke(bundle: Path) -> None:
     """Load the bundle with only the arena SDK preloaded (as sandbox workers do) and the repository hidden."""
     bundle = bundle.resolve()
@@ -162,10 +206,16 @@ def smoke(bundle: Path) -> None:
 
 def main(argv: list[str] | None = None) -> None:
     ap = argparse.ArgumentParser(description="Build and audit a blueprint bot bundle")
-    ap.add_argument("--pack", type=Path, required=True)
-    ap.add_argument("--out", type=Path, required=True)
+    ap.add_argument("--pack", type=Path)
+    ap.add_argument("--out", type=Path)
     ap.add_argument("--leaf", choices=sorted(LEAVES), default="points")
+    ap.add_argument("--write-warm", action="store_true", help="re-record strategy/blueprint/data/warm-*.json.gz")
     a = ap.parse_args(argv)
+    if a.write_warm:
+        print(write_warm())
+        return
+    if a.pack is None or a.out is None:
+        ap.error("--pack and --out are required")
     manifest = build(a.pack, a.out, leaf=a.leaf)
     smoke(a.out)
     print(json.dumps(manifest, indent=1))
