@@ -1,0 +1,89 @@
+{
+  "experiment_id": "final-student-deceptive",
+  "title": "Distillation: table student vs the teacher against deceptive, image-responsive and switching lineups",
+  "description": "Stage 8 distillation study: A teacher, B student, in the six R2 lineups of the exploitation report (strategy.exploit.adversaries and the arena switcher). The teacher's confidence gate is what made it non-inferior there; the student deviates unconditionally. Discovery stage, validation partition.",
+  "stage": "discovery",
+  "min_effect": 0.0,
+  "interval": "paired_t",
+  "arms": {
+    "A": {
+      "policy": "artifacts/exploit/bundles/exploit"
+    },
+    "B": {
+      "policy": "artifacts/final/student"
+    }
+  },
+  "variants": [
+    "practice_nlhe"
+  ],
+  "table": {
+    "players": 8,
+    "starting_stack": 2000,
+    "hand_cap": 200
+  },
+  "population": {
+    "source": "strategy.population:PopulationSource",
+    "partition": "validation",
+    "lineups_per_variant": 1,
+    "explicit_lineups": [
+      [
+        "strategy/exploit/bots/adv_bait_station.py",
+        "strategy/exploit/bots/adv_bait_station.py",
+        "strategy/exploit/bots/adv_bait_station.py",
+        "strategy/exploit/bots/adv_bait_station.py",
+        "strategy/exploit/bots/adv_bait_station.py",
+        "strategy/exploit/bots/adv_bait_station.py",
+        "strategy/exploit/bots/adv_bait_station.py"
+      ],
+      [
+        "strategy/exploit/bots/adv_bait_nit.py",
+        "strategy/exploit/bots/adv_bait_nit.py",
+        "strategy/exploit/bots/adv_bait_nit.py",
+        "strategy/exploit/bots/adv_bait_nit.py",
+        "strategy/exploit/bots/adv_bait_nit.py",
+        "strategy/exploit/bots/adv_bait_nit.py",
+        "strategy/exploit/bots/adv_bait_nit.py"
+      ],
+      [
+        "strategy/exploit/bots/adv_image.py",
+        "strategy/exploit/bots/adv_image.py",
+        "strategy/exploit/bots/adv_image.py",
+        "strategy/exploit/bots/adv_image.py",
+        "strategy/exploit/bots/adv_image.py",
+        "strategy/exploit/bots/adv_image.py",
+        "strategy/exploit/bots/adv_image.py"
+      ],
+      [
+        "strategy/exploit/bots/adv_flip.py",
+        "strategy/exploit/bots/adv_flip.py",
+        "strategy/exploit/bots/adv_flip.py",
+        "strategy/exploit/bots/adv_flip.py",
+        "strategy/exploit/bots/adv_flip.py",
+        "strategy/exploit/bots/adv_flip.py",
+        "strategy/exploit/bots/adv_flip.py"
+      ],
+      [
+        "strategy/exploit/bots/adv_bait_station.py",
+        "strategy/exploit/bots/adv_bait_station.py",
+        "strategy/exploit/bots/adv_bait_nit.py",
+        "strategy/exploit/bots/adv_bait_nit.py",
+        "strategy/exploit/bots/adv_image.py",
+        "strategy/exploit/bots/adv_image.py",
+        "strategy/exploit/bots/adv_flip.py"
+      ],
+      [
+        "style:switcher",
+        "style:switcher",
+        "style:switcher",
+        "style:switcher",
+        "style:switcher",
+        "style:switcher",
+        "style:switcher"
+      ]
+    ]
+  },
+  "blocks_per_lineup": 50,
+  "base_seed": "final-student-deceptive-v1",
+  "isolation": "in_process",
+  "bootstrap_resamples": 2000
+}

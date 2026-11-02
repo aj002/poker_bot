@@ -1,0 +1,18 @@
+{
+ "alpha": 0.05,
+ "margin": 0.5,
+ "bundle": "artifacts/final/bundle",
+ "bundle_sha256": "9fb85e2d7fe808ee825791975cb740f85d2f2a9d2bc4064588fcb04d21eb3297",
+ "tag": "prereg-final-holdout",
+ "document": "docs/final-holdout-preregistration.md",
+ "hypotheses": [
+  {"id": "H1", "spec": "final-holdout-vs-blueprint", "kind": "superiority",
+   "comparison": "final bot vs MCCFR blueprint (point-aware leaf), sampled holdout lineups"},
+  {"id": "H2", "spec": "final-holdout-vs-baseline", "kind": "superiority",
+   "comparison": "final bot vs baseline nlhe-v2, sampled holdout lineups"},
+  {"id": "H3", "spec": "final-holdout-vs-endgame-capped", "kind": "superiority",
+   "comparison": "final bot vs endgame-capped bot, sampled holdout lineups"},
+  {"id": "H4", "spec": "final-holdout-only-families", "kind": "non_inferiority",
+   "comparison": "final bot vs MCCFR blueprint, lineups of the holdout-only families"}
+ ]
+}

@@ -333,3 +333,74 @@ exploit-validate:
 gate-exploit: exploit-bundles
 	$(UV) run python -m strategy.policy.gate --bundle $(EX)/bundles/exploit --decisions $(GATE_DECISIONS) \
 		--out artifacts/gate/exploit.json
+
+# Final bot (Stage 8 / M8; strategy/final/README.md). One entry point: the exploiting blueprint on NLHE,
+# the generic fallback on every other ruleset. docs/submission-checklist.md is the submission procedure;
+# docs/final-holdout-preregistration.md fixes the one-shot holdout run.
+.PHONY: final-arms final-package final-verify final-equivalence gate-final gate-final-generic distill-collect \
+	distill-student distill-agree distill-validate gate-student distill-hybrid final-holdout final-holdout-confirm
+FB = artifacts/final
+FINAL_BUNDLE = $(FB)/bundle
+FINAL_JOBS ?= $(SEARCH_JOBS)
+
+# The comparison arms: blueprint and exploit bundles from the committed packs, and the baseline nlhe-v2.
+final-arms: package-baseline
+	$(UV) run python -m strategy.blueprint.package --pack $(BP_PACK) --out $(BP)/bundles/final > /dev/null
+	$(UV) run python -m strategy.exploit.package --out $(EX)/bundles/exploit > /dev/null
+
+final-package:
+	$(UV) run python -m strategy.final.package --out $(FINAL_BUNDLE)
+
+# Hashes, a smoke load with the repository hidden, size and worker memory; then the submission tarball.
+final-verify:
+	$(UV) run python -m strategy.final.package --out $(FINAL_BUNDLE) --verify --submit $(FB)/submission
+
+# The final bundle and the exploit bundle through the sandbox worker on the same tables (identical play).
+final-equivalence: final-package final-arms
+	$(UV) run python -m strategy.final.equivalence --a $(EX)/bundles/exploit --b $(FINAL_BUNDLE) --tables 160 \
+		--out $(FB)/equivalence.json
+
+# The deployed gate on NLHE and on the generic path (run on an otherwise idle machine).
+gate-final: final-package
+	$(UV) run python -m strategy.policy.gate --bundle $(FINAL_BUNDLE) --decisions $(GATE_DECISIONS) \
+		--out artifacts/gate/final.json
+
+gate-final-generic: final-package
+	$(UV) run python -m strategy.policy.gate --bundle $(FINAL_BUNDLE) --ruleset uncertainty_plo4 \
+		--decisions $(GATE_DECISIONS) --cost-tables 0 --out artifacts/gate/final-plo4.json
+
+# Distillation study: teacher rollouts (train builds the student, validation measures agreement), the
+# student bundle, its agreement with the teacher, and its points against the teacher on validation.
+distill-collect:
+	$(UV) run python -m strategy.final.distill collect --partition train --tables 4000 --jobs $(FINAL_JOBS) \
+		--out $(FB)/distill/train.npz
+	$(UV) run python -m strategy.final.distill collect --partition validation --tables 1200 --jobs $(FINAL_JOBS) \
+		--out $(FB)/distill/validation.npz
+
+distill-student:
+	$(UV) run python -m strategy.final.distill build --data $(FB)/distill/train.npz --out $(FB)/distill/student.npz
+	$(UV) run python -m strategy.blueprint.package --pack $(FB)/distill/student.npz --out $(FB)/student > /dev/null
+
+distill-agree:
+	$(UV) run python -m strategy.final.distill agree --data $(FB)/distill/validation.npz \
+		--student $(FB)/distill/student.npz --out $(FB)/distill/agreement.json
+
+distill-validate: final-arms
+	for s in final-student-vs-teacher final-student-robust final-student-deceptive; do \
+		$(UV) run python -m strategy.exploit.evaluate run $$s --jobs $(FINAL_JOBS) || exit 1; done
+
+gate-student:
+	$(UV) run python -m strategy.policy.gate --bundle $(FB)/student --decisions $(GATE_DECISIONS) \
+		--out artifacts/gate/student.json
+
+# Which of the final gate's timeouts a perfect switch to the student's cost could have rescued (bounds).
+distill-hybrid:
+	$(UV) run python -m strategy.final.distill hybrid --gate artifacts/gate/final.json \
+		--cheap artifacts/gate/student.json --out $(FB)/distill/hybrid.json
+
+# Exactly once, after the pre-registration tag is pushed; refuses a changed bundle or a finished comparison.
+final-holdout: final-package final-arms
+	$(UV) run python -m strategy.final.holdout run --jobs $(FINAL_JOBS)
+
+final-holdout-confirm:
+	$(UV) run python -m strategy.final.holdout confirm

@@ -4,7 +4,8 @@ At the competition the variant may be announced only on build day, with about 60
 minutes to build. This playbook turns the announcement into a gated submission with
 `strategy.rehearsal` (Stage 9 of the self-play learning plan). The rule is: **submit a
 legal, gated fallback first, then improve it only when validation and the gate say so.**
-Deeper training never blocks the first accepted bot.
+Deeper training never blocks the first accepted bot. When the announced game is the practice
+NLHE, submit the final bot instead, following [`docs/submission-checklist.md`](submission-checklist.md).
 
 Everything here is a practice assumption. The arena is not the official simulator. The
 official kit's interface, sandbox and scoring must be checked against these steps

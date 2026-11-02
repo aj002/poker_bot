@@ -1,0 +1,33 @@
+{
+  "experiment_id": "final-holdout-vs-blueprint",
+  "title": "H1: final bot vs the MCCFR blueprint on holdout lineups",
+  "description": "Final holdout comparison H1 of docs/final-holdout-preregistration.md: superiority, H0 mean(B - A) <= 0, one-sided paired t, Holm across H1-H4. Run exactly once (strategy/final/holdout.py).",
+  "stage": "final_holdout",
+  "min_effect": 0.0,
+  "interval": "paired_t",
+  "arms": {
+    "A": {
+      "policy": "artifacts/blueprint/bundles/final"
+    },
+    "B": {
+      "policy": "artifacts/final/bundle"
+    }
+  },
+  "variants": [
+    "practice_nlhe"
+  ],
+  "table": {
+    "players": 8,
+    "starting_stack": 2000,
+    "hand_cap": 200
+  },
+  "population": {
+    "source": "strategy.population:PopulationSource",
+    "partition": "holdout",
+    "lineups_per_variant": 16
+  },
+  "blocks_per_lineup": 40,
+  "base_seed": "final-holdout-vs-blueprint-v1",
+  "isolation": "in_process",
+  "bootstrap_resamples": 2000
+}

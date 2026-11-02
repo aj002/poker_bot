@@ -1,0 +1,33 @@
+{
+  "experiment_id": "final-student-vs-teacher",
+  "title": "Distillation: table student vs the exploiting teacher on validation lineups",
+  "description": "Stage 8 distillation study (strategy/final/distill.py): A is the teacher (exploit bundle), B the belief-free table student. Non-inferiority at 0.5 points is read off this run; discovery stage, validation partition.",
+  "stage": "discovery",
+  "min_effect": 0.0,
+  "interval": "paired_t",
+  "arms": {
+    "A": {
+      "policy": "artifacts/exploit/bundles/exploit"
+    },
+    "B": {
+      "policy": "artifacts/final/student"
+    }
+  },
+  "variants": [
+    "practice_nlhe"
+  ],
+  "table": {
+    "players": 8,
+    "starting_stack": 2000,
+    "hand_cap": 200
+  },
+  "population": {
+    "source": "strategy.population:PopulationSource",
+    "partition": "validation",
+    "lineups_per_variant": 16
+  },
+  "blocks_per_lineup": 25,
+  "base_seed": "final-student-vs-teacher-v1",
+  "isolation": "in_process",
+  "bootstrap_resamples": 2000
+}

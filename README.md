@@ -164,6 +164,20 @@ make exploit-bundles exploit-validate   # the pre-registered paired validation r
 make gate-exploit                       # the sandboxed deployed-path gate
 ```
 
+The final competition bot (Stage 8, `strategy/final/README.md`) has one entry point. It plays
+the exploiting blueprint on NLHE and the variant-agnostic fallback (`strategy/policy/generic.py`)
+on every other ruleset. Its bundle is deterministic and hashed (7.6 MB, no numba) and plays
+identically to the exploit bundle through the sandbox worker. A distilled table student was
+measured and rejected: it loses to the teacher against blueprint-like opponents. The holdout
+evaluation is pre-registered in `docs/final-holdout-preregistration.md` and runs once. Submit
+by following [`docs/submission-checklist.md`](docs/submission-checklist.md):
+
+```bash
+make final-arms final-package final-verify   # bundle, hashes, size and memory limits, tarball
+make gate-final gate-final-generic           # the deployed gate on NLHE and PLO4 (idle machine)
+make final-holdout final-holdout-confirm     # the one-shot holdout run and its Holm confirmation
+```
+
 Build day (Stage 9, [`docs/build-day-playbook.md`](docs/build-day-playbook.md)): write the
 announced variant and structure into a spec like `strategy/rehearsal/heldback/*.json`, then
 

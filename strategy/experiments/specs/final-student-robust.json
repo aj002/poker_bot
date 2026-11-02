@@ -1,0 +1,62 @@
+{
+  "experiment_id": "final-student-robust",
+  "title": "Distillation: table student vs the teacher against blueprint-like lineups",
+  "description": "Stage 8 distillation study: A teacher, B student, in the three R1 lineups of the exploitation report (blueprint, capped-leaf blueprint, mixed blueprint/chip-leaf/endgame). The student cannot tell blueprint-like opponents apart, so this is where it should lose. Discovery stage, validation partition.",
+  "stage": "discovery",
+  "min_effect": 0.0,
+  "interval": "paired_t",
+  "arms": {
+    "A": {
+      "policy": "artifacts/exploit/bundles/exploit"
+    },
+    "B": {
+      "policy": "artifacts/final/student"
+    }
+  },
+  "variants": [
+    "practice_nlhe"
+  ],
+  "table": {
+    "players": 8,
+    "starting_stack": 2000,
+    "hand_cap": 200
+  },
+  "population": {
+    "source": "strategy.population:PopulationSource",
+    "partition": "validation",
+    "lineups_per_variant": 1,
+    "explicit_lineups": [
+      [
+        "artifacts/blueprint/bundles/final",
+        "artifacts/blueprint/bundles/final",
+        "artifacts/blueprint/bundles/final",
+        "artifacts/blueprint/bundles/final",
+        "artifacts/blueprint/bundles/final",
+        "artifacts/blueprint/bundles/final",
+        "artifacts/blueprint/bundles/final"
+      ],
+      [
+        "strategy/blueprint/bots/blueprint_capped.py",
+        "strategy/blueprint/bots/blueprint_capped.py",
+        "strategy/blueprint/bots/blueprint_capped.py",
+        "strategy/blueprint/bots/blueprint_capped.py",
+        "strategy/blueprint/bots/blueprint_capped.py",
+        "strategy/blueprint/bots/blueprint_capped.py",
+        "strategy/blueprint/bots/blueprint_capped.py"
+      ],
+      [
+        "artifacts/blueprint/bundles/final",
+        "artifacts/blueprint/bundles/final",
+        "artifacts/blueprint/bundles/final",
+        "strategy/blueprint/bots/blueprint_chips.py",
+        "strategy/blueprint/bots/blueprint_chips.py",
+        "strategy/endgame/bots/points.py",
+        "strategy/endgame/bots/points.py"
+      ]
+    ]
+  },
+  "blocks_per_lineup": 50,
+  "base_seed": "final-student-robust-v1",
+  "isolation": "in_process",
+  "bootstrap_resamples": 2000
+}

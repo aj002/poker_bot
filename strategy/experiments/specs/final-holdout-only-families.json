@@ -1,0 +1,62 @@
+{
+  "experiment_id": "final-holdout-only-families",
+  "title": "H4: final bot vs the blueprint in lineups of the holdout-only families",
+  "description": "Final holdout comparison H4 of docs/final-holdout-preregistration.md: non-inferiority with margin 0.5 points, H0 mean(B - A) <= -0.5, one-sided paired t, Holm across H1-H4. Run exactly once (strategy/final/holdout.py). Lineups: seven image_responsive members; seven odd_sizer members; four image_responsive and three odd_sizer members.",
+  "stage": "final_holdout",
+  "min_effect": 0.0,
+  "interval": "paired_t",
+  "arms": {
+    "A": {
+      "policy": "artifacts/blueprint/bundles/final"
+    },
+    "B": {
+      "policy": "artifacts/final/bundle"
+    }
+  },
+  "variants": [
+    "practice_nlhe"
+  ],
+  "table": {
+    "players": 8,
+    "starting_stack": 2000,
+    "hand_cap": 200
+  },
+  "population": {
+    "source": "strategy.population:PopulationSource",
+    "partition": "holdout",
+    "lineups_per_variant": 1,
+    "explicit_lineups": [
+      [
+        "artifacts/population/pop-v1/pm-78fec414c232",
+        "artifacts/population/pop-v1/pm-cd9eb3821acd",
+        "artifacts/population/pop-v1/pm-f6c46f391017",
+        "artifacts/population/pop-v1/pm-5c22a347d83d",
+        "artifacts/population/pop-v1/pm-cee34c0ed6bf",
+        "artifacts/population/pop-v1/pm-401b97229107",
+        "artifacts/population/pop-v1/pm-78fec414c232"
+      ],
+      [
+        "artifacts/population/pop-v1/pm-ca6ccd55871f",
+        "artifacts/population/pop-v1/pm-1e5bd63d5fe6",
+        "artifacts/population/pop-v1/pm-0212f33c4adf",
+        "artifacts/population/pop-v1/pm-8dd17fe5970e",
+        "artifacts/population/pop-v1/pm-264fec030b41",
+        "artifacts/population/pop-v1/pm-3434036be968",
+        "artifacts/population/pop-v1/pm-ca6ccd55871f"
+      ],
+      [
+        "artifacts/population/pop-v1/pm-cd9eb3821acd",
+        "artifacts/population/pop-v1/pm-1e5bd63d5fe6",
+        "artifacts/population/pop-v1/pm-5c22a347d83d",
+        "artifacts/population/pop-v1/pm-8dd17fe5970e",
+        "artifacts/population/pop-v1/pm-401b97229107",
+        "artifacts/population/pop-v1/pm-3434036be968",
+        "artifacts/population/pop-v1/pm-78fec414c232"
+      ]
+    ]
+  },
+  "blocks_per_lineup": 200,
+  "base_seed": "final-holdout-only-families-v1",
+  "isolation": "in_process",
+  "bootstrap_resamples": 2000
+}
