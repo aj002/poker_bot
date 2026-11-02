@@ -270,7 +270,7 @@ lab-blueprint:
 # Opponent exploitation (Stage 6 / M7; strategy/exploit/README.md). Training partition only up to the
 # pack; exploit-validate runs the pre-registered specs (docs/opponent-exploitation-preregistration.md).
 .PHONY: exploit-collect exploit-models exploit-calibrate exploit-experts exploit-pack exploit-bundles \
-	exploit-validate
+	exploit-validate gate-exploit
 EX = artifacts/exploit
 EX_PACK = strategy/tables/data/exploit-practice_nlhe.npz
 EX_EXPERTS = --archetype station --archetype nit --archetype maniac --archetype limper --archetype regular \
@@ -305,3 +305,8 @@ exploit-validate:
 	for s in exploit-vs-blueprint-validation exploit-targeted-validation exploit-robust-equilibrium \
 		exploit-robust-deceptive; do \
 		$(UV) run python -m strategy.exploit.evaluate run $$s --jobs $(EX_JOBS) || exit 1; done
+
+# The packaged exploiting bot through the real sandbox worker (run on an otherwise idle machine).
+gate-exploit: exploit-bundles
+	$(UV) run python -m strategy.policy.gate --bundle $(EX)/bundles/exploit --decisions $(GATE_DECISIONS) \
+		--out artifacts/gate/exploit.json

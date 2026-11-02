@@ -209,7 +209,10 @@ class BlueprintPolicy:
 
     def act(self, obs, u: float):
         """``(action, note)`` from the blueprint, or None on a table miss."""
-        f = self.features(obs)
+        return self.act_on(obs, u, self.features(obs))
+
+    def act_on(self, obs, u: float, f):
+        """:meth:`act` given ``f = self.features(obs)``."""
         if f is None:
             return None
         key, mask, targets = f
