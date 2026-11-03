@@ -150,6 +150,8 @@ report.
 uv run python -m strategy.rehearsal list                        # the held-back announcements
 uv run python -m strategy.rehearsal run SPEC.json --budget fast  # the whole day; --out DIR, --jobs N
 uv run python -m strategy.rehearsal run SPEC.json --budget smoke --no-gate   # a 15 s dry run
+# --seat-budget-ms N (tests only): the gate's seats enforce N ms, bots still see 1 ms, and
+# headroom is read on decide CPU time. The report says "Test mode"; never submit from it.
 
 # Individual pieces, for a manual recovery:
 export ARENA_REVEAL_VARIANT=artifacts/rehearsal/NAME-fast/reveal   # variant.json (+ tables/)

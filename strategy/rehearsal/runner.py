@@ -161,7 +161,10 @@ def deterministic_tar(src: Path, dest: Path, arcname: str) -> str:
 
 class Rehearsal:
     def __init__(self, spec_path: Path | str, out: Path | str, *, budget: str = "fast", jobs: int | None = None,
-                 gate: bool = True, log: Callable[[str], None] | None = None) -> None:
+                 gate: bool = True, seat_budget_ns: int | None = None,
+                 log: Callable[[str], None] | None = None) -> None:
+        """``seat_budget_ns`` is the deadline the gate's seats enforce (tests on a loaded
+        machine; see :mod:`strategy.policy.gate`). Bots are still told the tournament budget."""
         if budget not in BUDGETS:
             raise ValueError(f"budget is one of {sorted(BUDGETS)}")
         self.spec_path = Path(spec_path)
@@ -170,6 +173,7 @@ class Rehearsal:
         self.budget = BUDGETS[budget]
         self.jobs = jobs or max(1, (os.cpu_count() or 2) - 1)
         self.gate_enabled = gate
+        self.seat_budget_ns = seat_budget_ns
         self._log = log or (lambda s: print(s, file=sys.stderr, flush=True))
         self.steps: list[Step] = []
         self.t0, self.m0 = time.time(), time.monotonic()
@@ -547,14 +551,18 @@ class Rehearsal:
         s = self.ctx["structure"]
         rep = run_gate(self.ctx["bundles"][role], ruleset_id=self.ctx["ruleset_id"],
                        min_decisions=self.budget["gate_decisions"], max_tables=self.budget["gate_max_tables"],
-                       structure=s, cost_tables=0, log=lambda m: self.log(f"gate {role}: {m}"))
+                       structure=s, cost_tables=0, seat_budget_ns=self.seat_budget_ns,
+                       log=lambda m: self.log(f"gate {role}: {m}"))
         rep.pop("manifest", None)
         (self.out / "gates").mkdir(parents=True, exist_ok=True)
         (self.out / "gates" / f"{role}.json").write_text(json.dumps(rep, indent=1, sort_keys=True) + "\n")
-        w, e = rep.get("worker_wall") or {}, rep.get("e2e") or {}
+        w, e, c = rep.get("worker_wall") or {}, rep.get("e2e") or {}, rep.get("worker_cpu") or {}
         return {"passed": rep["passed"], "decisions": rep["decisions"], "tables": rep["tables"],
                 "p50_us": w.get("p50_us"), "p99_us": w.get("p99_us"), "p999_us": w.get("p999_us"),
-                "max_us": w.get("max_us"), "e2e_p99_us": e.get("p99_us"), "e2e_over_1ms": e.get("over_1ms"),
+                "max_us": w.get("max_us"), "cpu_p99_us": c.get("p99_us"), "cpu_p999_us": c.get("p999_us"),
+                "e2e_p99_us": e.get("p99_us"), "e2e_over_1ms": e.get("over_1ms"),
+                "bot_budget_ns": rep["bot_budget_ns"], "seat_budget_ns": rep["seat_budget_ns"],
+                "headroom_clock": rep["headroom_clock"],
                 "fallbacks": rep["fallbacks"], "internal_fallbacks": rep["internal_fallbacks"],
                 "restarts": rep["restarts"], "max_state_bytes": rep["max_state_bytes"],
                 "timeout_classes": rep["timeout_classes"], "failed_checks": [k for k, ok in rep["checks"].items() if not ok],
@@ -621,6 +629,8 @@ class Rehearsal:
                "total_active_s": round(time.monotonic() - self.m0, 1), "first_artifact_s": first,
                "early_submission_s": early,
                "steps": steps}
+        if self.seat_budget_ns is not None:
+            rep["seat_budget_ns"] = self.seat_budget_ns
         (self.out / "report.json").write_text(json.dumps(rep, indent=1, sort_keys=True, default=str) + "\n")
         (self.out / "report.md").write_text(render_markdown(rep))
         return rep
@@ -802,6 +812,9 @@ def render_markdown(rep: Mapping[str, Any]) -> str:
                      "monotonic clock); the active column excludes it.")
     if rep.get("timing_note"):
         lines.append(rep["timing_note"])
+    if rep.get("seat_budget_ns") is not None:
+        lines.append(f"Test mode: the gate's seats enforced {rep['seat_budget_ns'] / 1e6:g} ms (bots were told the "
+                     "tournament budget) and headroom is decide CPU time. Not a build-day gate.")
     lines += ["", "| step | status | wall s | active s | note |", "|---|---|---|---|---|"]
     for s in rep["steps"]:
         lines.append(f"| {s['name']} | {s['status']} | {s['wall_s']:.1f} | {_fmt(s.get('active_s'), 1)} | "

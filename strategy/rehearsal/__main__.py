@@ -18,13 +18,16 @@ def main(argv: list[str] | None = None) -> int:
     r.add_argument("--out", help="output directory (default artifacts/rehearsal/<name>-<budget>)")
     r.add_argument("--jobs", type=int, help="worker processes (default: CPUs minus one)")
     r.add_argument("--no-gate", action="store_true", help="skip the deployed gate (smoke runs only)")
+    r.add_argument("--seat-budget-ms", type=float,
+                   help="deadline the gate's seats enforce; bots are still told the tournament budget (tests only)")
     sub.add_parser("list", help="the held-back announcements")
     a = p.parse_args(argv)
     if a.cmd == "list":
         for f in sorted(HELDBACK.glob("*.json")):
             print(f"{f}: {json.loads(f.read_text()).get('announcement', '')}")
         return 0
-    rep = run(a.spec, a.out, budget=a.budget, jobs=a.jobs, gate=not a.no_gate)
+    seat_budget_ns = None if a.seat_budget_ms is None else int(a.seat_budget_ms * 1_000_000)
+    rep = run(a.spec, a.out, budget=a.budget, jobs=a.jobs, gate=not a.no_gate, seat_budget_ns=seat_budget_ns)
     print(json.dumps({"name": rep["name"], "chosen": rep["chosen"], "failure": rep["failure"],
                       "total_wall_s": rep["total_wall_s"], "total_active_s": rep.get("total_active_s"),
                       "first_artifact_s": rep["first_artifact_s"],

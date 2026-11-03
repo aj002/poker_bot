@@ -48,6 +48,14 @@ Pass criteria (all must hold, in the attempt used):
 * stall-like timeouts within the control's rate on a host within the ceiling;
 * zero internal fallbacks (``state["fb"]`` in the committed state).
 
+Seat budget
+    ``seat_budget_ns`` sets the deadline the sandboxed seats enforce; bots are always
+    told the tournament's 1 ms. It exists so tests on a loaded machine are not decided
+    by when the host delays a reply. Above the tournament budget the timeout checks only
+    catch hangs, so the headroom checks read the worker's decide CPU time (the bot's own
+    cost) instead of its wall time. The default is the tournament budget, and the report
+    records both budgets.
+
 The harness process's collector is off from dispatch until each reply is read and
 its heap is frozen per table (:func:`arena.agents.worker.play_table`), so harness GC
 never lands inside a decision window. GC inside the bot is attributed by
@@ -105,6 +113,7 @@ class _Side:
     def __init__(self) -> None:
         self.decisions = self.restarts = self.late = self.internal = self.tables = self.max_state = 0
         self.wall: list[int] = []
+        self.cpu: list[int] = []
         self.e2e: list[int] = []
         self.fallbacks: Counter[str] = Counter()
         self.records: list[tuple[str, dict[str, Any]]] = []
@@ -117,6 +126,7 @@ class _Side:
         self.tables += 1
         self.decisions += st.decisions
         self.wall += st.worker_wall_ns
+        self.cpu += st.worker_cpu_ns
         self.e2e += st.e2e_ns
         self.fallbacks.update(st.fallbacks)
         self.restarts += len(st.restarts)
@@ -143,7 +153,7 @@ class _Side:
     def summary(self) -> dict[str, Any]:
         parse = [x for xs in self.parse.values() for x in xs if x >= 0]
         return {"tables": self.tables, "decisions": self.decisions, "worker_wall": quantiles(self.wall),
-                "worker_parse": quantiles(parse), "e2e": quantiles(self.e2e), "fallbacks": dict(self.fallbacks), "restarts": self.restarts,
+                "worker_cpu": quantiles(self.cpu), "worker_parse": quantiles(parse), "e2e": quantiles(self.e2e), "fallbacks": dict(self.fallbacks), "restarts": self.restarts,
                 "late_replies": self.late, "max_state_bytes": self.max_state}
 
 
@@ -163,12 +173,16 @@ def _records(seat: Any, pool: Any, artifact: Any) -> list[dict[str, Any]]:
     return out
 
 
-def _play(pool: Any, artifact: Any, config: Any, task: Any, timeout_inputs: int) -> tuple[Any, Any]:
-    """Play one task with ``artifact`` sandboxed in the candidate seat; ``(table, seat)``."""
+def _play(pool: Any, artifact: Any, config: Any, task: Any, timeout_inputs: int,
+          seat_budget_ns: int | None = None) -> tuple[Any, Any]:
+    """Play one task with ``artifact`` sandboxed in the candidate seat; ``(table, seat)``.
+    The seat enforces ``seat_budget_ns`` (default: the tournament budget the bot is told)
+    and polls for the reply as it would at the tournament budget."""
     from arena.agents.worker import WorkerSeat, play_table
 
     agents, cs, table = seat_agents(config, task, lambda seat, info: WorkerSeat(
-        seat, artifact, info, pool.acquire, budget_ns=config.bot_budget_ns, timeout_inputs=timeout_inputs))
+        seat, artifact, info, pool.acquire, budget_ns=seat_budget_ns or config.bot_budget_ns,
+        spin_ns=config.bot_budget_ns, timeout_inputs=timeout_inputs))
     seat = agents[cs]
     try:
         play_table(table, agents)
@@ -178,7 +192,7 @@ def _play(pool: Any, artifact: Any, config: Any, task: Any, timeout_inputs: int)
 
 
 def calibrate(bundle: Path, config: Any, source: Any, *, ruleset_id: str, seed: str, partition: str,
-              tables: int = CALIBRATION_TABLES) -> list[int]:
+              tables: int = CALIBRATION_TABLES, seat_budget_ns: int | None = None) -> list[int]:
     """The candidate's sandboxed decide wall times over ``tables`` tasks drawn from
     their own namespace (never played by an attempt)."""
     from arena.agents.worker import WorkerPool
@@ -189,7 +203,7 @@ def calibrate(bundle: Path, config: Any, source: Any, *, ruleset_id: str, seed: 
     with WorkerPool(size=2) as pool:
         art = pool.stage(bundle)
         for task in tasks:
-            walls += _play(pool, art, config, task, 0)[1].stats.worker_wall_ns
+            walls += _play(pool, art, config, task, 0, seat_budget_ns)[1].stats.worker_wall_ns
     return walls
 
 
@@ -201,7 +215,8 @@ def gate_tasks(source: Any, config: Any, *, seed: str, ruleset_id: str, partitio
 
 
 def _attempt(bundle: Path, control: Path, config: Any, source: Any, *, ruleset_id: str, seed: str, partition: str,
-             min_decisions: int, max_tables: int, log: Any) -> tuple[_Side, _Side, int]:
+             min_decisions: int, max_tables: int, log: Any,
+             seat_budget_ns: int | None = None) -> tuple[_Side, _Side, int]:
     from arena.agents.sdk import decode_state
     from arena.agents.worker import WorkerPool
 
@@ -222,7 +237,7 @@ def _attempt(bundle: Path, control: Path, config: Any, source: Any, *, ruleset_i
                     break
                 for role, side in (("candidate", cand), ("control", ctrl)):
                     art = artifacts[role]
-                    table, seat = _play(pool, art, config, task, REPLAYS_PER_TABLE)
+                    table, seat = _play(pool, art, config, task, REPLAYS_PER_TABLE, seat_budget_ns)
                     side.add(table.table_id, seat, _records(seat, pool, art))
                     if role == "candidate":
                         state = decode_state(seat.committed)
@@ -244,21 +259,27 @@ def run_gate(bundle: Path, *, ruleset_id: str = "practice_nlhe", min_decisions: 
              max_control_timeout_rate: float = stalls.MAX_CONTROL_TIMEOUT_RATE,
              stall_p_min: float = stalls.STALL_P_MIN, control_iterations: int | None = None,
              cost_tables: int = 0, cost_jobs: int | None = None, structure: Mapping[str, Any] | None = None,
-             log: Any = print) -> dict[str, Any]:
+             seat_budget_ns: int | None = None, log: Any = print) -> dict[str, Any]:
     """``structure`` (``TournamentConfig`` fields such as blind levels and payouts) replaces
-    ``players`` and ``hand_cap`` when given, so a revealed structure is gated as announced."""
+    ``players`` and ``hand_cap`` when given, so a revealed structure is gated as announced.
+    ``seat_budget_ns`` is the enforced deadline (see "Seat budget" above)."""
     from arena.agents.baselines import BASELINES
     from arena.domain.models import TournamentConfig
 
     shape = dict(structure) if structure is not None else {"initial_player_count": players, "hand_cap": hand_cap}
     config = TournamentConfig(ruleset_id=ruleset_id, **shape)
-    budget = config.bot_budget_ns
+    bot_budget = config.bot_budget_ns
+    if seat_budget_ns is not None and seat_budget_ns < bot_budget:
+        raise ValueError(f"seat budget {seat_budget_ns} ns is below the bots' {bot_budget} ns")
+    budget = seat_budget_ns or bot_budget
+    headroom_clock = "cpu" if budget > bot_budget else "wall"
     _init(config.model_dump_json())
     source = load_population()
     t0 = time.time()
     control_info: dict[str, Any] | None = {"iterations": control_iterations}
     if control_iterations is None:
-        walls = calibrate(bundle, config, source, ruleset_id=ruleset_id, seed=seed, partition=partition)
+        walls = calibrate(bundle, config, source, ruleset_id=ruleset_id, seed=seed, partition=partition,
+                          seat_budget_ns=budget)
         control_info = matched_iterations(walls, ruleset_id=ruleset_id, seed=seed)
     with tempfile.TemporaryDirectory(prefix="gate-control-") as tmp:
         if control_info is None:
@@ -276,8 +297,8 @@ def run_gate(bundle: Path, *, ruleset_id: str = "practice_nlhe", min_decisions: 
             t1 = time.time()
             cand, ctrl, gc_runs = _attempt(bundle, control, config, source, ruleset_id=ruleset_id, seed=seed,
                                            partition=partition, min_decisions=min_decisions, max_tables=max_tables,
-                                           log=log)
-            w = quantiles(cand.wall)
+                                           log=log, seat_budget_ns=budget)
+            w = quantiles(cand.cpu if headroom_clock == "cpu" else cand.wall)
             other = {k: v for k, v in cand.fallbacks.items() if k != "timeout"}
             k_tally, c_tally = cand.tally(budget, ctrl), ctrl.tally(budget)
             assessment = stalls.assess(k_tally, c_tally, strict=True, max_bot_timeout_rate=max_bot_timeout_rate,
@@ -325,7 +346,8 @@ def run_gate(bundle: Path, *, ruleset_id: str = "practice_nlhe", min_decisions: 
     mf = Path(bundle) / "manifest.json"
     return {"bundle": str(bundle), "manifest": json.loads(mf.read_text()) if mf.exists() else None,
             "ruleset_id": ruleset_id, "partition": partition, "seed": seed, "tables": c["tables"],
-            "decisions": c["decisions"], "worker_wall": c["worker_wall"], "e2e": c["e2e"],
+            "decisions": c["decisions"], "worker_wall": c["worker_wall"], "worker_cpu": c["worker_cpu"],
+            "e2e": c["e2e"], "bot_budget_ns": bot_budget, "seat_budget_ns": budget, "headroom_clock": headroom_clock,
             "fallbacks": c["fallbacks"], "restarts": c["restarts"], "late_replies": c["late_replies"],
             "internal_fallbacks": c["internal_fallbacks"], "max_state_bytes": c["max_state_bytes"],
             "timeout_classes": c["timeouts"]["classes"], "timeout_rules": c["timeouts"]["rules"],
@@ -352,13 +374,16 @@ def main(argv: list[str] | None = None) -> int:
                    help="loop iterations per decision of the matched control (default: calibrated to the bundle's "
                         "median decide time)")
     p.add_argument("--structure", help="JSON file of TournamentConfig fields (blind levels, payouts, seats, cap)")
+    p.add_argument("--seat-budget-ms", type=float,
+                   help="deadline the seats enforce (bots are still told the tournament budget; tests only)")
     p.add_argument("--out")
     args = p.parse_args(argv)
+    seat_budget_ns = None if args.seat_budget_ms is None else int(args.seat_budget_ms * 1_000_000)
     structure = json.loads(Path(args.structure).read_text()) if args.structure else None
     rep = run_gate(Path(args.bundle), ruleset_id=args.ruleset, min_decisions=args.decisions,
                    p99_limit_us=args.p99_us, p999_limit_us=args.p999_us, seed=args.seed, max_reruns=args.max_reruns,
                    cost_tables=args.cost_tables, cost_jobs=args.cost_jobs or max(1, (os.cpu_count() or 2) - 1),
-                   control_iterations=args.control_iterations, structure=structure,
+                   control_iterations=args.control_iterations, structure=structure, seat_budget_ns=seat_budget_ns,
                    log=lambda s: print(s, file=sys.stderr, flush=True))
     rep.pop("manifest")
     text = json.dumps(rep, indent=1, sort_keys=True)

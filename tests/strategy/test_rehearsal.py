@@ -12,6 +12,7 @@ import os
 import shutil
 import subprocess
 import sys
+import types
 from pathlib import Path
 
 import pytest
@@ -208,21 +209,34 @@ def test_packaged_bot_reads_its_own_variant_and_rejects_foreign_tables(tmp_path)
     assert rep["err"] == "UnsupportedVariant"
 
 
+STEPS = ["load", "conformance", "fallback", "gate_fallback", "submit_early", "tables", "search", "package",
+         "validation", "select", "gate", "limits", "submit"]
+GATED_STEPS = {"gate_fallback", "submit_early", "gate"}
+BOT_BUDGET_NS = 1_000_000
+SEAT_BUDGET_MS = 50
+
+
 def test_rehearsal_smoke_end_to_end(tmp_path):
-    """The whole pipeline at the smoke budget; the deployed gate runs too when the sandbox is available."""
+    """The whole pipeline at the smoke budget; the deployed gate runs too when the sandbox is available.
+
+    The gate's seats enforce ``SEAT_BUDGET_MS`` while the bots are told the 1 ms tournament
+    budget, so a busy machine delaying a reply is not a timeout. Speed is checked on its
+    cause, the bots' own decide CPU time, rather than on the timeout rate.
+    """
     gate = shutil.which("unshare") is not None
     out = tmp_path / "rh"
     cmd = [sys.executable, "-m", "strategy.rehearsal", "run", str(HELDBACK / "shortdeck-trips-6max-turbo.json"),
-           "--budget", "smoke", "--out", str(out), "--jobs", "2"] + ([] if gate else ["--no-gate"])
+           "--budget", "smoke", "--out", str(out), "--jobs", "2", "--seat-budget-ms", str(SEAT_BUDGET_MS)]
+    cmd += [] if gate else ["--no-gate"]
     env = {k: v for k, v in os.environ.items() if k != "ARENA_REVEAL_VARIANT"}
     proc = subprocess.run(cmd, capture_output=True, text=True, cwd=ROOT, env=env, timeout=900)
     assert proc.returncode == 0, proc.stderr[-3000:]
     rep = json.loads((out / "report.json").read_text())
     steps = {s["name"]: s for s in rep["steps"]}
-    assert list(steps) == ["load", "conformance", "fallback", "gate_fallback", "submit_early", "tables", "search",
-                           "package", "validation", "select", "gate", "limits", "submit"]
-    assert all(s["status"] in ("ok", "skipped") for s in steps.values()), {k: (s["status"], s["error"])
-                                                                         for k, s in steps.items()}
+    assert list(steps) == STEPS
+    expected = {k: "skipped" if not gate and k in GATED_STEPS else "ok" for k in STEPS}
+    assert {k: s["status"] for k, s in steps.items()} == expected, {k: s["error"] for k, s in steps.items()}
+    assert rep["seat_budget_ns"] == SEAT_BUDGET_MS * 1_000_000
     assert all(s["wall_s"] >= 0 for s in steps.values()) and rep["first_artifact_s"] is not None
     assert steps["tables"]["detail"]["loaded"] == {"preflop": True, "postflop": True}
     assert steps["tables"]["detail"]["push_fold"]["feasible"] is False
@@ -233,8 +247,50 @@ def test_rehearsal_smoke_end_to_end(tmp_path):
         early = json.loads((out / "submission" / "early" / "submission.json").read_text())
         assert early["submission"]["role"] == "fallback" and early["gate"]["submission"] is True
         assert rep["early_submission_s"] is not None
+        gated = {p.stem: json.loads(p.read_text()) for p in (out / "gates").glob("*.json")}
+        assert "fallback" in gated
+        for role, g in gated.items():
+            assert (g["bot_budget_ns"], g["seat_budget_ns"]) == (BOT_BUDGET_NS, SEAT_BUDGET_MS * 1_000_000), role
+            assert g["headroom_clock"] == "cpu" and g["passed"], (role, g["checks"])
+            assert not g["fallbacks"] and g["internal_fallbacks"] == 0, (role, g["fallbacks"])
+            # Host stalls are charged to thread CPU time on a VM, so a few decides can read
+            # long; the p99 is the bot's own speed.
+            assert g["worker_cpu"]["n"] == g["decisions"] and g["worker_cpu"]["p99_us"] * 1000 < BOT_BUDGET_NS, role
+        assert "Test mode" in (out / "report.md").read_text()
     assert rep["chosen"] in ("tuned", "transferred", "fallback")
     assert (out / "report.md").read_text().startswith("# Rehearsal: shortdeck-trips-6max-turbo")
+
+
+def test_gate_seat_budget_is_enforced_while_bots_see_the_tournament_budget(monkeypatch):
+    import arena.agents.worker as worker
+    from arena.domain.models import TournamentConfig
+    from strategy.policy import gate
+    from strategy.search.population import load_population
+
+    seen = {}
+
+    class Seat:
+        def __init__(self, seat, artifact, info, spawn, *, budget_ns, spin_ns, timeout_inputs):
+            seen.update(told=info.decision_budget_ns, enforced=budget_ns, spin=spin_ns)
+
+        def start(self):
+            pass
+
+        def close(self):
+            pass
+
+    monkeypatch.setattr(worker, "WorkerSeat", Seat)
+    monkeypatch.setattr(worker, "play_table", lambda table, agents: None)
+    config = TournamentConfig(ruleset_id="practice_nlhe")
+    gate._init(config.model_dump_json())
+    task = next(gate.gate_tasks(load_population(), config, seed="t", ruleset_id="practice_nlhe", partition="train"))
+    pool = types.SimpleNamespace(acquire=None)
+    gate._play(pool, None, config, task, 0, SEAT_BUDGET_MS * 1_000_000)
+    assert seen == {"told": BOT_BUDGET_NS, "enforced": SEAT_BUDGET_MS * 1_000_000, "spin": BOT_BUDGET_NS}
+    gate._play(pool, None, config, task, 0)
+    assert seen["enforced"] == BOT_BUDGET_NS
+    with pytest.raises(ValueError, match="below the bots"):
+        gate.run_gate(Path("unused"), seat_budget_ns=BOT_BUDGET_NS // 2)
 
 
 def test_rehearsal_rejects_nine_seats_loudly(tmp_path):
