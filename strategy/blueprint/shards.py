@@ -320,6 +320,12 @@ class Worker:
         b = base_dir(self.d, epoch)
         arrays, meta = get_arrays(b)
         cfg = dict(meta["config"], seed=shard_seed(epoch, self.shard))
+        base_progress = meta["progress"]
+        mine = epoch_dir(self.d, epoch) / self.name
+        if (mine / "manifest.json").exists():
+            arrays, pushed = get_arrays(mine)
+            meta = dict(meta, progress=pushed["progress"])
+            self.say(f"resuming from this shard's push at {pushed['progress']['pairs']:,} pairs")
         states = Path(cfg["states"])
         states = states if states.is_absolute() else REPO / states
         if not states.exists():
@@ -336,7 +342,7 @@ class Worker:
             "regret_sha256": hashlib.sha256(arrays["regret"].tobytes()).hexdigest(),
             "strat_sha256": hashlib.sha256(arrays["strat"].tobytes()).hexdigest()}, indent=1))
         (tmp / "config.json").write_text(json.dumps(asdict(tc), indent=1, sort_keys=True))
-        (tmp / "fork.json").write_text(json.dumps({"epoch": epoch, "shard": self.shard, "base_progress": meta["progress"],
+        (tmp / "fork.json").write_text(json.dumps({"epoch": epoch, "shard": self.shard, "base_progress": base_progress,
                                                    "base_config_digest": meta["config_digest"]}, indent=1))
         tmp.rename(run)
         self.say(f"forked epoch {epoch} at {meta['progress']['pairs']:,} pairs, seed {cfg['seed']}")
@@ -638,6 +644,37 @@ def cmd_status(a) -> None:
         print("  " + line)
 
 
+def cmd_pack(a) -> None:
+    """A policy pack from the latest merged epoch (or ``final/``)."""
+    from strategy.blueprint.policy import write_pack
+
+    src = a.dir / "final" if a.final else base_dir(a.dir, latest_epoch(a.dir))
+    arrays, meta = get_arrays(src)
+    prov = write_pack(a.out, arrays["strat"], {"ruleset_id": meta["config"]["ruleset_id"], "run": f"shards/{src.name}",
+                                               "config": meta["config"], "progress": meta["progress"],
+                                               "milestone": None})
+    print(f"{a.out}: {src.name}, {meta['progress']['pairs']:,} pairs, rows per level {prov['rows']}, "
+          f"{a.out.stat().st_size / 1e6:.1f} MB on disk")
+
+
+def cmd_curve(a) -> None:
+    """One line per published epoch: CPU, pairs, convergence signals and pack size."""
+    print("| epoch | published UTC | pairs | reached keys | mean max positive regret | strategy L1 (mass-weighted) "
+          "| pack file MB | pack loaded MB |")
+    print("|---|---|---|---|---|---|---|---|")
+    for b in sorted((a.dir / "base").glob("epoch-*")) + ([a.dir / "final"] if (a.dir / "final").exists() else []):
+        pub = _read_json(b / "published.json")
+        if not pub:
+            continue
+        s = pub.get("signals") or {}
+        pk = s.get("pack") or {}
+        l1 = s.get("strategy_l1_mass_weighted")
+        print(f"| {b.name} | {time.strftime('%m-%d %H:%M', time.gmtime(pub['time']))} | {pub['progress']['pairs']:,} "
+              f"| {s.get('reached_keys', 0):,} | {s.get('mean_max_positive_regret', 0):.4f} "
+              f"| {'-' if l1 is None else f'{l1:.4f}'} | {pk.get('file_bytes', 0) / 1e6:.1f} "
+              f"| {pk.get('loaded_bytes', 0) / 1e6:.1f} |")
+
+
 def main(argv: list[str] | None = None) -> None:
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -659,8 +696,15 @@ def main(argv: list[str] | None = None) -> None:
     s = sub.add_parser("status")
     s.add_argument("--dir", type=Path, required=True)
     s.add_argument("--expect", type=int, default=3)
+    c = sub.add_parser("curve")
+    c.add_argument("--dir", type=Path, required=True)
+    k = sub.add_parser("pack")
+    k.add_argument("--dir", type=Path, required=True)
+    k.add_argument("--out", type=Path, required=True)
+    k.add_argument("--final", action="store_true")
     a = ap.parse_args(argv)
-    {"publish": cmd_publish, "work": cmd_work, "merger": cmd_merger, "status": cmd_status}[a.cmd](a)
+    {"publish": cmd_publish, "work": cmd_work, "merger": cmd_merger, "status": cmd_status, "curve": cmd_curve,
+     "pack": cmd_pack}[a.cmd](a)
 
 
 if __name__ == "__main__":

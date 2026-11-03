@@ -280,6 +280,21 @@ blueprint-response:
 blueprint-audit:
 	$(UV) run python -m strategy.blueprint.audit --pack $(BP_PACK) --jobs $(JOBS) --out $(BP)/audit.json
 
+# Sharded long run (strategy/blueprint/shards.py): machines share BP_SHARDS. Status prints one
+# health line (HEALTHY / ESCALATE / DONE); the check-in packs the latest merged epoch and plays a
+# small validation-only paired run against the Stage 4 bundle (needs `make blueprint-bundles`).
+BP_SHARDS ?= /cursor/stores/bc-fec3276a-dbdf-4beb-9450-12aaf343fd99/internal/blueprint-shards
+BP_EXPECT ?= 3
+blueprint-shard-status:
+	@$(UV) run $(TRAIN) python -m strategy.blueprint.shards status --dir $(BP_SHARDS) --expect $(BP_EXPECT)
+
+blueprint-checkin:
+	$(UV) run $(TRAIN) python -m strategy.blueprint.shards curve --dir $(BP_SHARDS)
+	$(UV) run $(TRAIN) python -m strategy.blueprint.shards pack --dir $(BP_SHARDS) --out $(BP)/packs/long-checkin.npz
+	$(UV) run $(TRAIN) python -m strategy.blueprint.package --pack $(BP)/packs/long-checkin.npz \
+		--out $(BP)/bundles/long-checkin > /dev/null
+	$(UV) run $(TRAIN) python -m strategy.cli experiment blueprint-long-checkin --jobs 2
+
 # Needs `make blueprint-bundles`. The sandboxed smoke runs with one job: default parallelism times out.
 lab-blueprint:
 	for s in blueprint-vs-endgame-points blueprint-capped-vs-endgame-capped blueprint-leaf-capped-vs-points \

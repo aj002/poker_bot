@@ -1,0 +1,33 @@
+{
+  "experiment_id": "blueprint-long-checkin",
+  "title": "Long-run check-in: latest merged blueprint epoch vs the Stage 4 blueprint",
+  "description": "Discovery, a cheap monitoring signal only. B is the latest merged epoch of the sharded long run packed by `make blueprint-checkin` (artifacts/blueprint/bundles/long-checkin); A is the Stage 4 blueprint bundle (artifacts/blueprint/bundles/final). The same seed at every check-in, so successive check-ins share deals and lineups.",
+  "stage": "discovery",
+  "min_effect": 0.5,
+  "interval": "paired_t",
+  "arms": {
+    "A": {
+      "policy": "artifacts/blueprint/bundles/final"
+    },
+    "B": {
+      "policy": "artifacts/blueprint/bundles/long-checkin"
+    }
+  },
+  "variants": [
+    "practice_nlhe"
+  ],
+  "table": {
+    "players": 8,
+    "starting_stack": 2000,
+    "hand_cap": 200
+  },
+  "population": {
+    "source": "strategy.population:PopulationSource",
+    "partition": "validation",
+    "lineups_per_variant": 8
+  },
+  "blocks_per_lineup": 10,
+  "base_seed": "blueprint-long-checkin-v1",
+  "isolation": "in_process",
+  "bootstrap_resamples": 2000
+}
