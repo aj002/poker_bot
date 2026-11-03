@@ -14,7 +14,7 @@ _EXPORTS = {
     "Family": "families", "PopulationBot": "policy", "REGISTRY_VERSION": "registry", "CheckpointLedger": "registry",
     "CheckpointSlot": "registry", "Lineup": "registry", "LineupPool": "registry", "Member": "registry",
     "Registry": "registry", "default_registry": "registry", "get_lineup_pool": "registry", "verify_lock": "registry",
-    "PopulationSource": "source",
+    "PopulationSource": "source", "HandhqPopulationSource": "handhq", "HandhqRegistry": "handhq",
 }
 __all__ = sorted(_EXPORTS)
 

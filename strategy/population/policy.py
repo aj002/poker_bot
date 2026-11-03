@@ -180,7 +180,7 @@ class PopulationBot(ExplicitStateBot):
     rulesets = tuple(RULESET_IDS)  # type: ignore[assignment]
 
     def __init__(self, spec: Mapping[str, Any]) -> None:
-        from strategy.population.families import FAMILIES
+        from strategy.population.families import ALL_FAMILIES
 
         if os.environ.get(REVEAL_ENV):
             # The reveal variant is readable only through the environment, which a
@@ -188,7 +188,7 @@ class PopulationBot(ExplicitStateBot):
             # practice card adapter (cards.card_ruleset).
             self.rulesets = (*RULESET_IDS, REVEAL_RULESET_ID)
         self.spec = dict(spec)
-        self.family = FAMILIES[self.spec["family"]]
+        self.family = ALL_FAMILIES[self.spec["family"]]
         self.params: dict[str, float] = dict(self.spec["params"])
         self.name = str(self.spec["member_id"])
         self._knobs: dict[tuple[bool, bool], tuple[dict[str, float], dict[str, Any]]] = {}

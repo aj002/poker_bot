@@ -1,0 +1,2154 @@
+{
+ "base_registry_hash": "190b6ab3bc6712162c26df955d66142cc2cb0e25f6fc12c3ae1dc9aef4fc2828",
+ "behaviour": {
+  "practice_nlhe": "95ea7fb0253bf5034774916252a94c8bd7df2c1751acdf6c789d04c09078b4e9",
+  "uncertainty_plo4": "d8f840ef255bbebdb853742c6b2e2422f800aeb8698657b8fabc3c9173769b8d",
+  "uncertainty_shortdeck": "2de489162526c24b7750792edf692ff46a8c8edc7325e8153c599651413bb808"
+ },
+ "default_pools": {
+  "holdout/practice_nlhe": "dc7a16096f0938fcb36bc6b9a6381fbf00a306f5badf996bdd25ad436a9886a8",
+  "holdout/uncertainty_plo4": "888832b4939eb3f00785de9b458d9370465803d8ef92dfdbd1ae62f7424bb2b4",
+  "holdout/uncertainty_shortdeck": "d5a4003e8d037207954df07b422cc556906a9d57f464a9fd73670f82c5a94c27",
+  "train/practice_nlhe": "b02cb9606542117b2bad7154fbba8ae68b6c8228ddb070cc8498c6341a6dceb4",
+  "train/uncertainty_plo4": "6689d6eaa08130b4483b10bdd5c67628fb33726da957030e367ba174fa8bd9f5",
+  "train/uncertainty_shortdeck": "e7103e58d0e402a89b1dd5e7a2ac2efb0d0c3572e79eb48d76513ea45cfc9a14",
+  "validation/practice_nlhe": "dd9da5e0641517271911d87420014e029b94cb318793c8a535c7abcd7c9a2da4",
+  "validation/uncertainty_plo4": "b8ca715ccc53787b097c8378542be3cfee38ea1645f97a83e550dd3362f0006d",
+  "validation/uncertainty_shortdeck": "ddee24c2789d9b91d6e134450e54deb481d680da7231c06f1e19fd2f488018e4"
+ },
+ "extension_counts": {
+  "train": 14,
+  "validation": 3
+ },
+ "extension_families": [
+  "handhq_regular",
+  "handhq_recreational"
+ ],
+ "holdout_only": [
+  "image_responsive",
+  "odd_sizer"
+ ],
+ "members": {
+  "pm-015fb2225304": {
+   "family": "multiway_specialist",
+   "hash": "025d0f7f4bfe2ae07934a20481bbb46e289a855279de9aa9ade4dd93c3a237ec",
+   "index": 13,
+   "partition": "train"
+  },
+  "pm-0212f33c4adf": {
+   "family": "odd_sizer",
+   "hash": "6e48d08933f9f80672bd153138f2a45cb796e42d39c2d64045a73d1a78ee9a54",
+   "index": 2,
+   "partition": "holdout"
+  },
+  "pm-022494cd4dea": {
+   "family": "draw_player",
+   "hash": "3a623380377d1b6818202de51b75a8d45a55ef61b12fc28f9a01d1eb69324b22",
+   "index": 5,
+   "partition": "train"
+  },
+  "pm-030c13ec47d3": {
+   "family": "wide_pressure",
+   "hash": "8d0ab9d5d664891f8b17b0fe0e7277779818a81ad2b53688fb1e8d934bb5a4af",
+   "index": 2,
+   "partition": "validation"
+  },
+  "pm-035ece4f6a4a": {
+   "family": "tight_surrender",
+   "hash": "2412daf4909eb06aadb1652e42b49367e0c3ff6bb8ae0adadf87999095a6bda5",
+   "index": 6,
+   "partition": "train"
+  },
+  "pm-0415f0f5f545": {
+   "family": "wide_pressure",
+   "hash": "cc9fea04acb7117ba18bb1d2d055c1596e0ccd123f60686596abd22410a73995",
+   "index": 5,
+   "partition": "train"
+  },
+  "pm-046a61649e03": {
+   "family": "chaotic_aggressor",
+   "hash": "509c759c531d5c4cc53b5d64365a77da724a603dafd01963c09c4d498a8ec7aa",
+   "index": 0,
+   "partition": "holdout"
+  },
+  "pm-04d325001873": {
+   "family": "wide_pressure",
+   "hash": "07383170422f1287c08b7f1bd54b1afc483be3b4322ea985056aa5dd1b7f401a",
+   "index": 0,
+   "partition": "holdout"
+  },
+  "pm-060612a55121": {
+   "family": "wide_pressure",
+   "hash": "36ef0c224672ba1bc7fe0ec126f64ea00b446a85c3017e2ad88eefddec9c05dc",
+   "index": 2,
+   "partition": "holdout"
+  },
+  "pm-06fd6b90577e": {
+   "family": "texture_cbettor",
+   "hash": "71c3fa05fd9255c68d292ed72b089f5fc44700d5261d5cfe02ceaa0efcfd6df1",
+   "index": 3,
+   "partition": "train"
+  },
+  "pm-07ecb977ec5e": {
+   "family": "multiway_specialist",
+   "hash": "411a13ccb4549fa154ae8de13a1972827cd6016bd42ee403294efe03d45cfb21",
+   "index": 2,
+   "partition": "validation"
+  },
+  "pm-0a153a19c94e": {
+   "family": "variant_noisy",
+   "hash": "d50786c05a9dd5180139ad798a102310ebd173d303afaae9cd81d0b71c0107e6",
+   "index": 4,
+   "partition": "train"
+  },
+  "pm-0aa5df47ae2d": {
+   "family": "squeezer",
+   "hash": "ba2d7954cdfe447088e5c3ab72b8877173c3a515250d6657b5ca35e5f52d25e1",
+   "index": 9,
+   "partition": "train"
+  },
+  "pm-0ad313b2b969": {
+   "family": "smooth_switcher",
+   "hash": "272509fba89751fd38d3fdefc7cb5c8ea4582fcee478a85417b8c214245b16ea",
+   "index": 11,
+   "partition": "train"
+  },
+  "pm-0ae7c60ad3d1": {
+   "family": "draw_player",
+   "hash": "73ddb8c06b6b6b6d6b9f815b68839dd0e55207679c8a4d630b724c5b28538551",
+   "index": 1,
+   "partition": "holdout"
+  },
+  "pm-0c4d5a62a1ae": {
+   "family": "variant_noisy",
+   "hash": "e7669081e79af0d063f6160ae02a87aaa479b80e98c24e9d371f1225ff3902f9",
+   "index": 10,
+   "partition": "train"
+  },
+  "pm-0d1047041910": {
+   "family": "loose_passive",
+   "hash": "d4c6538b05a09ff093af264a3c99448725212ef58e5de636532957ec2b9ca52e",
+   "index": 11,
+   "partition": "train"
+  },
+  "pm-0d677266d17a": {
+   "family": "tight_surrender",
+   "hash": "790f8be0218f06ae701ac4c22cf0c2b97f804f1987c7dad20d9965428f1f3371",
+   "index": 0,
+   "partition": "train"
+  },
+  "pm-0f8627ad57c9": {
+   "family": "handhq_regular",
+   "hash": "78fbaf979b941cc3de21120e6d64a29049b17d8067fca37ef8e3b58b1c50d145",
+   "index": 7,
+   "partition": "train"
+  },
+  "pm-0fea1126a568": {
+   "family": "smooth_switcher",
+   "hash": "fcadc4c07cdd3fa8d1879bc8542652e251d10dc96ecdcaebe5dc6a13ae862630",
+   "index": 1,
+   "partition": "validation"
+  },
+  "pm-104fd36b7280": {
+   "family": "smooth_switcher",
+   "hash": "b3a5f5a0c951a85bec981ac32b3cc02dda90c5048153eacf34eae0a8e6187dd6",
+   "index": 10,
+   "partition": "train"
+  },
+  "pm-10662a383450": {
+   "family": "smooth_switcher",
+   "hash": "ce9d12aac698e2386b9c32219196395a703055c58bba493b7f6351512d1f650c",
+   "index": 5,
+   "partition": "train"
+  },
+  "pm-115d70ebaec8": {
+   "family": "trapper",
+   "hash": "388fddc8b80bc685224fb5a517f147314704ee3aad6d1306fc021f3e67279067",
+   "index": 2,
+   "partition": "train"
+  },
+  "pm-117413d36c4a": {
+   "family": "sizing_tells",
+   "hash": "eef453bf064252280a8228e85a5e4a7397e5cffe9f46a4a3732d63851fc6b319",
+   "index": 1,
+   "partition": "validation"
+  },
+  "pm-123cdc961030": {
+   "family": "smooth_switcher",
+   "hash": "4b15a814e3f67f16e61961a43987d11620b93f713234788204cef77bef49a405",
+   "index": 4,
+   "partition": "train"
+  },
+  "pm-16678ad7fc17": {
+   "family": "trapper",
+   "hash": "55fa60dcdffb665f5c5b64d3069922ea3f4a26ac1d95452a0bdcf7cf56353e2f",
+   "index": 0,
+   "partition": "train"
+  },
+  "pm-17058e265fe7": {
+   "family": "loose_passive",
+   "hash": "e3b98148743c752f59879f96b86532ab10d47eacc82219791c760b249174e325",
+   "index": 2,
+   "partition": "validation"
+  },
+  "pm-18631939e497": {
+   "family": "wide_pressure",
+   "hash": "7743d5e70ef0a6f72d6bef7510554246515faa127ad0566b12647a8a0b003104",
+   "index": 2,
+   "partition": "train"
+  },
+  "pm-18b120e34385": {
+   "family": "handhq_regular",
+   "hash": "e2262929bb8b77318a8de4f14ea7c1c6362f9d25079871a298bc64f7f5848633",
+   "index": 13,
+   "partition": "train"
+  },
+  "pm-18bd4b60ca63": {
+   "family": "sizing_tells",
+   "hash": "e7348e3837e83f9213cc21d613924acb367c96eec020b39c77a1dd4101f966bc",
+   "index": 5,
+   "partition": "train"
+  },
+  "pm-19d8797332f0": {
+   "family": "variant_noisy",
+   "hash": "aaefdaaee8f726a8300141b677065268bc7631c4d2ccb15eaebf3ddbd2a90afd",
+   "index": 8,
+   "partition": "train"
+  },
+  "pm-1a212980df59": {
+   "family": "multiway_specialist",
+   "hash": "9e978b48c24c7193a3501bac16f33e350819e3c1f85c4b351b7625b8315ccf17",
+   "index": 12,
+   "partition": "train"
+  },
+  "pm-1b0c311a95b6": {
+   "family": "multiway_specialist",
+   "hash": "4af82be895922f54cc8776238c1e22d2c12bd9677f4450673c56b58cdde5583a",
+   "index": 4,
+   "partition": "train"
+  },
+  "pm-1b6b4787cc40": {
+   "family": "loose_passive",
+   "hash": "20c300ad4e6837bfa140a583dd7dffb9a1ce47f1317640b167b1dc6e85b2f221",
+   "index": 9,
+   "partition": "train"
+  },
+  "pm-1b906804320f": {
+   "family": "handhq_recreational",
+   "hash": "bf4cacd8679ead22626b43026b63389bade9e1354d45367c4532e1b454740ad9",
+   "index": 1,
+   "partition": "train"
+  },
+  "pm-1bf8053aca68": {
+   "family": "multiway_specialist",
+   "hash": "c2955ca52222dbc9760303ba99c2f5249dc9e2cf1dd87241831db2cf66477343",
+   "index": 9,
+   "partition": "train"
+  },
+  "pm-1c1b604dfba0": {
+   "family": "smooth_switcher",
+   "hash": "13df7fc87e9562059f8930a5cafc92e5b2d7dfe705d978e0528bf6e0cdb9c719",
+   "index": 12,
+   "partition": "train"
+  },
+  "pm-1de9347df85b": {
+   "family": "loose_passive",
+   "hash": "8681d5b72a8aee3e63a55ff8d760a4ac3782401e826bbb870cedba0604c86af5",
+   "index": 12,
+   "partition": "train"
+  },
+  "pm-1e229039fb42": {
+   "family": "loose_passive",
+   "hash": "ad22a4949b0a3610d9381d7d729c70972e077e5a642aa6c95ffead7dad62d71a",
+   "index": 13,
+   "partition": "train"
+  },
+  "pm-1e3bbd2d7cf3": {
+   "family": "chaotic_aggressor",
+   "hash": "f7ff7e882a438c0455d2abe119d4d5a317394a66257ee73c8325f342b7713f14",
+   "index": 11,
+   "partition": "train"
+  },
+  "pm-1e5bd63d5fe6": {
+   "family": "odd_sizer",
+   "hash": "43cc9e21d99fc991ed9f426e165e234adbdddf686942a28b7de9553fdb2b3610",
+   "index": 1,
+   "partition": "holdout"
+  },
+  "pm-1e672b2c9a32": {
+   "family": "draw_player",
+   "hash": "5e7f6538b319d4d6084e4deec8214603354524cd35df49aae7cdb7adf927c1d9",
+   "index": 0,
+   "partition": "holdout"
+  },
+  "pm-1f248f40670b": {
+   "family": "loose_passive",
+   "hash": "b149685a21e8f539ecae31fbb9864be8496ec9ada8fee594ef9e6c3e2c2fca4b",
+   "index": 1,
+   "partition": "validation"
+  },
+  "pm-1fc11980d968": {
+   "family": "loose_passive",
+   "hash": "693c4d0147d513b8503b35d4ea2f0689a19a085b4abeed36fc94bf4226c38d2c",
+   "index": 3,
+   "partition": "train"
+  },
+  "pm-2060f9b02253": {
+   "family": "texture_cbettor",
+   "hash": "c80e83e450273053476c792af15fee495dcd162ef5fe7e81bad00870ac0c8e90",
+   "index": 0,
+   "partition": "holdout"
+  },
+  "pm-20e52ab75c47": {
+   "family": "trapper",
+   "hash": "178e8dae2c3ec8d05bb0b2832ccada7ada01a9e6ef7e021ec223365facf9aa40",
+   "index": 1,
+   "partition": "holdout"
+  },
+  "pm-23334d9aeff8": {
+   "family": "limp_iso",
+   "hash": "75fae36304bb589f2ee2b10a80d07ba51dd07b350765e2d6ab9dccec55c4020d",
+   "index": 0,
+   "partition": "train"
+  },
+  "pm-23aff6f9db81": {
+   "family": "limp_iso",
+   "hash": "09107a44855724b6b0b0b9395a0a07325a8cae6b34e86c882318cdd4dd68136a",
+   "index": 7,
+   "partition": "train"
+  },
+  "pm-250332459cdb": {
+   "family": "handhq_regular",
+   "hash": "3fea1d22b56f00ffc158111aeb5815cb7399d8509c13806015ea5e71110e96e5",
+   "index": 2,
+   "partition": "validation"
+  },
+  "pm-2516f5da7acf": {
+   "family": "handhq_regular",
+   "hash": "aba4fec196e36b7fbda08ee97a8c20bcbd1433b50f7c1519e7a7e561b5a9f6b1",
+   "index": 3,
+   "partition": "train"
+  },
+  "pm-2552e4773ce4": {
+   "family": "texture_cbettor",
+   "hash": "081146d130d2c91e34385e6332a970b2ded95a2c235ca08e6db6b83335576095",
+   "index": 0,
+   "partition": "validation"
+  },
+  "pm-25ed86f47872": {
+   "family": "wide_pressure",
+   "hash": "5f5eaabc77acb3e2f3941f47573dd69c37aeaaebddcfefde4fb7611abcd65b95",
+   "index": 1,
+   "partition": "train"
+  },
+  "pm-260d8c8bd85f": {
+   "family": "smooth_switcher",
+   "hash": "f8769c4a85ee75a7b5f35e4e0b22f0d08c0b8e1d1df2ffe490b4a320f801f7b2",
+   "index": 0,
+   "partition": "holdout"
+  },
+  "pm-264fec030b41": {
+   "family": "odd_sizer",
+   "hash": "1d11f7021dff489a0c86263637affbf7694f63391558a6ac770900b387549120",
+   "index": 4,
+   "partition": "holdout"
+  },
+  "pm-270df34854a3": {
+   "family": "selective_aggressor",
+   "hash": "21d1db028816079c2a07c7e2386c3ea6db2dfb9c67050e92b6088bd263e20998",
+   "index": 7,
+   "partition": "train"
+  },
+  "pm-2715c71eda2b": {
+   "family": "multiway_specialist",
+   "hash": "1869c759cab7ca74166e614e49ce69abc12d4b4aa9d58ee6486633714379a420",
+   "index": 3,
+   "partition": "train"
+  },
+  "pm-2a1a06269871": {
+   "family": "icm_cap",
+   "hash": "cd1b85e23a95fa9a3023a027b9b10f4fe7d03858faf4629686de83bf62728786",
+   "index": 0,
+   "partition": "validation"
+  },
+  "pm-2c527e84bb39": {
+   "family": "multiway_specialist",
+   "hash": "33aee5361dcf078a6102417c8720080e2f27d2bc2d238e349c5e0afe7abd0050",
+   "index": 2,
+   "partition": "train"
+  },
+  "pm-2c6d0aabf862": {
+   "family": "limp_iso",
+   "hash": "a3dd69aee1b5dd3db40033502172ddd9ce51a2f9eefe1566dc679bc93c758731",
+   "index": 1,
+   "partition": "validation"
+  },
+  "pm-2d60129e5706": {
+   "family": "wide_pressure",
+   "hash": "a0c3cffc5bb28fa18a41493419b225c6883c27bd259002358bd40e9ed1601f75",
+   "index": 0,
+   "partition": "train"
+  },
+  "pm-2fe31dd718d7": {
+   "family": "tight_surrender",
+   "hash": "089f52b9e73bec86112edfc3dbfa144398f5e1bedb9cac94cbc8a304bd4fb812",
+   "index": 1,
+   "partition": "validation"
+  },
+  "pm-3076e6c720cf": {
+   "family": "smooth_switcher",
+   "hash": "49659a4184e9fffc40e4cb738d7d667dbe5336a15d64d4f901fa3b37f21b326c",
+   "index": 9,
+   "partition": "train"
+  },
+  "pm-31400e118c0c": {
+   "family": "multiway_specialist",
+   "hash": "e80c2f7d0dbf6ec075e590363b82e9a1428e759151f1cd44da929b49e3121370",
+   "index": 11,
+   "partition": "train"
+  },
+  "pm-314bf6631a34": {
+   "family": "selective_aggressor",
+   "hash": "9d011081a9df596344963f3d8134acb5dcd74a738d681fe9498236debc7be6d6",
+   "index": 0,
+   "partition": "holdout"
+  },
+  "pm-31587b7ec4a7": {
+   "family": "trapper",
+   "hash": "656d53ffff61ee046b6d0d66949b33739654f5ac7061d34c216d0f89d5dda8fe",
+   "index": 1,
+   "partition": "train"
+  },
+  "pm-3205088025b6": {
+   "family": "chaotic_aggressor",
+   "hash": "b8cbd584e5b5346e0e4b455ac655a4c3a3ee1e9ed044147fdd651705b0a8f6e9",
+   "index": 8,
+   "partition": "train"
+  },
+  "pm-329c3e36d2c1": {
+   "family": "tight_surrender",
+   "hash": "b9f6a098937b80ade690fbee81848cd91f8b342c0628e1bdbd8568d980eaeb48",
+   "index": 2,
+   "partition": "validation"
+  },
+  "pm-3434036be968": {
+   "family": "odd_sizer",
+   "hash": "93e3c14f2e3df67aad7fcbf3678c8f646230471a830371e6cd90380ed01e3422",
+   "index": 5,
+   "partition": "holdout"
+  },
+  "pm-362b756d25e2": {
+   "family": "limp_iso",
+   "hash": "7833f128d09ebf172cde6f3c2c7356d65ac81178a9928f161dc8b4dc22a330c2",
+   "index": 2,
+   "partition": "holdout"
+  },
+  "pm-3700e358766e": {
+   "family": "squeezer",
+   "hash": "3e8b4adf1e8b77b52b912d008d77422e19b84d47f83ecd2d4d73713b3886ddc1",
+   "index": 10,
+   "partition": "train"
+  },
+  "pm-39754aaab666": {
+   "family": "sizing_tells",
+   "hash": "6e955ec09ae31c1948cded3070e32479e87c008f0043d1f42dab6b392049be35",
+   "index": 1,
+   "partition": "holdout"
+  },
+  "pm-39c465ccf325": {
+   "family": "texture_cbettor",
+   "hash": "4b505ab7a984ca5bfe2ba204d206cfd63ed444b03b2f65b3f25167977fa81c48",
+   "index": 7,
+   "partition": "train"
+  },
+  "pm-3b38294562fc": {
+   "family": "trapper",
+   "hash": "e3e5fd96bbbe54b622f7df38736290b8f46be6e81461b1e60da914073749ca95",
+   "index": 2,
+   "partition": "validation"
+  },
+  "pm-3b779d36ff2d": {
+   "family": "wide_pressure",
+   "hash": "028bd759c9296eadfadc6e846488ba15cf0a01bdd8981753a157cf54b902913f",
+   "index": 3,
+   "partition": "train"
+  },
+  "pm-3b81fe992455": {
+   "family": "loose_passive",
+   "hash": "f9787463cc8f995b52c875c75d726793286c85d6b5f2fa8a5ddeeaa6d3217fd3",
+   "index": 2,
+   "partition": "train"
+  },
+  "pm-3c33bc46d377": {
+   "family": "texture_cbettor",
+   "hash": "78f5fca6abe1362ef114132fa28b8ca1c4da209a8efd0e0a61dcbba2908a8907",
+   "index": 5,
+   "partition": "train"
+  },
+  "pm-3c7f75821ad7": {
+   "family": "texture_cbettor",
+   "hash": "5885e42a31a8e3e6d61f89f1dbbb36639117c6d820b4f199357316b0e5e83a64",
+   "index": 6,
+   "partition": "train"
+  },
+  "pm-3d242538a0d3": {
+   "family": "tight_surrender",
+   "hash": "06f0262895cd24fa3d89fd764c53b816e8963d3ba4778e8f32e177be8961e51d",
+   "index": 2,
+   "partition": "train"
+  },
+  "pm-3f17ceb6296b": {
+   "family": "sizing_tells",
+   "hash": "ce28d74ee7a8abfd2fd3ae6c24304562e87643a322f54a65f4589f3dc9296022",
+   "index": 7,
+   "partition": "train"
+  },
+  "pm-401b97229107": {
+   "family": "image_responsive",
+   "hash": "8c9a87fed06f57fe24c5aba523f7478f2d142deda680ba9dbfacd7d76b9dfd7d",
+   "index": 5,
+   "partition": "holdout"
+  },
+  "pm-4044b745180b": {
+   "family": "squeezer",
+   "hash": "b1d592be1dbf5d29d238d383d82c8da46d9d1e20ccf8b40fbaa0b5bd94b56810",
+   "index": 2,
+   "partition": "train"
+  },
+  "pm-408fc6e6ad7a": {
+   "family": "squeezer",
+   "hash": "70723cdc1bd72238e4e02c529694ea96441b867241328de9a6cb4e000166eb68",
+   "index": 3,
+   "partition": "train"
+  },
+  "pm-4141b3a98b63": {
+   "family": "tight_surrender",
+   "hash": "2ab9883f68462307430a3259aa066f742d6e1adae26bc45efa3d33903c8dbcad",
+   "index": 4,
+   "partition": "train"
+  },
+  "pm-41f2b83a8fec": {
+   "family": "icm_cap",
+   "hash": "ab2d636c63ba5f7b2132fb201e2d0132cf7dfc318d84144b7d7fcd9862d2d6c0",
+   "index": 1,
+   "partition": "train"
+  },
+  "pm-422a06e3aa2e": {
+   "family": "draw_player",
+   "hash": "155e79ede50211be2f690598da87327f7fa15ce4391a71797dd0729555faafbf",
+   "index": 2,
+   "partition": "validation"
+  },
+  "pm-427bd4885bbc": {
+   "family": "selective_aggressor",
+   "hash": "e00a97d95a1f111f885b64a0643db542d77074e1d4b9300f2c8f88cb950ac5e7",
+   "index": 3,
+   "partition": "train"
+  },
+  "pm-435bc4133511": {
+   "family": "loose_passive",
+   "hash": "3e00dbdba8b8b31adcc340d79f615569e3a6bea48f91d05002094557db2988a7",
+   "index": 1,
+   "partition": "train"
+  },
+  "pm-44c4cd05dc23": {
+   "family": "handhq_regular",
+   "hash": "d1796916c9f58eb5fc2c47e26d8dc0a9fa6cc39d32cfb30f711b2ae9d6ed8757",
+   "index": 2,
+   "partition": "train"
+  },
+  "pm-45bfbadb75ca": {
+   "family": "handhq_regular",
+   "hash": "19591f1873aaf7a9b9cf9c44631dc4b0f53d5e030cab4da8ddf15697bb1e3160",
+   "index": 11,
+   "partition": "train"
+  },
+  "pm-46bb03ce4f52": {
+   "family": "sizing_tells",
+   "hash": "564f7618e2506d5303a8a6f9b5fbb429c078c8b9b5e9d63afa81a991b6ab4a79",
+   "index": 0,
+   "partition": "train"
+  },
+  "pm-46c1e4a624d3": {
+   "family": "variant_noisy",
+   "hash": "1c90c89a569889e8e5dd7547e867e4c60f1bac8e2b01721dac69c9373c1e875d",
+   "index": 2,
+   "partition": "holdout"
+  },
+  "pm-49710cf964af": {
+   "family": "trapper",
+   "hash": "9f946a01558df84933c10824c5decca305f0ba71cfdf55fd8dfc851329e55fac",
+   "index": 1,
+   "partition": "validation"
+  },
+  "pm-49e43d59a744": {
+   "family": "trapper",
+   "hash": "e2e41c17f3b7f21216aaed75224c348ec67f2e020e6971e7ecddb0d7e10ff44f",
+   "index": 13,
+   "partition": "train"
+  },
+  "pm-4aa21d60de93": {
+   "family": "loose_passive",
+   "hash": "a753385a524db989ad3e886060315d4ec777e49f75b88aea3d4ef220b72c6be4",
+   "index": 7,
+   "partition": "train"
+  },
+  "pm-4afdb576f241": {
+   "family": "tight_surrender",
+   "hash": "ca29e179ed2a26ccf9c2d7bcbee5ab9a5a39b96a04e3ca30b1a518b06b7277d4",
+   "index": 12,
+   "partition": "train"
+  },
+  "pm-4cb2e27bdd63": {
+   "family": "variant_noisy",
+   "hash": "5be0b2f78c5652269404122f42775f118f843e7e42e32dfc37b51c8d657d6629",
+   "index": 11,
+   "partition": "train"
+  },
+  "pm-4cbcdadd1c50": {
+   "family": "tight_surrender",
+   "hash": "4e47702afaf495ec3e73b96215d1cb052810342c14507284db9ec1156bb8f898",
+   "index": 7,
+   "partition": "train"
+  },
+  "pm-4d6ba780c0f0": {
+   "family": "chaotic_aggressor",
+   "hash": "9231620f5ad8ce366cd8ebf931f3bf662577406c67ea406e4cc853143d1b4c76",
+   "index": 4,
+   "partition": "train"
+  },
+  "pm-4db915551022": {
+   "family": "squeezer",
+   "hash": "6ab6089c9eb8918a1c45601cc27373e992252fdb33f55ac1543faa1bdac44c86",
+   "index": 13,
+   "partition": "train"
+  },
+  "pm-4efb627d2f11": {
+   "family": "texture_cbettor",
+   "hash": "35c0f7e722611505357fe5257aee4f691bd4996a810b8ec796b4f0298ca1edf3",
+   "index": 11,
+   "partition": "train"
+  },
+  "pm-4fa255aa35ba": {
+   "family": "draw_player",
+   "hash": "90a473c497b208c44e87f8fc1dfa23a128a507bc30025893c34180016e4bcf78",
+   "index": 1,
+   "partition": "validation"
+  },
+  "pm-50466210d85e": {
+   "family": "handhq_recreational",
+   "hash": "8bd5509c1f8298e0bcb55710e5ceed0c02c8980b5befc28f1c5803e042d04a86",
+   "index": 2,
+   "partition": "train"
+  },
+  "pm-51881127e461": {
+   "family": "handhq_recreational",
+   "hash": "a9d81441ea25dfce5bae0433aa9f20e84edc7447f78c0b50a06941e48e0ef541",
+   "index": 6,
+   "partition": "train"
+  },
+  "pm-51c5b634eace": {
+   "family": "handhq_recreational",
+   "hash": "517d72982fc2b1ee3bd22e75582d6f73f1d8190cbbd8d59ac1ff7ad89e38bb2d",
+   "index": 4,
+   "partition": "train"
+  },
+  "pm-524ad088b9ea": {
+   "family": "draw_player",
+   "hash": "6bf88897192b6f98877ca246b6db6b3ab1cb402cd066478155cb5f389bc01b1e",
+   "index": 8,
+   "partition": "train"
+  },
+  "pm-52939a0a0f93": {
+   "family": "wide_pressure",
+   "hash": "01f59e1f7e5f2d6c8eba4479c2fc0703fee9abe6a33600d446962132855f6c52",
+   "index": 0,
+   "partition": "validation"
+  },
+  "pm-52bc2379a9e7": {
+   "family": "smooth_switcher",
+   "hash": "c5cc28646af69fbd90a30ad55f26f1f6ed9f78d9d41a80474a355639d9cdcedb",
+   "index": 13,
+   "partition": "train"
+  },
+  "pm-538e43a06351": {
+   "family": "tight_surrender",
+   "hash": "c30ece1ebb74a1bc862a09b6d213152435870fa61e35340617c85a25fc448674",
+   "index": 5,
+   "partition": "train"
+  },
+  "pm-54bb9acb5d17": {
+   "family": "squeezer",
+   "hash": "ce0e942800ec053b53c487d3d6daf8f2d17a29f3377c979eb88f9993f823bb74",
+   "index": 0,
+   "partition": "validation"
+  },
+  "pm-54e7fbf52794": {
+   "family": "icm_cap",
+   "hash": "07abc6f371debdf3e7894a664f277f37bef4dc2462d9571154905e5156bd4b0b",
+   "index": 10,
+   "partition": "train"
+  },
+  "pm-559a1174480e": {
+   "family": "handhq_regular",
+   "hash": "66db520faa7ff93397d38f872c99d3b94d840c08e82915093d1894cac710df6b",
+   "index": 5,
+   "partition": "train"
+  },
+  "pm-55eba03194d1": {
+   "family": "variant_noisy",
+   "hash": "f42cfeca1ccd3f91788ca33488776fab06e18b4594e6153e06af648857e0a011",
+   "index": 2,
+   "partition": "train"
+  },
+  "pm-5718816fdab7": {
+   "family": "loose_passive",
+   "hash": "5453b9f7e740ca630cf97927f70843cf6e016480ccf2bd279fcb99428bf417c0",
+   "index": 5,
+   "partition": "train"
+  },
+  "pm-5844923d2775": {
+   "family": "handhq_regular",
+   "hash": "3cda8f4fc1ac8f08c2ab48a9f5b00149a653e595a47689fdd1dd029e6acd0644",
+   "index": 10,
+   "partition": "train"
+  },
+  "pm-5ad0179aa115": {
+   "family": "multiway_specialist",
+   "hash": "824d7fbaea62a34b1c803fbb48b43b2921f6b9bc411d846fa3c834128ea9cefa",
+   "index": 5,
+   "partition": "train"
+  },
+  "pm-5b469046ab14": {
+   "family": "selective_aggressor",
+   "hash": "47393fa3081ca10f2db0ee48e38541e80917d9fc935d4d2b6b68267622a00850",
+   "index": 6,
+   "partition": "train"
+  },
+  "pm-5b4d351606c5": {
+   "family": "squeezer",
+   "hash": "6c5faab607857f38b5a7246895935630eba1c475d68e24b7a00f39ac897fad85",
+   "index": 7,
+   "partition": "train"
+  },
+  "pm-5c22a347d83d": {
+   "family": "image_responsive",
+   "hash": "f31a360f070afb684897e96ebc214abb93e0a744d02518d11a78e0241d56e131",
+   "index": 3,
+   "partition": "holdout"
+  },
+  "pm-5c26da46a9ce": {
+   "family": "wide_pressure",
+   "hash": "b19c693db6222234e85ec2e917e8e047c3cbd987438ec3720a6b9adc5dbad536",
+   "index": 11,
+   "partition": "train"
+  },
+  "pm-5cd601ff3a59": {
+   "family": "selective_aggressor",
+   "hash": "0c935281910d3553945edf166361b90b7fa7e8fce22b6010a1351849f5ef3501",
+   "index": 4,
+   "partition": "train"
+  },
+  "pm-5d7ec7d96877": {
+   "family": "smooth_switcher",
+   "hash": "85a82632f6cb06c30ad655f51418d9b87f10be0a6de5ad44dc355cc43d3e52e5",
+   "index": 1,
+   "partition": "holdout"
+  },
+  "pm-5e7dbc77d3b5": {
+   "family": "multiway_specialist",
+   "hash": "23c04381fce9af7394f415179030ad5f087cf4bb88c1e128b8e469457c18ac17",
+   "index": 7,
+   "partition": "train"
+  },
+  "pm-5f3508242adf": {
+   "family": "handhq_recreational",
+   "hash": "0d250e53bfef12b21026d3f77a76b894ad1e29c2b56594f7a4b9837dadd0ab8a",
+   "index": 0,
+   "partition": "train"
+  },
+  "pm-5f3af8978e23": {
+   "family": "sizing_tells",
+   "hash": "79e2b87b5515421a16635b3d6150d3a00e80c443442fc8cad323ba298c21c7fc",
+   "index": 0,
+   "partition": "validation"
+  },
+  "pm-60166a928cc2": {
+   "family": "variant_noisy",
+   "hash": "9749599696ca49960c70521b4e753f275d4c7d791ca395af10ac689070f9b578",
+   "index": 12,
+   "partition": "train"
+  },
+  "pm-61ae1438126f": {
+   "family": "wide_pressure",
+   "hash": "d9fcf8be427f25323fea7d9cbd958af57b367686d3f809dbde91381af22d07b2",
+   "index": 9,
+   "partition": "train"
+  },
+  "pm-6239949a62b7": {
+   "family": "squeezer",
+   "hash": "045b26064f815f5497d6e507c8405b8413b01f16f848ad3e3a800ffb078863e7",
+   "index": 1,
+   "partition": "validation"
+  },
+  "pm-630228d29d55": {
+   "family": "selective_aggressor",
+   "hash": "82accc04b8c1ca7bc3962ff69847e727978899e4ecbd832910e44a3fadc72bb2",
+   "index": 5,
+   "partition": "train"
+  },
+  "pm-636049145b20": {
+   "family": "icm_cap",
+   "hash": "0e27b3ddf1503b1f37a02586a4599453c23d609a5b162ae3506b121e658aa2b2",
+   "index": 9,
+   "partition": "train"
+  },
+  "pm-638abb5522bf": {
+   "family": "draw_player",
+   "hash": "872a62b04b5c8e5c825f92e7a6a26f6dbfe02db6d4e97839ce30fde663913578",
+   "index": 7,
+   "partition": "train"
+  },
+  "pm-64c1b3373628": {
+   "family": "texture_cbettor",
+   "hash": "c736051b310cfdbf5a260868f864576e8e4a8886660cbb3f28e0ac45a286a85e",
+   "index": 2,
+   "partition": "train"
+  },
+  "pm-65f0f2152b08": {
+   "family": "tight_surrender",
+   "hash": "5c7304328ac303bf834d3654e6847a480ba272d2d312c4c07af7398bb8acddec",
+   "index": 11,
+   "partition": "train"
+  },
+  "pm-674f9cddda24": {
+   "family": "sizing_tells",
+   "hash": "ca6c641406400ed96a8ac47a8c70618cf180f6256461ce5cf90b9d8c0119c8a1",
+   "index": 6,
+   "partition": "train"
+  },
+  "pm-686fa1e45f4b": {
+   "family": "loose_passive",
+   "hash": "7ad60641bbc8e4a8ae346dd9985050c0747e24fc449aa85780778e0259792b1a",
+   "index": 10,
+   "partition": "train"
+  },
+  "pm-68cc18f6baee": {
+   "family": "squeezer",
+   "hash": "70c16c9fb17b4011f42037b851a73164d675a3582d000724fcfa2e759da56b43",
+   "index": 1,
+   "partition": "train"
+  },
+  "pm-68ea73668e3f": {
+   "family": "trapper",
+   "hash": "29462250bfe554d00a4da4ccee5ca73cde23c77b01ffb8a2d583b7531bd2c949",
+   "index": 8,
+   "partition": "train"
+  },
+  "pm-69617da8d63c": {
+   "family": "selective_aggressor",
+   "hash": "ae8a7c43a9aa7bf37d7b0dde9c1f5cac57ec4b91d676ad5a78aac79fc31d676e",
+   "index": 10,
+   "partition": "train"
+  },
+  "pm-69c4a3919173": {
+   "family": "chaotic_aggressor",
+   "hash": "9099b3de327bd6a8b286db936f0bb5c3692b953a962fe34823db0bafeba1ab28",
+   "index": 2,
+   "partition": "train"
+  },
+  "pm-6a1841a187b2": {
+   "family": "handhq_regular",
+   "hash": "e06b9252ad40d7db631ea0d683f5e6583dec0e25ea119a9b8086245d66dc7d65",
+   "index": 12,
+   "partition": "train"
+  },
+  "pm-6bf0243e2e2e": {
+   "family": "draw_player",
+   "hash": "f52fea4d70eecc770830ef96755e97359c353dd5bcf3c8ddc4def9df4c12041f",
+   "index": 13,
+   "partition": "train"
+  },
+  "pm-6c7ef02dca3f": {
+   "family": "handhq_regular",
+   "hash": "d02c0a04324997b379963faef4e505bf123f98a35849f0cba5cb501274d094be",
+   "index": 9,
+   "partition": "train"
+  },
+  "pm-6cd0ce9f3a31": {
+   "family": "sizing_tells",
+   "hash": "e0361ecd3736e4d23c6f454bdb3581ee8ceca7d37c1089e74b1148fbd1def60b",
+   "index": 10,
+   "partition": "train"
+  },
+  "pm-6d862c284dcc": {
+   "family": "sizing_tells",
+   "hash": "37cd3520062e8ce2f9eee6d677b1924e34381f7e964beb09843949f4edb8c92d",
+   "index": 0,
+   "partition": "holdout"
+  },
+  "pm-6d9e7a85e640": {
+   "family": "draw_player",
+   "hash": "1f48a89040afddab736876691e8b0fe31eeee1f45b4a56f65ef82a557862a97c",
+   "index": 10,
+   "partition": "train"
+  },
+  "pm-6e0f5eb033bf": {
+   "family": "multiway_specialist",
+   "hash": "98ac94a99c470a967800c054b9cb58f1880c1c7f8e7889b1bc3078eb5961ce88",
+   "index": 6,
+   "partition": "train"
+  },
+  "pm-6f5e7ecf80f5": {
+   "family": "selective_aggressor",
+   "hash": "ea96b74b637343a5206df990b1711fe13cc60abc559242e6370ea768b8541648",
+   "index": 0,
+   "partition": "validation"
+  },
+  "pm-6fcba562c9bd": {
+   "family": "variant_noisy",
+   "hash": "a81197828cb05802bfa91ce334388c5199f222ecaaac1c9bf37d9acf2415bb29",
+   "index": 2,
+   "partition": "validation"
+  },
+  "pm-70e6b9659312": {
+   "family": "handhq_recreational",
+   "hash": "90422fb22d894d447f13f2c60474c23f920edf307b98fc82b769613f28c12ae5",
+   "index": 9,
+   "partition": "train"
+  },
+  "pm-70fa954e3121": {
+   "family": "handhq_recreational",
+   "hash": "fe3c013948a7e8a2eedd51a71857d2212343ec1a20879b662e59a68b19e3530f",
+   "index": 3,
+   "partition": "train"
+  },
+  "pm-72cef7d60e0b": {
+   "family": "icm_cap",
+   "hash": "2ee04e452f405ad77d0a21ccc39155fcd7847ac6c6c9e1a4bbc6f2dfeb70734d",
+   "index": 5,
+   "partition": "train"
+  },
+  "pm-742c336f56d4": {
+   "family": "texture_cbettor",
+   "hash": "b072e9de66ec4c52f2f42f34d5be0affa27e198e0d4ff7069d0908575a99828a",
+   "index": 0,
+   "partition": "train"
+  },
+  "pm-746f1b52d30e": {
+   "family": "handhq_recreational",
+   "hash": "ac3671629b1aab36ce2ecfae487deb392e78908faa83b4d70f1213776ddd4216",
+   "index": 5,
+   "partition": "train"
+  },
+  "pm-764c948087b0": {
+   "family": "loose_passive",
+   "hash": "daf8f1ed4188d9f338a6746abe2ebacfb250341607452af8082e5b32e43fa5eb",
+   "index": 0,
+   "partition": "validation"
+  },
+  "pm-77224fa19eb7": {
+   "family": "handhq_recreational",
+   "hash": "caa987f952039424c4a25b6323e0ed0ce5b2083b3bf5a8754f174c30e8a54189",
+   "index": 7,
+   "partition": "train"
+  },
+  "pm-775e2aba23aa": {
+   "family": "squeezer",
+   "hash": "7209a65a0c23b50bbd2d4043e260c68ef1876c386bf5963aee9d4a3dfd9d29a1",
+   "index": 0,
+   "partition": "train"
+  },
+  "pm-776ed4610be1": {
+   "family": "squeezer",
+   "hash": "70a82fad4b62c2a6939c0bceaa7ef0f7af7545943dfb9459151f2e3df3c56b5e",
+   "index": 11,
+   "partition": "train"
+  },
+  "pm-7818b28ed1f7": {
+   "family": "chaotic_aggressor",
+   "hash": "4a45bcec6e9900346bbce6f85d12dc9a518cabe147c7b20ece82e238f05d3a9b",
+   "index": 13,
+   "partition": "train"
+  },
+  "pm-78f5666f8f70": {
+   "family": "squeezer",
+   "hash": "829c340ec9a0db73df3e447b2a044ecd03f12c0cbdc2d66eebaa42f631f14818",
+   "index": 5,
+   "partition": "train"
+  },
+  "pm-78fec414c232": {
+   "family": "image_responsive",
+   "hash": "882d9168c8248dbc228030d929cc08f976809cb5fcff4ace278212e812ddce6c",
+   "index": 0,
+   "partition": "holdout"
+  },
+  "pm-7923e2937387": {
+   "family": "sizing_tells",
+   "hash": "1036cc61426ff5773ece35fc7902038b294255085d86fdf04b5c02cc5eb5619d",
+   "index": 11,
+   "partition": "train"
+  },
+  "pm-79423684b09f": {
+   "family": "squeezer",
+   "hash": "90da0b84747a0e42d0bbf8e547e0e51550927eb6a10c1b38f248e3f381fa3a83",
+   "index": 0,
+   "partition": "holdout"
+  },
+  "pm-7a5e56ac628e": {
+   "family": "tight_surrender",
+   "hash": "b9c2eda5335053a322b6920da5b3e4a86c39c45677c04901514e745014c67a9e",
+   "index": 13,
+   "partition": "train"
+  },
+  "pm-7b6cb47ddbcc": {
+   "family": "smooth_switcher",
+   "hash": "5e070a2214c1dc7639efef8a55bce21610139ce32410e6601145f0d862173c91",
+   "index": 1,
+   "partition": "train"
+  },
+  "pm-7c7463e62622": {
+   "family": "texture_cbettor",
+   "hash": "6d3480180f5383659fb66ed365dfb4f5c52e4034c25cc182448385b7c666d0c0",
+   "index": 1,
+   "partition": "train"
+  },
+  "pm-7d1b7700730d": {
+   "family": "icm_cap",
+   "hash": "ad823b62a9a011654d978051fd2ce4f4c5079f29c28930a20d80b0b3170b9239",
+   "index": 6,
+   "partition": "train"
+  },
+  "pm-7d567f5effc4": {
+   "family": "multiway_specialist",
+   "hash": "265869fc73a394c405fc10d9c7c973b552217bb5cc76496e94fc199071d430a6",
+   "index": 1,
+   "partition": "validation"
+  },
+  "pm-7e7c9585791f": {
+   "family": "limp_iso",
+   "hash": "b223488203396ce48a3c210da0c1b9286d1a456eb445e4e9784a67a1fae875d6",
+   "index": 12,
+   "partition": "train"
+  },
+  "pm-7efae8416187": {
+   "family": "icm_cap",
+   "hash": "39d7f2da4253e952c7296cec6676628200d6f7e585426b55fe1c177e3d3e9418",
+   "index": 7,
+   "partition": "train"
+  },
+  "pm-7f80d93d779e": {
+   "family": "tight_surrender",
+   "hash": "718b965384270f3a053b059ab5dfa5e96b18b2d0234407f2abe6306c8545c16d",
+   "index": 1,
+   "partition": "train"
+  },
+  "pm-8044f5c710d1": {
+   "family": "handhq_regular",
+   "hash": "3ee5c248068db236e870696deee5e0996aaaab7b92f1f5d391295ffc04ea888f",
+   "index": 6,
+   "partition": "train"
+  },
+  "pm-824f0aaedfbb": {
+   "family": "tight_surrender",
+   "hash": "94a65819462c0cf6b821c9f19631d9832fef134033bd626ef98be71ddc831de2",
+   "index": 0,
+   "partition": "validation"
+  },
+  "pm-830205179fb3": {
+   "family": "limp_iso",
+   "hash": "dddb3eb37b698c5729aa0aa828d1bbaed2dc49778e6ad3eca6043a59bf36b00d",
+   "index": 10,
+   "partition": "train"
+  },
+  "pm-840166a21a94": {
+   "family": "icm_cap",
+   "hash": "b0af547f84530d4f7291d871476271e297ef87202cbe9dc7610ed3878c91c183",
+   "index": 2,
+   "partition": "validation"
+  },
+  "pm-8451726bdc22": {
+   "family": "chaotic_aggressor",
+   "hash": "e1d3b4047f6569ad63755cafa912a0cb056e7c01dbd2b273e4c2bb286ab65178",
+   "index": 5,
+   "partition": "train"
+  },
+  "pm-845b817db2aa": {
+   "family": "multiway_specialist",
+   "hash": "6bf40cd65583e4acba3e22f543283216a144f94afb59637e34c48daaa8160480",
+   "index": 1,
+   "partition": "train"
+  },
+  "pm-86da80ef10f0": {
+   "family": "icm_cap",
+   "hash": "1db69441940536bea9c9ffdd2d4fc6cdf765cb2a033ac6e7ec935deaf5faf6c9",
+   "index": 2,
+   "partition": "train"
+  },
+  "pm-873b30cc2b35": {
+   "family": "chaotic_aggressor",
+   "hash": "7ec430060bcea8a4dcefbda7843fc3fd3d6b6e489833192f0fd9ab0031f143c4",
+   "index": 0,
+   "partition": "validation"
+  },
+  "pm-8741a09ac226": {
+   "family": "limp_iso",
+   "hash": "ffd52f168d8581253d57996936c381da7aee2758a4c2b6f25bde6ae00a8cda00",
+   "index": 5,
+   "partition": "train"
+  },
+  "pm-8807730e1bbd": {
+   "family": "handhq_regular",
+   "hash": "80161b0215204aa4392cdae7b2057e990b4eeb9ad7d92760fdd258e60e385c75",
+   "index": 0,
+   "partition": "validation"
+  },
+  "pm-88b1ae307d42": {
+   "family": "trapper",
+   "hash": "4004f58c5112d5863dca1d5a2f3707378229b878723eb9fb592eee9c1a49034d",
+   "index": 0,
+   "partition": "holdout"
+  },
+  "pm-8a08182ed5a3": {
+   "family": "handhq_regular",
+   "hash": "25fb25423ff1a11996e0fee852b07e3b158297dd09241b06f021e3bc53ff801b",
+   "index": 1,
+   "partition": "validation"
+  },
+  "pm-8a156022052b": {
+   "family": "chaotic_aggressor",
+   "hash": "c4fcc9bdee5ca085c7fbd2ccdd785e43176cbcbf3a1dc6a64208ad3a1f7a4685",
+   "index": 6,
+   "partition": "train"
+  },
+  "pm-8a4f33b43de0": {
+   "family": "chaotic_aggressor",
+   "hash": "3427fc5819f79cf6a492c4be3dcbf9261694d26ee26a521867a1152561f94a51",
+   "index": 12,
+   "partition": "train"
+  },
+  "pm-8ce96b508df0": {
+   "family": "icm_cap",
+   "hash": "b85727fa422ff804742eaca3015bf29d743ed159f2d74d7ee340df442d258b58",
+   "index": 3,
+   "partition": "train"
+  },
+  "pm-8cfac162f1b4": {
+   "family": "smooth_switcher",
+   "hash": "c04bf83dc4da3bf684563d89cfafc90424a0ce6dd88db5b059d126394cc53c4d",
+   "index": 0,
+   "partition": "train"
+  },
+  "pm-8dd17fe5970e": {
+   "family": "odd_sizer",
+   "hash": "d00f31c6649faf6728f276f2a332f0564a55120c9ce80f77cd3b4af5a4b81c57",
+   "index": 3,
+   "partition": "holdout"
+  },
+  "pm-8df5584a0dbc": {
+   "family": "texture_cbettor",
+   "hash": "0421077789e03d8e9fc35cdc7b685699cbfd4c1948ac160e3b0783fd1100f053",
+   "index": 4,
+   "partition": "train"
+  },
+  "pm-8f4204900999": {
+   "family": "loose_passive",
+   "hash": "761455c81a7d0af127c442233f1b84803a4c831e5a050d258a4f9c1ceaa7f116",
+   "index": 6,
+   "partition": "train"
+  },
+  "pm-8f8958606db4": {
+   "family": "variant_noisy",
+   "hash": "95ef0b99905720a58162956f0217c49e3b22bac610eb0a7bfddecb239a0935ce",
+   "index": 9,
+   "partition": "train"
+  },
+  "pm-8fffbca90260": {
+   "family": "handhq_recreational",
+   "hash": "54836bf1121a396d016a769451c45015e4e3bf7a1aff95c40b72d7d0aece4f73",
+   "index": 2,
+   "partition": "validation"
+  },
+  "pm-90605967030b": {
+   "family": "limp_iso",
+   "hash": "51f5f0ddc4d03d3e0c4100b5216511591bcc85653bcc2377972b58b0f2e5b08a",
+   "index": 9,
+   "partition": "train"
+  },
+  "pm-9072d06b6bf0": {
+   "family": "trapper",
+   "hash": "dcb77f188fc7c52195f5e8ea2cfd1a4c2ff36ab19238a6454b733abdb4e35854",
+   "index": 7,
+   "partition": "train"
+  },
+  "pm-90d5f1cca5d2": {
+   "family": "draw_player",
+   "hash": "bb5451212c4b47b763c84995fd93f9f0c28987446db44dcf012ea0803afddeb7",
+   "index": 1,
+   "partition": "train"
+  },
+  "pm-9139682c61f8": {
+   "family": "handhq_recreational",
+   "hash": "c1f969ca8f4b85e857c90ea36966bd9f9b41d366d2bbc4fa198ad57b9b73bd89",
+   "index": 11,
+   "partition": "train"
+  },
+  "pm-91e7359be5e8": {
+   "family": "loose_passive",
+   "hash": "e289af320a4d40d1c881dffb3987e0265ac253d9a3e5e42c573976b38f0e4560",
+   "index": 1,
+   "partition": "holdout"
+  },
+  "pm-91facaee1f84": {
+   "family": "tight_surrender",
+   "hash": "68b006e1f35c914b930bfa9a6880f338735658185d0d7ee13f18bd1af37d2dc1",
+   "index": 0,
+   "partition": "holdout"
+  },
+  "pm-935f0c4f2027": {
+   "family": "sizing_tells",
+   "hash": "06f7e058b90664629b3073cdadbc2e266106b3ba738e29219e54e57bebcbab61",
+   "index": 2,
+   "partition": "holdout"
+  },
+  "pm-9364537cefa4": {
+   "family": "sizing_tells",
+   "hash": "84b5ee7e36c2930a5ae23f619aa79292c850d468f22ed7d0a171afb110545eb2",
+   "index": 2,
+   "partition": "validation"
+  },
+  "pm-94ac94c8f147": {
+   "family": "chaotic_aggressor",
+   "hash": "3090de73e15dccc19f429e264514fa3f8694bbd381adbff1aede184c1ec7d416",
+   "index": 2,
+   "partition": "validation"
+  },
+  "pm-94fcb3742ddb": {
+   "family": "limp_iso",
+   "hash": "7b0eda2fc5cb867443830eab85df83220edf6ae502f43e26f9dec64cfdbde051",
+   "index": 4,
+   "partition": "train"
+  },
+  "pm-96cc1c8cb937": {
+   "family": "smooth_switcher",
+   "hash": "e23c7d1c0cf8d931478101da1b2fff3e1043b348106f4ad4283ba45547f5f615",
+   "index": 7,
+   "partition": "train"
+  },
+  "pm-9804c1cad642": {
+   "family": "variant_noisy",
+   "hash": "f128431e181be83b30013cf0e64259aa2b4e64d2a1d4d7ee53adda399b761c39",
+   "index": 5,
+   "partition": "train"
+  },
+  "pm-98990d9372bd": {
+   "family": "draw_player",
+   "hash": "4cf575d398def7983f8be187bfa458a5fdee9bbabffab0ec81e4585233fafbb0",
+   "index": 2,
+   "partition": "train"
+  },
+  "pm-99eea5585d74": {
+   "family": "selective_aggressor",
+   "hash": "9f263ae8f20ec7f0b475d900b683733bd34ed848f3f3909c5f3cabc94d2a922e",
+   "index": 12,
+   "partition": "train"
+  },
+  "pm-9ac018bd458c": {
+   "family": "draw_player",
+   "hash": "3eef2e3d21bea6178e5480c120344bc75a86d17c3f245d4fb7156a6158e651ec",
+   "index": 9,
+   "partition": "train"
+  },
+  "pm-9b8cf631df22": {
+   "family": "variant_noisy",
+   "hash": "6562f02583f3a3b64ea761ed65c35de5ece7d2cd3c16a37645658b011562a451",
+   "index": 13,
+   "partition": "train"
+  },
+  "pm-9d4477c2bc61": {
+   "family": "texture_cbettor",
+   "hash": "e8dc2bc15f982f073fdd0e1ce4f8deb16514f25dab2a09fa3b9370ba36a5fafa",
+   "index": 8,
+   "partition": "train"
+  },
+  "pm-9d78b97dbbd4": {
+   "family": "wide_pressure",
+   "hash": "680596f64c290034e75a4c0b04b3b4fdb135b10ba81800fd1b3d49bd9c87eddc",
+   "index": 1,
+   "partition": "validation"
+  },
+  "pm-9d7fbb91639e": {
+   "family": "wide_pressure",
+   "hash": "a35e630377ef1a3b4d89386426544bbe14979e01c6d322b68bdd563cffef1fc1",
+   "index": 7,
+   "partition": "train"
+  },
+  "pm-9daf240e30cc": {
+   "family": "selective_aggressor",
+   "hash": "8ba5a98695319bff877d2e473edfdfe83cdcaaee4f169f6635ba1a909dece076",
+   "index": 1,
+   "partition": "train"
+  },
+  "pm-9de46fdf8b03": {
+   "family": "trapper",
+   "hash": "884cc21f00e8c09841edd12ebffe5e29f05cb1ccf283d543a5072d2d29adaf7b",
+   "index": 2,
+   "partition": "holdout"
+  },
+  "pm-9f3f8106de11": {
+   "family": "icm_cap",
+   "hash": "4df120046e8602e53afd07ae837869a7ee2726f84f33fcb86e2a914145a787e6",
+   "index": 8,
+   "partition": "train"
+  },
+  "pm-a0aff0ddd945": {
+   "family": "limp_iso",
+   "hash": "b63de1fd739c591b40ab594295b076dad7a7f96ee4260900dfcd3ba909843303",
+   "index": 2,
+   "partition": "validation"
+  },
+  "pm-a2b947720df3": {
+   "family": "texture_cbettor",
+   "hash": "9ea54204d8d6f98aeda1397defcc549f2dc88ae8194fa9af403425cbde4fc44b",
+   "index": 2,
+   "partition": "validation"
+  },
+  "pm-a373642a1954": {
+   "family": "wide_pressure",
+   "hash": "d6df68707a0bb64369756829dd3f8b4d7841b5c2eb76b2606ae299f813ca387d",
+   "index": 8,
+   "partition": "train"
+  },
+  "pm-a3a65f6382f8": {
+   "family": "variant_noisy",
+   "hash": "abeaac12807d4236ad7f623170d44edc89425c8612fb93a6974b9b04e65a7467",
+   "index": 1,
+   "partition": "validation"
+  },
+  "pm-a3faa0d4e909": {
+   "family": "multiway_specialist",
+   "hash": "2f2c4b669ff7028bb6602ac32c8c20383d77485702ed4d52cf4d9f8df3099e78",
+   "index": 2,
+   "partition": "holdout"
+  },
+  "pm-a43f4c6d16ff": {
+   "family": "chaotic_aggressor",
+   "hash": "e3bf067be3a153d13776a7d854a0ae7c63fc56c4c3bfdc85dd9c06c27bc5f309",
+   "index": 2,
+   "partition": "holdout"
+  },
+  "pm-a4c6c1eda4f1": {
+   "family": "limp_iso",
+   "hash": "2ca5f5cb34e332f2c383f0bc18d6f4c14ce057cefcad5259b260b7c4fde71fe0",
+   "index": 8,
+   "partition": "train"
+  },
+  "pm-a54b61391533": {
+   "family": "texture_cbettor",
+   "hash": "2cb68885750a0498d8c58ea81355ec94461f0b58b858bfe5271adf1aa550d97c",
+   "index": 13,
+   "partition": "train"
+  },
+  "pm-a56e441946ca": {
+   "family": "icm_cap",
+   "hash": "79fd43e7818db0ac547e69086bf43c8b040961feb559f916b30d4ac40db1e3c9",
+   "index": 11,
+   "partition": "train"
+  },
+  "pm-a635c9d75789": {
+   "family": "sizing_tells",
+   "hash": "706ab21e7c1b46213e8cf3751f7e6e7e66ebb9623e7f3dcb170176c41fbbeaa6",
+   "index": 12,
+   "partition": "train"
+  },
+  "pm-a63dc59d73d9": {
+   "family": "draw_player",
+   "hash": "d6e3d6e201c1a19429602e22b8ebd0b342eadea233e1e28d28a1ee0b95af7ce4",
+   "index": 11,
+   "partition": "train"
+  },
+  "pm-a6d6c78400d5": {
+   "family": "multiway_specialist",
+   "hash": "40548bf484a469f0063a1b463c9c7474ebe7716f3ba13a0be195854a52eb721a",
+   "index": 10,
+   "partition": "train"
+  },
+  "pm-a7b7419835cc": {
+   "family": "variant_noisy",
+   "hash": "e74b8ec772adafa89662a72e42ff21bb8553fe99be977e864f44755d31ff5186",
+   "index": 3,
+   "partition": "train"
+  },
+  "pm-a7eef0f48007": {
+   "family": "limp_iso",
+   "hash": "87816c86df5213dbc53b29e551305e49ecc6ba272bdb0d01bc2d0276d1487346",
+   "index": 3,
+   "partition": "train"
+  },
+  "pm-a7f8d597d156": {
+   "family": "limp_iso",
+   "hash": "e04d053eaa154710e75580de6095035b596257026befb68d83f0333aaa3c04ec",
+   "index": 0,
+   "partition": "holdout"
+  },
+  "pm-a9f0de2b0fc2": {
+   "family": "variant_noisy",
+   "hash": "108bf1c34e2ce3c3275f3de803b68690bd7e4d55b2b4ea384bf7d2d54e793799",
+   "index": 1,
+   "partition": "holdout"
+  },
+  "pm-ac2325e67297": {
+   "family": "handhq_recreational",
+   "hash": "b5809ffe8e7e98a5041a35c291ae3dee6f168cbc074a80f7e2d85c335155455a",
+   "index": 13,
+   "partition": "train"
+  },
+  "pm-aec56b6c9969": {
+   "family": "chaotic_aggressor",
+   "hash": "3374e0bf92849b3868c3f166ae2fe031ba97adbc213cc18a9bcc792991e0910b",
+   "index": 0,
+   "partition": "train"
+  },
+  "pm-af6835d7c336": {
+   "family": "smooth_switcher",
+   "hash": "5130f7c2c7fb5a68aec5906b314866f17a4d2250dab48f21c70a89c40e66f519",
+   "index": 6,
+   "partition": "train"
+  },
+  "pm-af8a280387fd": {
+   "family": "trapper",
+   "hash": "87a04cd6e7635dcd94edcd205752cf61f6e9832d16d9c9dfcc9f99cd7ee9d8e3",
+   "index": 12,
+   "partition": "train"
+  },
+  "pm-af9539a10ce0": {
+   "family": "variant_noisy",
+   "hash": "c2f11dd5868ec54a6f121ef83dce7905b089ebbb51a982c4a9b36a0efb53a854",
+   "index": 0,
+   "partition": "train"
+  },
+  "pm-afed2a7abd28": {
+   "family": "variant_noisy",
+   "hash": "cb22adf416d9c7e5c2b0dfd34484ffe45cebdb2d4f2e5345e841d0a970029bfc",
+   "index": 0,
+   "partition": "holdout"
+  },
+  "pm-b06e1103270b": {
+   "family": "multiway_specialist",
+   "hash": "1d834946d4a9da4165654c515bf330109d0ca7dd4641a7dd2aa5e189a3780db4",
+   "index": 0,
+   "partition": "train"
+  },
+  "pm-b0d7c70aecaa": {
+   "family": "loose_passive",
+   "hash": "b39ecdddf83a6bf4feedfc2e002a522888e25ba52dbaa9206645534d22479003",
+   "index": 0,
+   "partition": "holdout"
+  },
+  "pm-b18dbbdd6406": {
+   "family": "smooth_switcher",
+   "hash": "44f92d36c0eeb55e67880346f7d2ef7585431bf5e9d75102fa03bd13560afaaa",
+   "index": 2,
+   "partition": "holdout"
+  },
+  "pm-b1b6bce7fb99": {
+   "family": "wide_pressure",
+   "hash": "e419faa1ffaac6b1c38285c103c64c6ec6fc8cf4f1b90c6ed3a2f673e36ae7b3",
+   "index": 4,
+   "partition": "train"
+  },
+  "pm-b1e488dade30": {
+   "family": "loose_passive",
+   "hash": "60b5fe338af86390ea5c6d90f5eb8a70284eb5e449fc46bd367565e1bceff409",
+   "index": 4,
+   "partition": "train"
+  },
+  "pm-b30a1d964ce0": {
+   "family": "selective_aggressor",
+   "hash": "dd67ab029d96aff74cc85fc0834a8e1491af63b0cbae098a77a07ad6e345aaf1",
+   "index": 9,
+   "partition": "train"
+  },
+  "pm-b3683b7bb87d": {
+   "family": "icm_cap",
+   "hash": "6736c4e9ade9020b0e1c758a5d13ee8e6430e6c1ace19b64cf19ee04d08bfb02",
+   "index": 2,
+   "partition": "holdout"
+  },
+  "pm-b4d8450fe248": {
+   "family": "handhq_recreational",
+   "hash": "ef2807c5ef59c45134f046fb2aed3d29ebd60ebce6dbd98ff79d17739e8defc8",
+   "index": 12,
+   "partition": "train"
+  },
+  "pm-b4e65d57f8e8": {
+   "family": "loose_passive",
+   "hash": "28d8be64bdf09223a5c42d073ef8d50f77e5a9406882ecd6b2f1bc5d85d19a5c",
+   "index": 8,
+   "partition": "train"
+  },
+  "pm-b5a30f6d3ab0": {
+   "family": "texture_cbettor",
+   "hash": "2bf8939122e7f4bee3820f5cb8f2f760aef4079b757e17220200d973dcd75fee",
+   "index": 10,
+   "partition": "train"
+  },
+  "pm-b61565a2dccf": {
+   "family": "sizing_tells",
+   "hash": "5b7cdf5d357c6fd2cf5d497a3c22c719dfee4807be4799ffe80a11720cdf28de",
+   "index": 1,
+   "partition": "train"
+  },
+  "pm-b65d88392ef9": {
+   "family": "trapper",
+   "hash": "f5b2299cdbcaa76085b5059313368b017293937383c0fc92363dee1f3991880d",
+   "index": 6,
+   "partition": "train"
+  },
+  "pm-b66d2b507521": {
+   "family": "smooth_switcher",
+   "hash": "7665978f74f69f2eb5385a21cc60de076cf8856a11db8a9743f0b5a47b857a68",
+   "index": 0,
+   "partition": "validation"
+  },
+  "pm-b796fdd9b870": {
+   "family": "chaotic_aggressor",
+   "hash": "c30215e395fd6b36794b6bb4812c5a4ee7c753763d0f43f351e3daaae1a0b8f8",
+   "index": 10,
+   "partition": "train"
+  },
+  "pm-b7ba092e2630": {
+   "family": "icm_cap",
+   "hash": "0661c7583cdb92022fd4180bd87b6f8d97f81ab8bfd392b7bf09ec53482e80e3",
+   "index": 1,
+   "partition": "holdout"
+  },
+  "pm-b830e10584bf": {
+   "family": "limp_iso",
+   "hash": "94f9d9fe4b8da848efff878e34b0d80d882566595aff889149bba8482b8686c0",
+   "index": 11,
+   "partition": "train"
+  },
+  "pm-b8657535176d": {
+   "family": "selective_aggressor",
+   "hash": "7b3e4e03559d29a5d1d20c6ddb567c10ef416fe95b0b3a9a9181034d2877fd39",
+   "index": 8,
+   "partition": "train"
+  },
+  "pm-bac513a3ccc9": {
+   "family": "tight_surrender",
+   "hash": "16a23b2ebc7c3de4be46478c752b0157874d48cb76ab9fc4328b011f996c725a",
+   "index": 1,
+   "partition": "holdout"
+  },
+  "pm-bd1bec9a982c": {
+   "family": "draw_player",
+   "hash": "2bf93e68b7882b3840f4f1d679c287e8a14de299637869d8949b34353c1cb528",
+   "index": 12,
+   "partition": "train"
+  },
+  "pm-bd9e491e9855": {
+   "family": "trapper",
+   "hash": "fa73c6216eb03c12992c6c70ee0177d1f2f97b8aac32614cd015300858a28e4e",
+   "index": 11,
+   "partition": "train"
+  },
+  "pm-be13e13ba907": {
+   "family": "selective_aggressor",
+   "hash": "3bfdd22ed999b59d351b6ea9b1eb599acca18c77582ba4c7beef0270f58bd95e",
+   "index": 1,
+   "partition": "holdout"
+  },
+  "pm-be65d9a1ac7f": {
+   "family": "squeezer",
+   "hash": "c7fd6ffc22b65de36225a9dd21e610dbb72b15c9cd7196d532d6d8d8099cff2f",
+   "index": 6,
+   "partition": "train"
+  },
+  "pm-be7356a122c3": {
+   "family": "variant_noisy",
+   "hash": "c5d6cbbfe6cc191531a8c0b215b9fb601bf09b93894ae75dc9ede7e735ee9931",
+   "index": 6,
+   "partition": "train"
+  },
+  "pm-bf048d856d6f": {
+   "family": "squeezer",
+   "hash": "f8004bde2eff3eb57e31d9d7b115d5aae26181cd798aa14f1f5f572905ced581",
+   "index": 12,
+   "partition": "train"
+  },
+  "pm-bfc3a207c091": {
+   "family": "chaotic_aggressor",
+   "hash": "fe877479cbea0d26474be668574e492d337c4d7678d3116c700b76cbfcda7e03",
+   "index": 1,
+   "partition": "train"
+  },
+  "pm-c0643c32e2b0": {
+   "family": "tight_surrender",
+   "hash": "e52da69f3c4f448bd0c808137d5ae6e71519fced03ed1ad971425dc5ee26a296",
+   "index": 10,
+   "partition": "train"
+  },
+  "pm-c0b767fb5e63": {
+   "family": "squeezer",
+   "hash": "620e7439a3e151e5f8654e2a4045e9515f6fcee0928234111b00013e7f6b7f3c",
+   "index": 8,
+   "partition": "train"
+  },
+  "pm-c14b0c6dce3a": {
+   "family": "tight_surrender",
+   "hash": "10e20a1acfd719f140b33af72e3f39819e63e2b94ec5831610303f63e0f3ddaa",
+   "index": 3,
+   "partition": "train"
+  },
+  "pm-c154e97bb0a2": {
+   "family": "limp_iso",
+   "hash": "96ffff4d19c656cc39eedbc6fc688b94dbc55b07c11c8ce96ebabc8d88cc7340",
+   "index": 6,
+   "partition": "train"
+  },
+  "pm-c1795c2a8082": {
+   "family": "trapper",
+   "hash": "861942dfc6abcc289b482f4ebd3d2c9786fc6353ed37f05350f7345002a9a72e",
+   "index": 9,
+   "partition": "train"
+  },
+  "pm-c2ecc125cad2": {
+   "family": "trapper",
+   "hash": "f416130c8a43c9fdea0973f736ed6a87f5e549983d132e465ff6174bcfeacf7d",
+   "index": 0,
+   "partition": "validation"
+  },
+  "pm-c3411b1fa52b": {
+   "family": "sizing_tells",
+   "hash": "f9281f0983e446254f4eb375ae8d565e8a8cdab6a299cf24f915a22e2569e9f1",
+   "index": 9,
+   "partition": "train"
+  },
+  "pm-c38833f4fa74": {
+   "family": "wide_pressure",
+   "hash": "65e6c1344e02eb5b27ced44e1b75f800e2129dd69c937dcb36895fcbed827d91",
+   "index": 12,
+   "partition": "train"
+  },
+  "pm-c59d25300ae3": {
+   "family": "loose_passive",
+   "hash": "e944f95a4a48316ccaa6344766aa00e5029dfe66d6cff037d5e548e16dd75b4e",
+   "index": 0,
+   "partition": "train"
+  },
+  "pm-c5a9683bbd5e": {
+   "family": "squeezer",
+   "hash": "c72e34e7c685f979c04c0d2d0cf84a2eab82a4f4c5fbde597b550ddd0eb05927",
+   "index": 4,
+   "partition": "train"
+  },
+  "pm-c5f8bb4a3b61": {
+   "family": "draw_player",
+   "hash": "33299d6f9b826f27aa4183b863a9a00b94dc6c8d07c63afe020ffc36e960cee2",
+   "index": 0,
+   "partition": "validation"
+  },
+  "pm-c623be345b58": {
+   "family": "variant_noisy",
+   "hash": "3cfdfb9a0f78d7682c3154edcbc6e6e02cc9af13110dbedfc6376e623c4fce95",
+   "index": 7,
+   "partition": "train"
+  },
+  "pm-c673f8ffdae5": {
+   "family": "texture_cbettor",
+   "hash": "c4c460ce3189c5d5506db92532cdc4ca6a222c3927ea9eaf30fed4fd3f4daed6",
+   "index": 1,
+   "partition": "holdout"
+  },
+  "pm-c6830287ce3d": {
+   "family": "handhq_regular",
+   "hash": "aa97baec9bb05c0772138df064f7983dee04452084f8b19efceedc486eca28cc",
+   "index": 4,
+   "partition": "train"
+  },
+  "pm-c6c02bcdb8a1": {
+   "family": "sizing_tells",
+   "hash": "933c863ea990a5c686245c6875510f19d4bfbc899bd8167d811d6463bc90c84c",
+   "index": 13,
+   "partition": "train"
+  },
+  "pm-c79977342475": {
+   "family": "icm_cap",
+   "hash": "664721ceac4d619fbce116d7ae1a9b1e454d93137b99d63766a9321ce935c087",
+   "index": 4,
+   "partition": "train"
+  },
+  "pm-c7c64535439d": {
+   "family": "selective_aggressor",
+   "hash": "b8d6769f297294760c0a3ac1aa4586a2294b13166611766acab10076881dcc8a",
+   "index": 13,
+   "partition": "train"
+  },
+  "pm-c80d49348d82": {
+   "family": "squeezer",
+   "hash": "e2930b61d40fca658292c6455ab1e7dfcb82ca6daa29ebd1fef28ef2fd055348",
+   "index": 2,
+   "partition": "validation"
+  },
+  "pm-c8f4bea50e78": {
+   "family": "squeezer",
+   "hash": "f8dc6d38860bad6ffd5a65f1ac097528cdae06a5ee430d47c4bc36f152d96e4b",
+   "index": 2,
+   "partition": "holdout"
+  },
+  "pm-ca6ccd55871f": {
+   "family": "odd_sizer",
+   "hash": "22f3678892f6d433f93bb16cd43ab00d00d3e81f34db637e721c22a61ea11efe",
+   "index": 0,
+   "partition": "holdout"
+  },
+  "pm-cb000923bd1d": {
+   "family": "selective_aggressor",
+   "hash": "339fbfb6ef1bdc9ce6c136aa89a705cf3801b0fdd9ac74d23cad83fea71d05e2",
+   "index": 2,
+   "partition": "train"
+  },
+  "pm-cb3e9f2a1a80": {
+   "family": "wide_pressure",
+   "hash": "7493ba6f44710b2bea0bcf88f18cbc77dd4c88cdd995e48bbbc8c28a643e99a9",
+   "index": 10,
+   "partition": "train"
+  },
+  "pm-cc07b8967c40": {
+   "family": "multiway_specialist",
+   "hash": "b3f64a18edeafec7a523d91d70989d341cdda6371e2e56e32f86b7f94ff7e0bc",
+   "index": 8,
+   "partition": "train"
+  },
+  "pm-cc46df46ec3b": {
+   "family": "chaotic_aggressor",
+   "hash": "0a514665187ebf3770acc6139d62099dfb6046cf26ed7577bcc586f814a9900f",
+   "index": 1,
+   "partition": "validation"
+  },
+  "pm-cd9eb3821acd": {
+   "family": "image_responsive",
+   "hash": "4846038d3fc103967f8dd3708ced434bcd67f7832f26df256c2c937087e86061",
+   "index": 1,
+   "partition": "holdout"
+  },
+  "pm-cee34c0ed6bf": {
+   "family": "image_responsive",
+   "hash": "88125f842e4bb825b95c91bc0387d1ce33ee7ca9ec6061fc5441b34e788a5a02",
+   "index": 4,
+   "partition": "holdout"
+  },
+  "pm-cf6f8d5691de": {
+   "family": "smooth_switcher",
+   "hash": "2f8760eaa07518650c0865c4909954ca84abe31e2aba68de60a51d1a16320da1",
+   "index": 3,
+   "partition": "train"
+  },
+  "pm-d074284d3143": {
+   "family": "selective_aggressor",
+   "hash": "ff7f2264da2038b8d1b95db73b2d72c66fb31ee415faf7c57f05b6e24a76c4ed",
+   "index": 2,
+   "partition": "validation"
+  },
+  "pm-d0e19e74620e": {
+   "family": "trapper",
+   "hash": "0b921852ebda5c8cf5460aa5d203a08e125c3ae66da68599bc8ad456fb26cf9a",
+   "index": 4,
+   "partition": "train"
+  },
+  "pm-d12c9c79490e": {
+   "family": "draw_player",
+   "hash": "debe315094bcab9e06210b5e21e8dcbeabc48b93ee0676f4f29701424a2c065d",
+   "index": 4,
+   "partition": "train"
+  },
+  "pm-d15c9108c448": {
+   "family": "handhq_recreational",
+   "hash": "125179254d77d9fe6a1ff6bb828748543039439f7e28e9516a7959ebb920d07b",
+   "index": 8,
+   "partition": "train"
+  },
+  "pm-d23d560d3ded": {
+   "family": "icm_cap",
+   "hash": "73ef7e2f433f60193725df66bb07c401a896c44c05276b063871b4bd5cba41e0",
+   "index": 12,
+   "partition": "train"
+  },
+  "pm-d2d631faf4ce": {
+   "family": "selective_aggressor",
+   "hash": "02f825def8fd6cf166c189fd5ce40e35c4cf75be7be756c6997541430479517d",
+   "index": 0,
+   "partition": "train"
+  },
+  "pm-d3008f945c84": {
+   "family": "handhq_recreational",
+   "hash": "548989c5d241e6846266429b290738a50a51171e0920b0b2c79e60176e0eddf6",
+   "index": 10,
+   "partition": "train"
+  },
+  "pm-d38279d2262b": {
+   "family": "tight_surrender",
+   "hash": "e028ef3d551d8e89ceb84b4ffbc8ad604039870de1fbc66dfd48f17517164661",
+   "index": 9,
+   "partition": "train"
+  },
+  "pm-d49f4c40a1ff": {
+   "family": "multiway_specialist",
+   "hash": "262ae794f1ec46b61b2ed29d533b51924ffa0491d9f766700dbafb3d1605c568",
+   "index": 0,
+   "partition": "validation"
+  },
+  "pm-d4ffdc0ba1d6": {
+   "family": "trapper",
+   "hash": "9d7cfa9812804b01583b1714621b2e4f5aab915baf7d6de3124cff74d996ff53",
+   "index": 10,
+   "partition": "train"
+  },
+  "pm-d5a996d38676": {
+   "family": "draw_player",
+   "hash": "1f8e28279d33ab03b574fd8e6ed483c3c5a009148f2773c73c44e1c5232b491d",
+   "index": 2,
+   "partition": "holdout"
+  },
+  "pm-d6de05c060fd": {
+   "family": "wide_pressure",
+   "hash": "f7b8c1233ef8c1c52725cd46dd4f5065e306ac1ff184e3730c6cb0043f410420",
+   "index": 13,
+   "partition": "train"
+  },
+  "pm-d75106d11466": {
+   "family": "icm_cap",
+   "hash": "5fdd1f99cea8ede9924025dd04880f0358d3ad50b374afc4b604597f014326ec",
+   "index": 1,
+   "partition": "validation"
+  },
+  "pm-d7546cf1b278": {
+   "family": "icm_cap",
+   "hash": "e7d11f906a792d87963ac40e86c556957d4b3f16dda2b716f238611e5f4199e2",
+   "index": 0,
+   "partition": "holdout"
+  },
+  "pm-d77751b09fd4": {
+   "family": "chaotic_aggressor",
+   "hash": "d6380c46687257f5fbc33dd83032ce639db9410a600060a34ff9f5a620f98cfe",
+   "index": 9,
+   "partition": "train"
+  },
+  "pm-d7b18795e49b": {
+   "family": "limp_iso",
+   "hash": "54f08013a84145c9d9f5d3c8981092f1a68cec8109f87cbdd8b943faea56b279",
+   "index": 1,
+   "partition": "train"
+  },
+  "pm-d8e2fbd42178": {
+   "family": "selective_aggressor",
+   "hash": "99986f20ba5d35b84898a4896c401408758eb177cdf054842e64cceb4d24e879",
+   "index": 1,
+   "partition": "validation"
+  },
+  "pm-d97b0b004e57": {
+   "family": "handhq_regular",
+   "hash": "6175dc2ab0a51f28b62429bbc0b86cb21677f914a1e8db89d30312794cb301b6",
+   "index": 8,
+   "partition": "train"
+  },
+  "pm-dce6d5509b05": {
+   "family": "loose_passive",
+   "hash": "77a6de8ece5b084cbc68b05b4fe184b812903f1de96ab3e505c3dd6eb01028ec",
+   "index": 2,
+   "partition": "holdout"
+  },
+  "pm-dd6e213c95cd": {
+   "family": "wide_pressure",
+   "hash": "ea2e66af9755bd98d9e8e9986578fb992810bd8a998a0ef556f7108a12456832",
+   "index": 6,
+   "partition": "train"
+  },
+  "pm-ddbbcbe243d1": {
+   "family": "texture_cbettor",
+   "hash": "167e569574b4b9691b6810780dee344a1b3d1c8a0eb0ab246581cd8c3e5e75da",
+   "index": 12,
+   "partition": "train"
+  },
+  "pm-df4d05dd6fc4": {
+   "family": "sizing_tells",
+   "hash": "33c8477250bad0ca95a0259fb122e5c01e2d1e6bca64a647e9798d7363da7718",
+   "index": 3,
+   "partition": "train"
+  },
+  "pm-e27783f306f3": {
+   "family": "selective_aggressor",
+   "hash": "05b85325689d663536bfd663b6109b5c6dcb7fcc4b87a960dfd65d6c18f181d3",
+   "index": 2,
+   "partition": "holdout"
+  },
+  "pm-e2919e03d12d": {
+   "family": "icm_cap",
+   "hash": "5189b436c848d7158f9585a8d1fa7c0576bd4596a125d2361465f7b96dfe60f7",
+   "index": 13,
+   "partition": "train"
+  },
+  "pm-e2b1ce8f2b49": {
+   "family": "handhq_regular",
+   "hash": "0cc1a691371c174fd07a6c3ec53a6e529a5e8a1262cb838bd23c3daccb78f77e",
+   "index": 0,
+   "partition": "train"
+  },
+  "pm-e5998d886228": {
+   "family": "limp_iso",
+   "hash": "913698aa0826779dfae1b5de3c1c124544cbf000d8574bed5abc8e04fcfe1997",
+   "index": 0,
+   "partition": "validation"
+  },
+  "pm-e5cabeba4636": {
+   "family": "handhq_regular",
+   "hash": "4d29fbbfe5c9d3c4ddd7a46ffc89651512b349485fb3febe8b064974cb70d757",
+   "index": 1,
+   "partition": "train"
+  },
+  "pm-e6611cbca2cb": {
+   "family": "multiway_specialist",
+   "hash": "cbeb152cb7352a2ea1ccea1fc64d6343150a5be76ee9a0fea8a39ceaa7288d34",
+   "index": 0,
+   "partition": "holdout"
+  },
+  "pm-e733b82f7e92": {
+   "family": "limp_iso",
+   "hash": "ef20dbd2d26b3f39bf7b8799eb38bd738d790f3f1bdb1455cc9ed61d19ee7260",
+   "index": 2,
+   "partition": "train"
+  },
+  "pm-e75fe3adb438": {
+   "family": "tight_surrender",
+   "hash": "1bc214119961e8812511fdb2e9a3c1e8abb93e95ee8f5965452887449dfd45bb",
+   "index": 8,
+   "partition": "train"
+  },
+  "pm-e7a3e305cb6b": {
+   "family": "chaotic_aggressor",
+   "hash": "e11c525e68207f2c943545a4009a9efe1f1a4f43eddf513acb0eb66880130726",
+   "index": 7,
+   "partition": "train"
+  },
+  "pm-e8469416ce94": {
+   "family": "chaotic_aggressor",
+   "hash": "683c00a3e5a9041d93ec98ac9f1a5ee5407f70fe01fb4e1ced6a44e57d84df28",
+   "index": 1,
+   "partition": "holdout"
+  },
+  "pm-e85fbf5af9e9": {
+   "family": "limp_iso",
+   "hash": "88f16224325e7ff385c72608c9232b3340b7e9fdaf856a7475f6d4ef402d767e",
+   "index": 1,
+   "partition": "holdout"
+  },
+  "pm-e8ca9662bbc6": {
+   "family": "draw_player",
+   "hash": "5821907bd9a89e56bd285998e0fcb45222b621df860079650a30ca8586c938a0",
+   "index": 0,
+   "partition": "train"
+  },
+  "pm-e993e392aad9": {
+   "family": "draw_player",
+   "hash": "d7925540b748c4623993fec01cec352a2946ba7e5271a89d9b30d7b33a1bc220",
+   "index": 6,
+   "partition": "train"
+  },
+  "pm-ebcce720b80e": {
+   "family": "trapper",
+   "hash": "e60d425987fc3d3a30d18ebfda7012401ded5db78127bda217b2bfa008a8ab44",
+   "index": 3,
+   "partition": "train"
+  },
+  "pm-ebef77a77e63": {
+   "family": "multiway_specialist",
+   "hash": "cbc52757373a1db8a1b11636adefac338f89d7634acdb137940570cab6b37e30",
+   "index": 1,
+   "partition": "holdout"
+  },
+  "pm-ecbdfa8fe9e5": {
+   "family": "handhq_recreational",
+   "hash": "b771dbe4f7c0bd69d702d87db2be772b64984530cfc2c11ba095497a63e85c91",
+   "index": 0,
+   "partition": "validation"
+  },
+  "pm-ed061e8eb63c": {
+   "family": "limp_iso",
+   "hash": "830f1ca6c8f126dd329f68cfa04e59746825fd19c1da67a02f00bc558b3a65e1",
+   "index": 13,
+   "partition": "train"
+  },
+  "pm-eebf7ba71b64": {
+   "family": "squeezer",
+   "hash": "1ec37c3797168647d94e68dc1282bb81458342619d35f75ec3a588338f9344b7",
+   "index": 1,
+   "partition": "holdout"
+  },
+  "pm-eec779897aaf": {
+   "family": "chaotic_aggressor",
+   "hash": "22ce36d7c72546fa73f7f6df169e97ad8ec1de480d173e66d1da5f6fa3f96231",
+   "index": 3,
+   "partition": "train"
+  },
+  "pm-ef68a777a318": {
+   "family": "sizing_tells",
+   "hash": "5acd58836da6dc9c1634510460d9f9019f9f433d728e0849b56ecd98dfb28655",
+   "index": 4,
+   "partition": "train"
+  },
+  "pm-f0114324026f": {
+   "family": "texture_cbettor",
+   "hash": "3d7b872caf05aaffdc96fd063af100e7701bd28b654bb53f23bad1a6bc1a14db",
+   "index": 2,
+   "partition": "holdout"
+  },
+  "pm-f113cfb083ba": {
+   "family": "wide_pressure",
+   "hash": "28b5d066933df4b1c043748cef8f142dfb39fa42c63ca4a144d288b876f3ccd5",
+   "index": 1,
+   "partition": "holdout"
+  },
+  "pm-f23082aedd64": {
+   "family": "smooth_switcher",
+   "hash": "8fd09f4bad36d843ad9efebb64c6e44a883434210ba52d049e4b9982354a935c",
+   "index": 8,
+   "partition": "train"
+  },
+  "pm-f2e90e4c44ed": {
+   "family": "tight_surrender",
+   "hash": "f8b314726aa2a72d18e9312c043f8995f3b2c5e60813a9ebb4313c3134da7015",
+   "index": 2,
+   "partition": "holdout"
+  },
+  "pm-f30fb5c233f7": {
+   "family": "variant_noisy",
+   "hash": "5d93663af10b2e57d8fcb78825a57f443190919f05af01698a7c20c997bad26d",
+   "index": 1,
+   "partition": "train"
+  },
+  "pm-f37894ee2fc5": {
+   "family": "texture_cbettor",
+   "hash": "d76c7563ed779470a5e416cfed878746a017cdcd5aeea9e0954ac2b09b4ce81d",
+   "index": 1,
+   "partition": "validation"
+  },
+  "pm-f4ef4e473dae": {
+   "family": "sizing_tells",
+   "hash": "9493738f04be060b93028a195cd5a0de7dcbf04d9bd65eeb305c401037d910db",
+   "index": 8,
+   "partition": "train"
+  },
+  "pm-f67ca47c12de": {
+   "family": "sizing_tells",
+   "hash": "3dd9a9a92f1a7975c37a805718d398e4fb38d47df5bc621ec89d6ec1ee9a3099",
+   "index": 2,
+   "partition": "train"
+  },
+  "pm-f6c46f391017": {
+   "family": "image_responsive",
+   "hash": "289ab76cbca110ef48073a187678b2951918eae7c33f1e289a255eb1fbb08ffd",
+   "index": 2,
+   "partition": "holdout"
+  },
+  "pm-f82e39d08ead": {
+   "family": "smooth_switcher",
+   "hash": "0442eb15f259dbbc35576e3c7ab79f0c8f9f024f816bd1843aedc87d56494659",
+   "index": 2,
+   "partition": "validation"
+  },
+  "pm-f9ce37c1d103": {
+   "family": "trapper",
+   "hash": "286c2ab61f1b5302adef348730d6acaead08468f490902ede614d4ae1895f3c5",
+   "index": 5,
+   "partition": "train"
+  },
+  "pm-f9ec1693e8f2": {
+   "family": "handhq_recreational",
+   "hash": "79f376138d1fe9da9c80e81e007aa766306858b116f990f705bc2c8708b74684",
+   "index": 1,
+   "partition": "validation"
+  },
+  "pm-fa83c70178d1": {
+   "family": "smooth_switcher",
+   "hash": "de410131c6b29e9aafcf032d932ee00e5355fc9936b06bee37930c2524a7bfac",
+   "index": 2,
+   "partition": "train"
+  },
+  "pm-fb4e5aed91ed": {
+   "family": "draw_player",
+   "hash": "7e621746e79b814fd53c1900c973d7d62a02f8822cd980facd42cce20e3405f4",
+   "index": 3,
+   "partition": "train"
+  },
+  "pm-fcf3c9f964ac": {
+   "family": "selective_aggressor",
+   "hash": "11a8669bd6f5ea4d31b38ef78404f5be121c7a8049884a72d9c2e17104ad24a3",
+   "index": 11,
+   "partition": "train"
+  },
+  "pm-fdf7f2c4b7c9": {
+   "family": "texture_cbettor",
+   "hash": "b8bddd2728cc0aef6b4dc9657c99612244c5ebfd04e94b69393f72638af9d741",
+   "index": 9,
+   "partition": "train"
+  },
+  "pm-fe838531c895": {
+   "family": "icm_cap",
+   "hash": "607ef8e3fd4bfdc5440d022e8ade9fe8b55c7cb52d41a923c48e964ed4aa33ad",
+   "index": 0,
+   "partition": "train"
+  },
+  "pm-ff63962d4c77": {
+   "family": "variant_noisy",
+   "hash": "2b6fedb29db6f984fcd31cf9d25dcbcdf29bcc6589c76a7c9728ab2adf9896c8",
+   "index": 0,
+   "partition": "validation"
+  }
+ },
+ "partition_bins": {
+  "holdout": [
+   6,
+   13,
+   19
+  ],
+  "train": [
+   0,
+   1,
+   2,
+   4,
+   5,
+   7,
+   8,
+   9,
+   11,
+   12,
+   14,
+   15,
+   16,
+   18
+  ],
+  "validation": [
+   3,
+   10,
+   17
+  ]
+ },
+ "registry_hash": "e57b1eaeabcbeb867ee69f1cf3c6a60733bdd6b3363b59f3c6ca9bd50bc3a389",
+ "tables_sha256": "9ca2fc821d525652d35f0cd3be8bb4f9198fed0c4c2292837e735e7871993d33",
+ "validation_only_pairs": [
+  [
+   "squeezer",
+   "limp_iso"
+  ],
+  [
+   "trapper",
+   "texture_cbettor"
+  ],
+  [
+   "icm_cap",
+   "smooth_switcher"
+  ]
+ ],
+ "version": "pop-v1+handhq-v1"
+}

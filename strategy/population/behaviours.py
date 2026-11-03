@@ -444,3 +444,28 @@ def variant_noise(p: Mapping[str, float], seed: str, obs: Any, top: float):
         return cards.BUCKETS[i], max(0, outs + out_shift if outs else 0), value
 
     return noisy, evaluator
+
+
+# ------------------------------------------------------------------ HandHQ-calibrated families
+
+def sticky(c: Ctx) -> Decision | None:
+    """Calls a post-flop bet with a weak or medium hand at a price the seat tolerates, and stabs when checked to."""
+    s, p = c.s, c.p
+    if s.street == "preflop" or c.bucket in ("monster", "strong"):
+        return None
+    if s.to_call:
+        if not s.faced_reraise and s.bet_frac <= p["sticky_price"] and c.ch(p["sticky"]):
+            return _call(s, "called: does not believe the bet")
+        return None
+    if s.pre_aggressor != s.hero and not s.hero_checked and c.ch(p["stab"]):
+        return _bet(s, p["stab_frac"], "stabbed at the pot")
+    return None
+
+
+def min_raiser(c: Ctx, action: Action) -> Action:
+    """Turns a raise facing a bet or blind into the minimum legal raise with probability ``min_raise``."""
+    legal = c.obs.legal
+    if (action.type == "raise_to" and c.s.to_call and legal.min_full_raise_to is not None
+            and legal.min_full_raise_to != legal.all_in_raise_to and c.ch(c.p["min_raise"])):
+        return Action(type="raise_to", amount=legal.min_full_raise_to)
+    return action

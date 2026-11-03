@@ -41,7 +41,7 @@ from arena.benchmark.manifest import derive_seeds
 from arena.domain.canonical import canonical_hash
 from arena.domain.models import RULESET_IDS
 from strategy.population import cards
-from strategy.population.families import FAMILIES, FAMILY_LIST, HOLDOUT_ONLY
+from strategy.population.families import ALL_FAMILIES, FAMILY_LIST, HOLDOUT_ONLY
 from strategy.population.params import PARTITION_BINS, PARTITIONS, region_of
 from strategy.population.policy import PopulationBot
 
@@ -114,7 +114,7 @@ class Member:
 
     @property
     def region(self) -> int:
-        return region_of(FAMILIES[self.family].prior, self.params)
+        return region_of(ALL_FAMILIES[self.family].prior, self.params)
 
     def make_bot(self) -> PopulationBot:
         return PopulationBot.from_spec(self.spec)

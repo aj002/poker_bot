@@ -387,7 +387,82 @@ FAMILY_LIST: tuple[Family, ...] = (
     ),
 )
 
+
+# HandHQ-calibrated families ------------------------------------------------------------
+# Fitted to real six-max players (PokerStars 2009, docs/handhq-population-report.md) and
+# registered only by the train/validation extension in strategy.population.handhq, so the
+# pop-v1 registry, its lock and its holdout are unchanged.
+
+def _handhq_regular(p: Mapping[str, float]) -> dict[str, Any]:
+    k = _wide(p)
+    k.update({"agg.open_mult": p["open_mult"], "aggp.medium_call": p["medium_call"], "aggp.barrel": p["barrel"]})
+    k.update(_handhq_common(p))
+    return k
+
+
+def _handhq_common(p: Mapping[str, float]) -> dict[str, Any]:
+    return {"agg.call_3b": top(p["call_3b_top"]), "agg.jam_3b": top(min(p["call_3b_top"], 0.02)),
+            "aggp.thin_value": p["thin_value"], "aggp.strong_raise": p["strong_raise"],
+            "aggp.draw_bet": p["draw_bet"]}
+
+
+def _handhq_recreational(p: Mapping[str, float]) -> dict[str, Any]:
+    return {"agg.reraise": top(p["reraise_top"]), "agg.light_reraise_p": 0.02, "agg.call": top(p["call_top"]),
+            "agg.call_price": p["call_price"], "aggp.cbet": p["cbet"], "aggp.barrel": p["barrel"],
+            "aggp.medium_call": p["medium_call"], "aggp.semi": 0.15, "aggp.fight": p["fight"],
+            **_handhq_common(p)}
+
+
+HANDHQ_FAMILY_LIST: tuple[Family, ...] = (
+    Family(
+        id="handhq_regular", number=19, title="Real-player regular (HandHQ)", anchor="aggressive",
+        summary="A 2009 online six-max regular: raise-first or fold, flats some raises, continuation-bets about "
+                "two flops in three and calls down more than the style bots; knobs fitted to the HandHQ players "
+                "with VPIP 14-30% whose PFR is at least 60% of their VPIP.",
+        prior=Prior("handhq_regular", (
+            _open(0.13, 0.07, 0.24), P("late_mult", 1.4, 2.6, 1.9), P("open_mult", 2.5, 4.0, 3.2),
+            P("reraise_top", 0.02, 0.07, 0.04), P("light_reraise_p", 0.02, 0.3, 0.1),
+            P("call_top", 0.08, 0.26, 0.16), P("call_price", 0.06, 0.16, 0.1),
+            P("cbet", 0.3, 0.8, 0.5), P("barrel", 0.1, 0.6, 0.28), P("semi", 0.05, 0.4, 0.15),
+            P("fight", 0.15, 0.6, 0.35), P("cbet_frac", 0.45, 0.9, 0.65), P("medium_call", 0.5, 1.4, 0.9),
+            P("sticky", 0.1, 0.75, 0.55), P("sticky_price", 0.3, 0.9, 0.6), P("stab", 0.02, 0.25, 0.08),
+            P("stab_frac", 0.3, 0.8, 0.5), P("min_raise", 0.002, 0.15, 0.03),
+            P("call_3b_top", 0.03, 0.12, 0.065), P("thin_value", 0.03, 0.45, 0.12),
+            P("strong_raise", 0.01, 0.25, 0.06), P("draw_bet", 0.1, 0.6, 0.3),
+        ), (("open_early", "cbet", 0.3), ("open_early", "reraise_top", 0.4), ("cbet", "barrel", 0.5),
+            ("medium_call", "sticky", 0.3))),
+        knobs=_handhq_regular, hooks=(b.sticky,), post=(b.min_raiser,),
+        regime={"open_early": 0.8, "light_reraise_p": 0.8}, regime_doc="opens up",
+        expected={"vpip": (0.13, 0.27), "pfr": (0.1, 0.22), "three_bet": (0.02, 0.07), "cold_call": (0.05, 0.17),
+                  "fold_to_reraise": (0.35, 0.7), "cbet": (0.5, 0.85), "aggression": (1.8, 5.5)},
+    ),
+    Family(
+        id="handhq_recreational", number=20, title="Real-player recreational (HandHQ)", anchor="aggressive",
+        summary="A 2009 online six-max recreational player: limps and over-limps, raises a narrow range, cold-calls "
+                "raises, calls bets with weak hands at small prices and min-raises; knobs fitted to the HandHQ "
+                "players whose PFR is under 60% of their VPIP.",
+        prior=Prior("handhq_recreational", (
+            P("limp_width", 0.15, 0.55, 0.31), P("open_top", 0.06, 0.24, 0.16), P("limp_trap", 0.01, 0.3, 0.08),
+            P("open_mult", 2.5, 5.0, 3.5), P("iso_top", 0.03, 0.17, 0.09), P("iso_mult", 3.0, 6.0, 4.0),
+            P("overlimp_width", 0.15, 0.55, 0.36), P("limp_reraise_top", 0.005, 0.04, 0.015),
+            P("limp_call", 0.08, 0.4, 0.2), P("limp_call_price", 0.06, 0.25, 0.14),
+            P("reraise_top", 0.01, 0.05, 0.025), P("call_top", 0.15, 0.5, 0.32), P("call_price", 0.08, 0.3, 0.16),
+            P("cbet", 0.2, 0.7, 0.4), P("barrel", 0.1, 0.5, 0.25), P("medium_call", 0.6, 1.4, 0.95),
+            P("fight", 0.3, 0.9, 0.6), P("sticky", 0.15, 0.7, 0.4), P("sticky_price", 0.3, 1.0, 0.65),
+            P("stab", 0.03, 0.3, 0.12), P("stab_frac", 0.3, 0.8, 0.5), P("min_raise", 0.02, 0.4, 0.12),
+            P("call_3b_top", 0.02, 0.1, 0.05), P("thin_value", 0.03, 0.4, 0.15),
+            P("strong_raise", 0.01, 0.2, 0.05), P("draw_bet", 0.05, 0.5, 0.2),
+        ), (("limp_width", "overlimp_width", 0.6), ("call_top", "sticky", 0.4), ("open_top", "iso_top", 0.4))),
+        knobs=_handhq_recreational, hooks=(b.limp_iso, b.sticky), post=(b.min_raiser,),
+        regime={"sticky": -1.0, "limp_width": -1.0}, regime_doc="tightens up",
+        expected={"vpip": (0.19, 0.36), "pfr": (0.06, 0.15), "limp": (0.07, 0.25), "cold_call": (0.15, 0.36),
+                  "fold_to_reraise": (0.2, 0.55), "aggression": (0.5, 1.5), "min_raise_share": (0.04, 0.25)},
+    ),
+)
+
 FAMILIES: dict[str, Family] = {f.id: f for f in FAMILY_LIST}
+ALL_FAMILIES: dict[str, Family] = {**FAMILIES, **{f.id: f for f in HANDHQ_FAMILY_LIST}}
+"""Every family a member spec may name: the pop-v1 families and the HandHQ extension."""
 HOLDOUT_ONLY: tuple[str, ...] = tuple(f.id for f in FAMILY_LIST if f.split == "holdout_only")
 CHECKPOINT_FAMILY = "frozen_checkpoint"
 """Family 18: frozen learner checkpoints and trained approximate responses (registry slots)."""
