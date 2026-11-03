@@ -14,18 +14,36 @@ trusting them.
 
 ## Before the day
 
-- [ ] Check out the tagged commit `prereg-final-holdout`, or a descendant that changes
-      nothing under the bundle's closure. Then run `uv sync --frozen`. numba is not
-      needed, so leave out `--group train`.
+- [ ] Check out the main commit that `strategy/final/submission.json` was recorded at, or
+      a descendant that changes nothing under the bundle's closure. Then run
+      `uv sync --frozen`. numba is not needed, so leave out `--group train`.
 - [ ] `make verify-fast` is green.
 - [ ] Record the commit SHA. The bundle manifest does not embed it; the bundle hash
       identifies the bytes.
 
 ## Build and verify
 
-- [ ] `make final-arms final-package`. The printed `bundle_sha256` must be the
-      pre-registered one in `strategy/final/holdout-preregistration.json`. If it differs,
-      the code or a pack changed, so this is not the bot that was evaluated. Stop.
+- [ ] `make final-arms final-package`. The printed `bundle_sha256` must be
+      `submission_bundle_sha256` in `strategy/final/submission.json`. If it differs, the
+      code or a pack changed since the submission bundle was gated and checked against the
+      evaluated one. Stop, or redo the equivalence step below and the gate.
+- [ ] The holdout evaluated the bundle built at the tag `prereg-final-holdout`
+      (`evaluated_bundle_sha256`, the hash in `strategy/final/holdout-preregistration.json`).
+      Main was rebased onto later engine and strategy commits after that, so the submission
+      bytes differ. `submission.json` records that the two bundles play identically through
+      the sandbox worker. To re-check, build the evaluated bundle in a worktree and compare:
+
+      ```bash
+      git worktree add /tmp/prereg prereg-final-holdout
+      (cd /tmp/prereg && uv sync --frozen && make final-package)
+      uv run python -m strategy.final.equivalence --a /tmp/prereg/artifacts/final/bundle \
+          --b artifacts/final/bundle --tables 160
+      uv run python -m strategy.final.equivalence --a /tmp/prereg/artifacts/final/bundle \
+          --b artifacts/final/bundle --tables 40 --ruleset uncertainty_plo4
+      ```
+
+      Both must report `identical: true`. If they do not, the submission bundle is not the
+      evaluated bot.
 - [ ] `make final-verify` must report `"ok": true`. It checks, in order:
   - every file hash and the bundle hash against `MANIFEST.json`;
   - a smoke load from a scratch directory with the repository hidden: the runtime, the
@@ -48,7 +66,9 @@ trusting them.
   - 0 internal fallbacks and 0 restarts.
 
   The gate retries once on a host-invalid or stall-excess verdict. A bot-caused failure
-  on an idle machine means the bundle is not safe to submit; fall back (see below).
+  on an idle machine means the bundle is not safe to submit; fall back (see below). Do
+  not rerun a ceiling failure until it passes. Every run on this VM is listed in
+  `submission.json`.
 - [ ] `make gate-final-generic` must pass. This is the PLO4 path of the same bundle.
 - [ ] Optional: `make final-equivalence` replays the bundle and
       `artifacts/exploit/bundles/exploit` through the sandbox worker on 160 tables. It must
@@ -56,8 +76,9 @@ trusting them.
 
 ## Upload
 
-- [ ] Upload the tarball. Keep `SHA256SUMS`, `MANIFEST.json`, `artifacts/gate/final.json`
-      and the holdout evidence (`artifacts/final/holdout/`) as the dispute record.
+- [ ] Upload the tarball. Keep `SHA256SUMS`, `MANIFEST.json`, `artifacts/gate/final.json`,
+      `strategy/final/submission.json` and the holdout evidence
+      (`artifacts/final/holdout/`) as the dispute record.
 - [ ] Rollbacks, in order:
   1. The blueprint bundle (`artifacts/blueprint/bundles/final`). Gate it first with
      `strategy.policy.gate --bundle artifacts/blueprint/bundles/final`.

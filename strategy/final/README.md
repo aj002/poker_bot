@@ -37,7 +37,7 @@ make final-arms final-package final-verify   # comparison arms, the bundle, the 
 make final-equivalence                       # sandboxed identity against the exploit bundle (160 tables)
 make gate-final gate-final-generic           # the deployed gate, NLHE and PLO4 (idle machine)
 make distill-collect distill-student distill-agree distill-validate gate-student   # the distillation study
-make final-holdout final-holdout-confirm     # once, after the pre-registration tag is pushed
+make final-holdout final-holdout-confirm     # done once (see below); refuses to run again
 ```
 
 ## Distillation study (validation partition)
@@ -59,5 +59,37 @@ the student runs on the plain blueprint path with 43 bytes of state.
 
 The student holds its own against the exploitable population but loses to the teacher
 where the teacher's confidence gate keeps it on the blueprint. **The teacher is shipped as
-is.** It passes the deployed gate, and a deadline hybrid would make play depend on the
-clock (see the report).
+is.** A deadline hybrid would make play depend on the clock, and a perfect switch would have
+rescued none of the gate's bot-caused timeouts for certain (see the report).
+
+## Holdout (run once, `docs/final-holdout-preregistration.md`)
+
+B is the final bot. The values are mean terminal points per candidate seat (an average seat
+scores 12.5). The p-values are one-sided and Holm-corrected over the four hypotheses.
+
+| id | A | blocks | A | B | B − A | 95% CI | Holm p |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| H1 | blueprint, 16 sampled holdout lineups | 640 | 19.07 | 21.17 | **+2.10** | [+1.44, +2.75] | 8e-10 |
+| H2 | baseline nlhe-v2 | 240 | 17.52 | 21.03 | **+3.51** | [+2.30, +4.71] | 3e-8 |
+| H3 | endgame-capped bot | 240 | 14.82 | 22.68 | **+7.86** | [+6.64, +9.09] | < 1e-15 |
+| H4 | blueprint, holdout-only families, non-inferiority at −0.5 | 600 | 20.98 | 21.55 | +0.57 | [+0.02, +1.12] | 8e-5 |
+
+All four are rejected. Every arm had 0 errors, fallbacks, timeouts and illegal actions. The
+evidence is `artifacts/final/holdout/` (the ledger and `confirm.json`).
+
+## Submission bundle
+
+Main was rebased onto later commits after the holdout (antes in the engine and rules
+adapter, and the burst-aware gate classifier). The rebuilt bundle's bytes therefore differ
+from the evaluated one's. `submission.json` records both hashes, the sandbox equivalence
+between them on NLHE and PLO4, and every deployed-gate run of either bundle.
+
+| gate run | bundle | classifier | verdict | decide p99 / p99.9 | bot-caused |
+| --- | --- | --- | --- | --- | --- |
+| 1–3, NLHE | evaluated | `cpu_bound` (ee67639) | fail (ceiling) | 351–368 / 435–507 µs | 30, 11, 23 per 50k |
+| 4, NLHE | submission | burst-aware (main) | pass | 361 / 466 µs | 5 per 50k (0.010%), 0 cleared by host rules |
+| PLO4 | both | both | pass | 87–106 / 132–165 µs | 0 |
+
+The ceiling failures came mostly with harness parses at 3–23 times their median, which is
+the host-burst pattern main's classifier now attributes to the host (see the report). The
+decide p99 is the package's tightest margin against the 400 µs limit.

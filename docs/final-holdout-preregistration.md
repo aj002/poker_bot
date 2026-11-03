@@ -110,3 +110,47 @@ All four results are reported with intervals, including nulls and failures. The 
 records a ledger (`artifacts/final/holdout/ledger.json`) and refuses a second run of any
 comparison. No spec is re-run with new seeds. If a result prompts a change, the changed bot
 is a new experiment and cannot use this partition as unseen evidence again.
+
+## Results (added after the runs)
+
+Run once on 2026-11-02 at the tagged commit `b7e0d03`, from 22:29 to 23:26 UTC, with
+bundle `9fb85e2d…`. Nothing was changed or re-run afterwards. The ledger is
+`artifacts/final/holdout/ledger.json` and the Holm confirmation is
+`artifacts/final/holdout/confirm.json`.
+
+| id | blocks | A | B | B − A | 95% CI | one-sided p | Holm p | verdict |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| H1 vs blueprint | 640 | 19.07 | 21.17 | +2.10 | [+1.44, +2.75] | 2.8e-10 | 8.3e-10 | win |
+| H2 vs baseline nlhe-v2 | 240 | 17.52 | 21.03 | +3.50 | [+2.30, +4.71] | 1.5e-8 | 3.0e-8 | win |
+| H3 vs endgame-capped | 240 | 14.82 | 22.68 | +7.86 | [+6.64, +9.09] | < 1e-15 | < 1e-15 | win |
+| H4 holdout-only families | 600 | 20.98 | 21.55 | +0.57 | [+0.02, +1.12] | 8.0e-5 | 8.0e-5 | non-inferior |
+
+Execution: 0 errors, fallbacks, timeouts and illegal actions in every arm of every
+comparison. The arms made 3.88 million decisions in total.
+
+Exploratory slices, with no claims:
+
+- H1 by holdout-only family: image_responsive +2.09 [+1.27, +2.90] and odd_sizer +1.80
+  [+1.04, +2.57]. The weakest family was draw_player, at +1.21 [−0.11, +2.52].
+- H2: image_responsive +3.54 and odd_sizer +3.87. The weakest family was
+  selective_aggressor, at +2.18. In H3 every family was at least +6.0.
+- H4 per lineup:
+  - 7 × image_responsive: +1.00 [+0.07, +1.93];
+  - 7 × odd_sizer: +0.51 [−0.35, +1.36];
+  - 4 + 3 mixed: +0.20 [−0.89, +1.29].
+
+  The non-inferiority comes from the pooled 600 blocks. No single lineup is decisive.
+
+**Gate.** The pre-registered gate run after the holdout (run 3, old classifier) **failed**
+the bot-caused ceiling: 23 bot-caused timeouts in 50,082 decisions (0.046%), at a decide
+p99 of 359 µs. Main was then rebased onto ante support and the burst-aware classifier,
+which changed the bundle's bytes to `8f4fd15e…`. That bundle plays identically to the
+evaluated one through the sandbox worker on 160 NLHE and 40 PLO4 tables. It passed main's
+gate on its first run:
+
+- NLHE: 5 bot-caused timeouts in 50,092 decisions (0.010%), decide p99 361 µs and p99.9
+  466 µs, with no host-rule clearances;
+- PLO4: 0 bot-caused.
+
+Every run is listed in `strategy/final/submission.json`. The M8 exit is met by the
+submission bundle. It is not met by the pre-registered gate run.

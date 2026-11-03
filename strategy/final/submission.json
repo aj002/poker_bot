@@ -1,0 +1,44 @@
+{
+ "bundle": "artifacts/final/bundle",
+ "submission_bundle_sha256": "8f4fd15ecb57875a6e5173307b91c6262ea590030cbd302f636243f38750ba03",
+ "bytes": 7583393,
+ "py_files": 41,
+ "tarball": {"name": "final-bot-8f4fd15ecb57.tar.gz", "bytes": 6687662,
+             "sha256": "0eee8fa91ed325d3936f8fb4170dd908e38de4ba1a31561f1d69c42d8dce4dfe"},
+ "worker_peak_rss_bytes": {"practice_nlhe": 93528064, "uncertainty_plo4": 93716480},
+ "built_on": "main after 44a5a91 (Stage 8 rebased onto ante support and the burst-aware gate classifier)",
+ "evaluated_bundle_sha256": "9fb85e2d7fe808ee825791975cb740f85d2f2a9d2bc4064588fcb04d21eb3297",
+ "evaluated_at": {"tag": "prereg-final-holdout", "commit": "b7e0d0368e1f03611ead46dc8858c89263082a5e"},
+ "equivalence": {
+  "note": "evaluated bundle (a) vs submission bundle (b) through the sandbox worker, train partition, seed final-equivalence-v1",
+  "practice_nlhe": {"tables": 160, "identical_tables": 160, "hero_decisions": 24355, "public_actions": 177166, "fallbacks": 0, "identical": true},
+  "uncertainty_plo4": {"tables": 40, "identical_tables": 40, "hero_decisions": 6473, "public_actions": 40820, "fallbacks": 0, "identical": true}
+ },
+ "gate_runs": [
+  {"run": 1, "bundle_sha256": "9fb85e2d", "ruleset": "practice_nlhe", "classifier": "cpu_bound (ee67639)", "passed": false,
+   "decisions": 50081, "p99_us": 351.5, "p999_us": 435.0, "timeouts": 55, "bot_caused": 30, "control_bot_caused": "0/11390",
+   "failed": ["bot_caused_ceiling", "bot_caused_within_control"]},
+  {"run": 2, "bundle_sha256": "9fb85e2d", "ruleset": "practice_nlhe", "classifier": "cpu_bound (ee67639)", "passed": false,
+   "decisions": 50108, "p99_us": 367.6, "p999_us": 478.5, "timeouts": 42, "bot_caused": 11, "control_bot_caused": "0/11356",
+   "failed": ["bot_caused_ceiling"]},
+  {"run": 3, "bundle_sha256": "9fb85e2d", "ruleset": "practice_nlhe", "classifier": "cpu_bound (ee67639)", "passed": false,
+   "decisions": 50082, "p99_us": 359.4, "p999_us": 507.2, "timeouts": 96, "bot_caused": 23, "control_bot_caused": "2/11444",
+   "failed": ["bot_caused_ceiling"]},
+  {"run": 4, "bundle_sha256": "8f4fd15e", "ruleset": "practice_nlhe", "classifier": "burst-aware (main)", "passed": true,
+   "decisions": 50092, "p99_us": 361.2, "p999_us": 466.2, "timeouts": 34, "bot_caused": 5, "control_bot_caused": "2/11160",
+   "host_rule_clearances": 0, "restarts": 0, "internal_fallbacks": 0,
+   "points_cost_per_table": {"1x": [0.06, -0.19, 0.32], "10x": [0.14, -0.64, 0.92]}},
+  {"run": "plo4-1", "bundle_sha256": "9fb85e2d", "ruleset": "uncertainty_plo4", "classifier": "cpu_bound (ee67639)", "passed": true,
+   "decisions": 50038, "p99_us": 105.8, "p999_us": 165.0, "timeouts": 50, "bot_caused": 0, "control_bot_caused": "0/16549"},
+  {"run": "plo4-2", "bundle_sha256": "8f4fd15e", "ruleset": "uncertainty_plo4", "classifier": "burst-aware (main)", "passed": true,
+   "decisions": 50048, "p99_us": 86.9, "p999_us": 131.5, "timeouts": 10, "bot_caused": 0, "control_bot_caused": "0/17327",
+   "restarts": 0, "internal_fallbacks": 0}
+ ],
+ "holdout": {
+  "confirm": "artifacts/final/holdout/confirm.json",
+  "H1_vs_blueprint": {"blocks": 640, "diff": 2.096, "ci95": [1.443, 2.749], "p_holm": 8.3e-10, "rejected": true},
+  "H2_vs_baseline_nlhe_v2": {"blocks": 240, "diff": 3.505, "ci95": [2.301, 4.709], "p_holm": 3.0e-8, "rejected": true},
+  "H3_vs_endgame_capped": {"blocks": 240, "diff": 7.863, "ci95": [6.639, 9.087], "p_holm": 0.0, "rejected": true},
+  "H4_holdout_only_families_noninferiority": {"blocks": 600, "diff": 0.569, "ci95": [0.017, 1.121], "margin": -0.5, "p_holm": 8.0e-5, "rejected": true}
+ }
+}

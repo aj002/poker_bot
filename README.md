@@ -169,7 +169,14 @@ the exploiting blueprint on NLHE and the variant-agnostic fallback (`strategy/po
 on every other ruleset. Its bundle is deterministic and hashed (7.6 MB, no numba) and plays
 identically to the exploit bundle through the sandbox worker. A distilled table student was
 measured and rejected: it loses to the teacher against blueprint-like opponents. The holdout
-evaluation is pre-registered in `docs/final-holdout-preregistration.md` and runs once. Submit
+evaluation was pre-registered in `docs/final-holdout-preregistration.md` and run once.
+Holm-corrected, the final bot beat the blueprint by +2.10 points [+1.44, +2.75], the baseline
+nlhe-v2 by +3.51 and the endgame-capped bot by +7.86. It was non-inferior to the blueprint
+against the two holdout-only families it has no model of (+0.57 [+0.02, +1.12]). The
+submission bundle passed the deployed gate on NLHE (decide p99 361 µs, 0.010% bot-caused
+timeouts) and PLO4. Three earlier runs, under the older timeout classifier, failed the
+0.02% ceiling. The bundle and every gate run are recorded in
+`strategy/final/submission.json`. Submit
 by following [`docs/submission-checklist.md`](docs/submission-checklist.md):
 
 ```bash

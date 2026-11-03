@@ -266,6 +266,20 @@ def test_preregistration_matches_the_holdout_specs():
     assert [h["kind"] for h in pre["hypotheses"]].count("non_inferiority") == 1
 
 
+def test_submission_record_ties_the_shipped_bundle_to_the_evaluated_one():
+    from strategy.final.holdout import preregistration
+
+    sub = json.loads((Path(__file__).parents[2] / "strategy/final/submission.json").read_text())
+    assert sub["evaluated_bundle_sha256"] == preregistration()["bundle_sha256"]
+    assert sub["evaluated_at"]["tag"] == preregistration()["tag"]
+    if sub["submission_bundle_sha256"] != sub["evaluated_bundle_sha256"]:
+        for ruleset in ("practice_nlhe", "uncertainty_plo4"):
+            eq = sub["equivalence"][ruleset]
+            assert eq["identical"] and eq["identical_tables"] == eq["tables"] and eq["fallbacks"] == 0
+    shipped = [g for g in sub["gate_runs"] if g["bundle_sha256"] == sub["submission_bundle_sha256"][:8]]
+    assert {g["ruleset"] for g in shipped if g["passed"]} == {"practice_nlhe", "uncertainty_plo4"}
+
+
 def test_holdout_runner_never_runs_a_finished_comparison_twice(tmp_path, monkeypatch):
     from strategy import population
     from strategy.exploit import evaluate
