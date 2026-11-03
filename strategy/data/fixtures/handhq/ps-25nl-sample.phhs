@@ -1,0 +1,64 @@
+[4]
+variant = 'NT'
+ante_trimming_status = false
+antes = [0, 0, 0, 0, 0, 0]
+blinds_or_straddles = [0.10, 0.25, 0, 0, 0, 0]
+min_bet = 0.25
+starting_stacks = [34.20, 29.95, 27.85, 25, 36.25, 26.65]
+actions = ['d dh p1 ????', 'd dh p2 ????', 'd dh p3 ????', 'd dh p4 ????', 'd dh p5 ????', 'd dh p6 ????', 'p3 f', 'p4 f', 'p5 cbr 1.00', 'p6 f', 'p1 cc', 'p2 f', 'd db 8dQc5d', 'p1 cc', 'p5 cc', 'd db 7c', 'p1 cc', 'p5 cbr 2', 'p1 cbr 4', 'p5 cbr 13', 'p1 f']
+venue = 'PokerStars'
+time = 00:00:00
+day = 1
+month = 7
+year = 2009
+hand = 59937793660
+seats = [6, 1, 2, 3, 4, 5]
+seat_count = 6
+table = '0M5QEJGOThqZwQ/sjbjXYw'
+players = ['mYz11CHiw5KsDCRD5T7/jg', '1hVos0c+4q8jzxlkOWgPqw', '/gJNBeCkWL4o85/jvlZ4BA', '2KjLTFtubwNnRB979aisag', 'fZQg9veL7Dd/Z04ZTjC+wQ', 'uy9x0X5l7O+IpGjLa77QgQ']
+winnings = [0, 0, 0, 0, 9.75, 0]
+currency_symbol = '$'
+time_zone_abbreviation = 'ET'
+
+[27]
+variant = 'NT'
+ante_trimming_status = false
+antes = [0, 0, 0, 0, 0, 0]
+blinds_or_straddles = [0.10, 0.25, 0, 0, 0, 0]
+min_bet = 0.25
+starting_stacks = [46.80, 25, 49.60, 22.65, 25, 29.30]
+actions = ['d dh p1 ????', 'd dh p2 ????', 'd dh p3 ????', 'd dh p4 ????', 'd dh p5 ????', 'd dh p6 ????', 'p3 f', 'p4 cc', 'p5 f', 'p6 f', 'p1 f', 'p2 cc', 'd db 2d3d6d', 'p2 cc', 'p4 cc', 'd db 4d', 'p2 cc', 'p4 cc', 'd db 2h', 'p2 cc', 'p4 cbr 0.25', 'p2 f']
+venue = 'PokerStars'
+time = 00:00:04
+day = 1
+month = 7
+year = 2009
+hand = 59937797366
+seats = [1, 2, 3, 4, 5, 6]
+seat_count = 6
+table = '/XCUCUl3yW6tdTJQEhJKGw'
+players = ['ymz+a8dgHSUFPooYplw7Ow', '8ClCHtFXGNplITm+63KB+Q', 'c+qxM3+/sTaOXq9iH0sYjA', '47CLYtTDpA75AfkpK3snvA', 'VdLQVvqhnWqycYRpJk40ng', 'armfxZhGxeZVZBYAQFuIJQ']
+winnings = [0, 0, 0, 0.60, 0, 0]
+currency_symbol = '$'
+time_zone_abbreviation = 'ET'
+
+[5]
+variant = 'NT'
+ante_trimming_status = false
+antes = [0, 0, 0, 0, 0, 0]
+blinds_or_straddles = [0.10, 0.25, 0, 0, 0, 0]
+min_bet = 0.25
+starting_stacks = [24.85, 25, 12.85, 14.65, 25.65, 99.90]
+actions = ['d dh p1 ????', 'd dh p2 ????', 'd dh p3 ????', 'd dh p4 ????', 'd dh p5 ????', 'd dh p6 ????', 'p3 cc', 'p4 cc', 'p5 cc', 'p6 f', 'p1 cc', 'p2 cc', 'd db 9c5dTs', 'p1 cc', 'p2 cc', 'p3 cbr 0.75', 'p4 cc', 'p5 f', 'p1 f', 'p2 f', 'd db 8c', 'p3 cbr 1.25', 'p4 cc', 'd db 2h', 'p3 cbr 1', 'p4 cc', 'p3 sm QdAs', 'p4 sm TdJc']
+venue = 'PokerStars'
+time = 00:00:00
+day = 1
+month = 7
+year = 2009
+hand = 59937794362
+seats = [1, 2, 3, 4, 5, 6]
+seat_count = 6
+table = '3Ns9nuTkynfwbBfBXzg6ww'
+players = ['YaAEMJGY5tem39deCUQRNw', '2KjLTFtubwNnRB979aisag', '6PDO6dptGq0XLL8zHWIhgw', 'XaIzillDPjW0HcNtCRrgsQ', 'e1gzNGvKtSsBmFjgwOByRg', 'qqnuLxHQCBfGsiUy0HZh8A']
+currency_symbol = '$'
+time_zone_abbreviation = 'ET'

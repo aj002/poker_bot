@@ -287,8 +287,12 @@ def _action_for(step: PhhStep, legal: LegalActions) -> Action:
     return Action(type="raise_to", amount=step.amount)
 
 
-def check_format(phh: PhhHand, *, players: int = SIX_MAX) -> tuple[int, int, int]:
-    """``(stack, small blind, big blind)`` for a hand the arena can host as six-max NLHE."""
+def check_format(phh: PhhHand, *, players: int = SIX_MAX, mixed_stacks: bool = False) -> tuple[int, int, int]:
+    """``(stack, small blind, big blind)`` for a hand the arena can host as six-max NLHE.
+
+    ``mixed_stacks`` accepts unequal starting stacks (``stack`` is then the largest) and
+    records without ``finishing_stacks``, as in online cash-game logs.
+    """
     n = len(phh.starting_stacks)
     if phh.variant != "NT":
         raise ImportRejected("variant", f"PHH variant {phh.variant!r} is not no-limit Texas hold'em (NT)")
@@ -303,6 +307,11 @@ def check_format(phh: PhhHand, *, players: int = SIX_MAX) -> tuple[int, int, int
         raise ImportRejected("blinds", f"blinds_or_straddles {list(phh.blinds)} is not small/big blind only")
     if phh.min_bet != bb:
         raise ImportRejected("blinds", f"min_bet {phh.min_bet} differs from the big blind {bb}")
+    if mixed_stacks:
+        if min(phh.starting_stacks) <= bb:
+            raise ImportRejected("stacks", f"a starting stack in {list(phh.starting_stacks)} does not cover the big "
+                                           f"blind")
+        return max(phh.starting_stacks), sb, bb
     stacks = set(phh.starting_stacks)
     if len(stacks) != 1:
         raise ImportRejected("stacks", f"unequal starting stacks {list(phh.starting_stacks)}")
@@ -358,8 +367,8 @@ def import_hand(text: str, provenance: Provenance, *, on_frame: Any = None) -> I
     return hand
 
 
-def _replay(phh: PhhHand, provenance: Provenance, on_frame: Any) -> ImportedHand:
-    stack, sb, bb = check_format(phh)
+def _replay(phh: PhhHand, provenance: Provenance, on_frame: Any, *, mixed_stacks: bool = False) -> ImportedHand:
+    stack, sb, bb = check_format(phh, mixed_stacks=mixed_stacks)
     n = len(phh.starting_stacks)
     steps = parse_actions(phh.actions, n)
     variant = get_variant(RULESET_ID)
@@ -396,6 +405,7 @@ def _replay(phh: PhhHand, provenance: Provenance, on_frame: Any) -> ImportedHand
             frames.append(on_frame(t, "hand_end"))
 
     table = _HandTable(config, table_id=f"phh_{provenance.hand_id}", deck_source=deck_source, initial_button=button,
+                       start_stacks=dict(zip(seats, phh.starting_stacks)) if mixed_stacks else None,
                        on_hand_end=at_end)
     hand = table.hand
     if hand is None or table.positions is None:
