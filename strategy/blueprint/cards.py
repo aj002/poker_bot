@@ -50,6 +50,17 @@ class CardAbstraction:
         if not (self.tables.has_preflop and self.tables.has_postflop):
             raise LookupError(f"{caps.ruleset_id}: preflop and postflop equity tables are required")
         self._pre: dict[int, tuple[int, float]] = {}
+        self._tex: dict[tuple[int, ...], int] = {}
+
+    def texture_key(self, board: Sequence[int]) -> int:
+        """Texture key of a board, memoised for the few boards of the current deal or hand."""
+        k = tuple(board)
+        hit = self._tex.get(k)
+        if hit is None:
+            if len(self._tex) >= 16:
+                self._tex.clear()
+            hit = self._tex[k] = texture(board, self.caps).key
+        return hit
 
     def preflop(self, hole: Sequence[int]) -> tuple[int, float]:
         """``(bucket, percentile)`` of a hole hand."""
@@ -65,11 +76,11 @@ class CardAbstraction:
         made = made_hand(hole, board, caps)
         strong = 1 if pct >= STRONG_HOLE_PCT else 0
         if street == 3:
-            cell = postflop_key(3, made.level, 0, texture(board, caps).key)
+            cell = postflop_key(3, made.level, 0, self.texture_key(board))
             eq = self.tables.postflop(cell, made.level, 0, 1).equity
             return _bin(eq, RIVER_EQ_EDGES) * 2 + strong
         dc = draws(hole, board, caps, made).draw_class
-        cell = postflop_key(street, made.level, dc, texture(board, caps).key)
+        cell = postflop_key(street, made.level, dc, self.texture_key(board))
         eq = self.tables.postflop(cell, made.level, dc, 1).equity
         aux = strong if dc == 0 else 2 if dc <= 2 else 3
         return _bin(eq, FLOP_TURN_EQ_EDGES) * 4 + aux

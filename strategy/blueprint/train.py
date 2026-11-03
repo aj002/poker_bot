@@ -39,6 +39,8 @@ from strategy.blueprint.states import StatePool
 
 VARIANTS = ("vanilla", "linear", "dcfr", "cfr+")
 DCFR = (1.5, 0.0, 2.0)
+STOP = "STOP"
+"""A file of this name in the run directory ends training at the next chunk, with a checkpoint."""
 
 
 def discount(regret: np.ndarray, strat: np.ndarray, variant: str, k: int) -> None:
@@ -235,7 +237,7 @@ def train(run: Path, cfg: TrainConfig, *, threads: int, producers: int, max_pair
     with (run / "progress.jsonl").open("a") as plog:
         try:
             for ci, deals in stream:
-                if tr.progress.pairs >= max_pairs or time.time() - t0 >= hours * 3600:
+                if tr.progress.pairs >= max_pairs or time.time() - t0 >= hours * 3600 or (run / STOP).exists():
                     break
                 tb = time.time()
                 tr.batch(ci, deals)
