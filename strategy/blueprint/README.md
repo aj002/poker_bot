@@ -84,5 +84,15 @@ make blueprint-audit      # unabstracted boundary audit of the final pack
 make lab-blueprint        # paired points evaluations on the validation population
 ```
 
+### Sharded runs
+
+`shards.py` spreads training over machines that share one directory. Each shard forks the
+latest merged epoch under its own seed. Every few hours the merger asks shards to push,
+merges them as `base + sum(shard - base)`, which is exact once the linear-discount intervals
+are over, and publishes the next epoch. Each machine meters its own busy CPU into a
+heartbeat. The merger writes `STOP` at a CPU-hour budget and then writes the final merged
+checkpoint. `make blueprint-shard-status` prints one health line, and `make
+blueprint-checkin` packs the latest epoch and plays a small validation-only paired run.
+
 Training, `blueprint-exploit` and `blueprint-response` need `--group train`, which the
 Makefile targets pass. Nothing here reads the holdout partition.
