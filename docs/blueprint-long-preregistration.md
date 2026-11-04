@@ -86,3 +86,54 @@ lands in `strategy/final` is decided by the combination's own pre-registered tes
 All results are reported with intervals, including nulls and failures. No spec is re-run
 with new seeds to change a result. If a result prompts a change, the changed bot is a new
 experiment with new specs.
+
+## Results (added after the runs)
+
+| id | spec | blocks | A | B | B − A (points) | 95% paired t | one-sided p | Holm p | outcome |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| H1 | `blueprint-long-vs-stage4` | 640 | 18.79 | 19.19 | +0.40 | [−0.31, +1.10] | 0.133 | 0.266 | not rejected |
+| H2 | `final-newbp-vs-final` | 640 | 21.70 | 21.55 | −0.15 | [−0.95, +0.65] | 0.642 | 0.642 | not rejected; lower bound below −0.5 |
+
+Both runs had 0 errors, 0 illegal actions and 0 failed tables. The per-block SDs were 9.1
+and 10.3 points.
+
+**Curve** (exploratory, 128 blocks each, A = Stage 4 pack):
+
+| pack | pairs | B − A | 95% CI |
+| --- | --- | --- | --- |
+| epoch 2 | 791M | +2.32 | [+0.53, +4.12] |
+| epoch 3 | 1.09B | +0.21 | [−1.61, +2.03] |
+| epoch 4 | 2.76B | +0.62 | [−0.99, +2.23] |
+| final (H1) | 3.20B | +0.40 | [−0.31, +1.10] |
+
+**Slices** (exploratory):
+
+- H1: 11 of 15 families and 9 of 16 lineups favour B. Lineups range from −1.54 to +4.28,
+  each with 40 blocks.
+- H2: 7 of 17 families and 8 of 16 lineups favour B. `handhq_recreational` is −0.77, over
+  160 blocks.
+- Phases: H1 is +0.02 in levels 1–2 and +0.26 in levels 3–5. H2 is +0.07 in levels 1–2
+  and −0.15 in levels 3–5. No phase interval excludes 0.
+
+**Gates** (idle machine, `artifacts/final/bundle-newbp`):
+
+- `strategy.policy.gate` passed every check on 50,023 decisions:
+  - worker decide p99 328 µs, p99.9 380 µs, maximum 507 µs;
+  - 3 timeouts (1 bot-caused, 2 stall-like), against 5 stall-like in the control's 11,422
+    decisions;
+  - no restarts and no internal fallbacks;
+  - end-to-end p99 579 µs.
+- `strategy.final.package --verify` was ok:
+  - the bundle is 9,144,345 bytes;
+  - one sandboxed worker's peak RSS is 96.47 MB on NLHE and 96.37 MB on PLO4;
+  - A, measured the same day, is 93.56 MB, so the new pack adds 2.9 MB;
+  - numba was not loaded.
+
+**Decision.** H1 is not rejected, so the candidate pack is not adopted. Nothing is combined
+with the HandHQ candidate, and the final bot keeps the Stage 4 pack. The candidate pack stays
+in `strategy/tables/data/blueprint-long/` and the training checkpoints in the agent store,
+for any later run.
+
+Runs were in-process with 8 jobs, from commit `c67732b` (tag `blueprint-long-prereg-v1`),
+with the pre-registered bundles unchanged. Evaluation used 8.5 CPU-hours: 7.2 for the runs
+and 1.2 for the gates.
