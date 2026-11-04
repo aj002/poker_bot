@@ -457,3 +457,17 @@ def test_state_snapshots_are_logged_every_fifty_hands(tmp_path: Path):
     assert all(r["reconciled"] for r in recs)
     station = [r for r in recs if r["action"].count("b") == sum(1 for d in r["decisions"] if d["act"][0] == "b")]
     assert len(station) == len(recs)  # the station never raises, so every bet in the log is ours
+
+
+def test_report_tolerates_repeated_hand_indices(tmp_path: Path):
+    from strategy.eval import slumbot_report as RP
+
+    bot_dir = tmp_path / "t"
+    bot_dir.mkdir()
+    (bot_dir / "bot.py").write_text(BOT_SRC)
+    out = tmp_path / "r.jsonl"
+    R.play({"t": bot_dir}, 20, out, api=FakeSlumbot(seed=1), log=lambda *a, **k: None)
+    recs = RP.load(out)
+    joined = recs + [{**r, "n": r["n"]} for r in recs]
+    rep = RP.report(joined)
+    assert rep["configs"]["t"]["hands"] == 40

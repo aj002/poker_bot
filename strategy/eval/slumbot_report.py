@@ -31,7 +31,7 @@ def config_report(recs: list[dict], terms: dict[int, tuple[float, list[float]]] 
     adj = [ST.mbb(adjusted_chips(r)) for r in recs]
     cv = None
     if terms is not None:
-        cv = ST.regression_adjust([terms[r["n"]][0] for r in recs], [terms[r["n"]][1] for r in recs], beta)
+        cv = ST.regression_adjust([terms[r["_i"]][0] for r in recs], [terms[r["_i"]][1] for r in recs], beta)
     by_pos = {}
     for pos, name in ((1, "small_blind"), (0, "big_blind")):
         sub = [r for r in recs if r["client_pos"] == pos]
@@ -68,14 +68,15 @@ def report(recs: list[dict], *, control_variates: bool = True) -> dict:
     every hand). Its coefficients are fitted once on all hands of all configurations, so the
     configurations are corrected identically.
     """
+    recs = [{**r, "_i": i} for i, r in enumerate(recs)]  # `n` can repeat when logs are joined
     cfgs = sorted({r["cfg"] for r in recs})
     terms = beta = None
     if control_variates:
-        terms = {r["n"]: ST.luck_terms(r) for r in recs}
+        terms = {r["_i"]: ST.luck_terms(r) for r in recs}
         import numpy as np
 
-        y = np.array([terms[r["n"]][0] for r in recs])
-        x = np.array([terms[r["n"]][1] for r in recs])
+        y = np.array([terms[r["_i"]][0] for r in recs])
+        x = np.array([terms[r["_i"]][1] for r in recs])
         beta = [float(b) for b in np.linalg.lstsq(x, y, rcond=None)[0]]
     out: dict = {"beta": beta, "configs": {c: config_report([r for r in recs if r["cfg"] == c], terms, beta) for c in cfgs}}
     if len(cfgs) == 2:
@@ -89,7 +90,7 @@ def report(recs: list[dict], *, control_variates: bool = True) -> dict:
         }
         if terms is not None:
             def resid(rs):
-                return [ST.mbb(terms[r["n"]][0] - sum(b_ * t for b_, t in zip(beta, terms[r["n"]][1]))) for r in rs]
+                return [ST.mbb(terms[r["_i"]][0] - sum(b_ * t for b_, t in zip(beta, terms[r["_i"]][1]))) for r in rs]
             diff["cv"] = ST.difference(resid(ra), resid(rb))
         out["difference"] = diff
     return out
