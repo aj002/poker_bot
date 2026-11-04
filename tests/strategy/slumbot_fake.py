@@ -16,7 +16,8 @@ from strategy.eval import slumbot as S
 class FakeSlumbot:
     min_interval = 0.0
 
-    def __init__(self, seed: int = 0, allin_rate: float = 0.12) -> None:
+    def __init__(self, seed: int = 0, allin_rate: float = 0.12, style: str = "random") -> None:
+        self.style = style
         self.rng = random.Random(seed)
         self.allin_rate = allin_rate
         self.hands = 0
@@ -85,6 +86,8 @@ class FakeSlumbot:
         t = self.table
         assert t is not None
         legal = t.legal_actions()
+        if self.style == "station":
+            return Action(type="call") if legal.call_amount else Action(type="check")
         r = self.rng.random()
         if legal.can_raise and r < self.allin_rate:
             return Action(type="raise_to", amount=legal.max_raise_to)

@@ -126,8 +126,9 @@ class BotSeat:
         street = S._street_index(table)
         if len(st.board) != S.expected_board(street):
             raise S.ProtocolMismatch(f"{len(st.board)} board cards on street {street} in {st.action!r}")
-        obs = observation(table, S.HERO)
+        # As in play_table: wake the worker first, build the observation while it wakes, then ask.
         self.agent.prepare()
+        obs = observation(table, S.HERO)
         d = self.agent.decide(obs)
         action = None
         if d.fallback is None:
@@ -143,6 +144,13 @@ class BotSeat:
         self.agent.stats.fallbacks[d.fallback] += 1
         fresh = S.replay(st.client_pos, st.hole, st.board, st.action, first_hand=self.serial)
         return fresh.fallback_action(), d
+
+    def state_summary(self) -> dict:
+        """The committed explicit state's belief string and counters (what survives between hands)."""
+        from arena.agents.sdk import decode_state
+
+        st = decode_state(self.agent.committed)
+        return {k: st.get(k) for k in ("x", "sp", "fb", "h") if isinstance(st, dict)}
 
     def close(self) -> None:
         self.agent.close()
@@ -177,6 +185,8 @@ def play_hand(api: Api, seat: BotSeat, n: int, cfg_name: str) -> dict:
         "bot_hole": list(st.villain_hole) if st.villain_hole else None, "board": list(st.board),
         "action": st.action, "winnings": st.winnings, "decisions": decisions, "t": round(time.time(), 1),
     }
+    if seat.serial % 50 == 0:
+        rec["bot_state"] = seat.state_summary()
     try:
         t = S.replay(st.client_pos, st.hole, st.board, st.action, first_hand=seat.serial, villain_hole=st.villain_hole)
         net = S.hero_net(t)

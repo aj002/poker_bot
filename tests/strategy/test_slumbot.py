@@ -444,3 +444,16 @@ def test_mixed_strategy_draws_vary_across_hands():
         t = S.replay(1, ("As", "Kd"), (), "", first_hand=h)
         us.append(_uniform("seed", observation(t, S.HERO).decision_id))
     assert len({round(u, 6) for u in us}) == len(us) and 0.3 < sum(us) / len(us) < 0.7
+
+
+def test_state_snapshots_are_logged_every_fifty_hands(tmp_path: Path):
+    bot_dir = tmp_path / "b"
+    bot_dir.mkdir()
+    (bot_dir / "bot.py").write_text(BOT_SRC)
+    out = tmp_path / "s.jsonl"
+    R.play({"b": bot_dir}, 100, out, api=FakeSlumbot(seed=2, style="station"), log=lambda *a, **k: None)
+    recs = [json.loads(line) for line in out.read_text().splitlines()]
+    assert [r["serial"] for r in recs if "bot_state" in r] == [50, 100]
+    assert all(r["reconciled"] for r in recs)
+    station = [r for r in recs if r["action"].count("b") == sum(1 for d in r["decisions"] if d["act"][0] == "b")]
+    assert len(station) == len(recs)  # the station never raises, so every bet in the log is ours
