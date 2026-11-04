@@ -129,3 +129,12 @@ existing ones with the commands in the HandHQ report, and recheck the RSS headro
 
 Runs were in-process with 7 jobs, from commit `e43fb74` (tag `handhq-prereg-v1`), with the
 pre-registered bundles unchanged.
+
+## Adoption
+
+After the 300-hour blueprint was not adopted, the candidate pack replaced the default
+`strategy/tables/data/exploit-practice_nlhe.npz` on main (file sha256 `db7b1a3cbdd35835`; the
+`strategy/tables/data/handhq/` copy was removed). The submission bundle is `c3e0fa54…`
+(see `strategy/final/submission.json`): it is the pre-registered B bundle rebuilt on main
+at `4859930`, which differs from `bf31d678` only in main's later blueprint-side commits.
+Its gates and worker RSS (97.28 MB) are recorded in `submission.json`.

@@ -27,6 +27,10 @@ trusting them.
       `submission_bundle_sha256` in `strategy/final/submission.json`. If it differs, the
       code or a pack changed since the submission bundle was gated and checked against the
       evaluated one. Stop, or redo the equivalence step below and the gate.
+- [ ] The shipped bundle is the HandHQ adoption (`adopted_by` in `submission.json`): the
+      exploit pack with the two real-player classes, validated against `8f4fd15e` by
+      `docs/handhq-population-preregistration.md`. Its gate runs and RSS are recorded
+      there. The holdout paragraph below describes the earlier bundle.
 - [ ] The holdout evaluated the bundle built at the tag `prereg-final-holdout`
       (`evaluated_bundle_sha256`, the hash in `strategy/final/holdout-preregistration.json`).
       Main was rebased onto later engine and strategy commits after that, so the submission

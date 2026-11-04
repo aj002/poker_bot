@@ -272,7 +272,10 @@ def test_submission_record_ties_the_shipped_bundle_to_the_evaluated_one():
     sub = json.loads((Path(__file__).parents[2] / "strategy/final/submission.json").read_text())
     assert sub["evaluated_bundle_sha256"] == preregistration()["bundle_sha256"]
     assert sub["evaluated_at"]["tag"] == preregistration()["tag"]
-    if sub["submission_bundle_sha256"] != sub["evaluated_bundle_sha256"]:
+    if "adopted_by" in sub:
+        assert sub["adopted_by"]["against_bundle_sha256"] == sub["previous_submission"]["bundle_sha256"]
+        assert all(sub["adopted_by"][h]["rejected"] for h in sub["adopted_by"] if h.startswith("H"))
+    elif sub["submission_bundle_sha256"] != sub["evaluated_bundle_sha256"]:
         for ruleset in ("practice_nlhe", "uncertainty_plo4"):
             eq = sub["equivalence"][ruleset]
             assert eq["identical"] and eq["identical_tables"] == eq["tables"] and eq["fallbacks"] == 0

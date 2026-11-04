@@ -13,6 +13,13 @@ One entry point, `bot.py:make_bot` in the bundle (`runtime.FinalBot`):
 
 The bot never reads the clock, so the same seeds give the same actions.
 
+**Submission bundle.** `c3e0fa540ee27a66873c3e53608f2f0b8d1d9f10c1ddf6b3869b6c90aef09ab3`
+(7,875,285 bytes; tarball `final-bot-c3e0fa540ee2.tar.gz`, sha256
+`894d25c405f36d5649b8e4110d90d016c79601ade7eaaee86c5d94a380970710`; worker peak RSS 97.28 MB
+NLHE, 97.15 MB PLO4). It is the previous final bot `8f4fd15e` with the HandHQ exploit pack
+(`human_regular` and `human_recreational` classes and experts; see
+`docs/handhq-population-preregistration.md`). Details are in `submission.json`.
+
 The report is in `docs/final-bot-report.md` in the agent store.
 The holdout pre-registration is in `docs/final-holdout-preregistration.md`, and the
 submission procedure is in `docs/submission-checklist.md`.
