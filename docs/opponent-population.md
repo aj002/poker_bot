@@ -240,6 +240,36 @@ The hand is then mapped to the NLHE class at the same fraction.
 Regenerate the tables with `uv run python -m strategy.population.gen_tables`, then
 re-lock.
 
+## HandHQ extension (`pop-v1+handhq-v1`)
+
+Two more families, calibrated on real six-max players from the HandHQ corpus
+(PokerStars, July 2009, 25NL–1000NL):
+
+- `handhq_regular` (19) is the raise-or-fold regular.
+- `handhq_recreational` (20) limps, cold-calls, calls down light and min-raises.
+
+They live in `families.HANDHQ_FAMILY_LIST`. They are registered only by
+`strategy/population/handhq.py`, in train (14 members each) and validation (3 each),
+never in holdout. pop-v1's members, lock and partitions are unchanged.
+
+- Experiment specs reach the extension through
+  `"source": "strategy.population.handhq:HandhqPopulationSource"`.
+- Its lock is `handhq.lock.json`. After a family change, rewrite it with
+  `python -m strategy.population.handhq --write-lock`.
+
+The real-player frequencies and Dirichlet priors are in `data/handhq-priors.json`. The
+pipeline that produces them:
+
+```bash
+uv run python -m strategy.data.handhq_fetch            # pinned sparse checkout, about 6 GB, outside git
+uv run python -m strategy.data.handhq_stats --root "$(uv run python -m strategy.data.handhq_fetch --where)" \
+  --jobs 7 --files-per-stake 1250 --out artifacts/handhq/stats
+uv run python -m strategy.data.handhq_priors fit --stats artifacts/handhq/stats --out strategy/population/data/handhq-priors.json
+uv run python -m strategy.data.handhq_priors census --tables 900 --jobs 7 --out artifacts/handhq/census.json
+```
+
+The census compares every style bot and family with the real players' 5–95% bands.
+
 ## Measurement and tests
 
 `measure.census` seats entries at seeded official-format tables and returns one

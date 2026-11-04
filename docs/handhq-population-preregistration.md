@@ -91,3 +91,41 @@ labels, and the comparison of style bots with real-player frequencies
 All results are reported with intervals, including nulls and failures. No spec is re-run
 with new seeds to change a result. If a result prompts a change, the changed bot is a new
 experiment with new specs.
+
+## Results (added after the runs)
+
+| id | spec | B − A (points) | 95% paired t | one-sided p | Holm p | outcome |
+| --- | --- | --- | --- | --- | --- | --- |
+| H1 | `handhq-exploit-targeted-validation` | +0.476 | [+0.181, +0.771] | 7.9e-4 | 1.6e-3 | win |
+| H2 | `handhq-exploit-population-validation` | +0.104 | [−0.273, +0.481] | 8.7e-4 (vs −0.5) | 1.6e-3 | non-inferior |
+| H3 | `handhq-exploit-robust-equilibrium` | +0.300 | [−0.004, +0.603] | 2.0e-7 (vs −0.5) | 8.0e-7 | non-inferior |
+| H4 | `handhq-exploit-robust-deceptive` | +0.247 | [−0.179, +0.673] | 3.2e-4 (vs −0.5) | 9.7e-4 | non-inferior |
+
+Per lineup (exploratory, unadjusted):
+
+- H1, in the lineup order above: +0.31 [−0.27, +0.90], +0.55 [−0.01, +1.11],
+  +0.47 [−0.13, +1.06] and +0.57 [−0.04, +1.19].
+- H3: +0.77 [+0.16, +1.37] in the mixed blueprint/endgame lineup.
+- H4: +1.75 [+0.91, +2.59] in the `image` lineup, and −0.75 [−2.35, +0.85] in the mixed
+  lineup.
+- In H1, the gain is concentrated in blind levels 3–5: +0.39 [+0.22, +0.56].
+
+**Gates** (idle machine, B's bundle):
+
+- `strategy.policy.gate` passed every check on 50,024 decisions. Worker decide p99 was
+  295 µs, p99.9 321 µs and the maximum 396 µs, with no decision over 1 ms. There were no
+  timeouts (control: 0), no restarts and no internal fallbacks. End-to-end p99 was 509 µs.
+- `strategy.final.package --verify` was ok. The bundle is 7,874,851 bytes, and one
+  sandboxed worker's peak RSS is 97.05 MB on NLHE and 97.12 MB on PLO4, against a
+  100 MiB limit (A, measured the same day: 93.54 MB). numba was not loaded.
+
+**Decision.** Every pre-registered criterion holds, so the candidate exploit pack is
+adopted. As instructed, the final bot is not rebuilt here: the committed default pack is
+unchanged, and the candidate is `strategy/tables/data/handhq/exploit-practice_nlhe.npz`,
+for combination with the blueprint work. The experts were trained against the current
+blueprint pack and states. If the blueprint changes, retrain both HandHQ experts and the
+existing ones with the commands in the HandHQ report, and recheck the RSS headroom (about
+7.8 MB under 100 MiB).
+
+Runs were in-process with 7 jobs, from commit `e43fb74` (tag `handhq-prereg-v1`), with the
+pre-registered bundles unchanged.
