@@ -1,0 +1,33 @@
+{
+  "experiment_id": "final-newbp-vs-final",
+  "title": "H2: final bot with the 3.2B-pair blueprint vs the final bot 8f4fd15e",
+  "description": "Confirmation H2 of docs/blueprint-long-preregistration.md: superiority, H0 mean(B - A) <= 0, one-sided paired t, Holm across H1-H2. A: final bot 8f4fd15e (built at 2fbec14); B: the same package with only the blueprint pack swapped for the long-run final pack (exploit pack 3f74721a unchanged).",
+  "stage": "confirmation",
+  "min_effect": 0.0,
+  "interval": "paired_t",
+  "arms": {
+    "A": {
+      "policy": "artifacts/final/bundle-8f4fd15e"
+    },
+    "B": {
+      "policy": "artifacts/final/bundle-newbp"
+    }
+  },
+  "variants": [
+    "practice_nlhe"
+  ],
+  "table": {
+    "players": 8,
+    "starting_stack": 2000,
+    "hand_cap": 200
+  },
+  "population": {
+    "source": "strategy.population.handhq:HandhqPopulationSource",
+    "partition": "validation",
+    "lineups_per_variant": 16
+  },
+  "blocks_per_lineup": 40,
+  "base_seed": "final-newbp-vs-final-v1",
+  "isolation": "in_process",
+  "bootstrap_resamples": 2000
+}
