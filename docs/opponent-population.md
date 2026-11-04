@@ -311,3 +311,14 @@ run, p99 end-to-end latency was 0.49 ms and 3 decisions timed out. Under the har
 CLI's default parallel jobs on this 8-CPU VM, however, both arms timed out on 20–32% of
 decisions with the stub population as well, so this comes from contention, not from
 population bots. With `--jobs 1`, the same three-variant run had no timeouts.
+
+## Red-team extension (`redteam-v1`)
+
+Three bots written blind (by workers who never saw `strategy/`) are registered as the family
+`redteam-v1` in **validation only**: `rt-pressure`, `rt-equilibrium` and `rt-adaptive`
+(`redteam/`, `strategy/redteam/registry.py`, lock `strategy/redteam/redteam.lock.json`).
+They are fixed code, pinned by artifact hash. Specs name the source as
+`"strategy.redteam.registry:RedteamPopulationSource"`; asking it for `train` or `holdout`
+raises `PermissionError`. pop-v1 and `pop-v1+handhq-v1` are unchanged and do not contain
+them. The tournament suite that plays a bot against them is described in
+`docs/redteam-suite.md`.

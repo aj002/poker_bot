@@ -1,0 +1,30 @@
+{
+ "family": "redteam-v1",
+ "holdout_members": [],
+ "members": {
+  "rt-adaptive": {
+   "artifact_sha256": "06514f3afa11de08bb76dce9cb57f8828da827781c467c69fed45c4a1cb81333",
+   "partition": "validation",
+   "path": "redteam/adaptive/bot.py"
+  },
+  "rt-equilibrium": {
+   "artifact_sha256": "974527f639ce8214ffaed001f456b18ce9254e7ea0e20c89a997cd2888433331",
+   "partition": "validation",
+   "path": "redteam/equilibrium"
+  },
+  "rt-pressure": {
+   "artifact_sha256": "6acdc0dd5b40331b3dd23c15cd30fc66a42d2aa9ea05e7ba17c9486c06b848bb",
+   "partition": "validation",
+   "path": "redteam/pressure/bot.py"
+  }
+ },
+ "partitions": [
+  "validation"
+ ],
+ "registry_hash": "d6915a351111e895f9aaedebe6c64f411a5b92aecaf3fa1e42fa727be403c260",
+ "rulesets": [
+  "practice_nlhe"
+ ],
+ "train_members": [],
+ "version": "redteam-v1"
+}

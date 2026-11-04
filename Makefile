@@ -419,3 +419,27 @@ final-holdout: final-package final-arms
 
 final-holdout-confirm:
 	$(UV) run python -m strategy.final.holdout confirm
+
+# Blind red-team bots (redteam/, registered as redteam-v1, validation only; docs/redteam-suite.md).
+# One command reruns every pre-registered cell: make redteam-suite BUNDLE=<final bundle> [RT_OUT=...]
+# A retrained blueprint: make redteam-suite-pack PACK=<blueprint .npz> [XPACK=<exploit .npz>]
+# (builds the final bundle and the blueprint-only reference from the new packs).
+.PHONY: redteam-gate redteam-previous redteam-suite redteam-suite-pack redteam-report
+RT_OUT ?= artifacts/redteam/runs/$(shell date -u +%Y%m%d-%H%M%S)
+RT_JOBS ?= $(shell nproc 2>/dev/null || echo 4)
+RT_ARGS ?=
+redteam-gate:
+	$(UV) run python -m strategy.redteam gate --decisions $(GATE_DECISIONS)
+
+redteam-previous:
+	$(UV) run python -m strategy.redteam build-previous
+
+redteam-suite:
+	$(UV) run python -m strategy.redteam run --bundle $(BUNDLE) --out $(RT_OUT) --jobs $(RT_JOBS) $(RT_ARGS)
+
+redteam-suite-pack:
+	$(UV) run python -m strategy.redteam run --pack $(PACK) $(if $(XPACK),--exploit-pack $(XPACK)) --out $(RT_OUT) \
+		--jobs $(RT_JOBS) $(RT_ARGS)
+
+redteam-report:
+	$(UV) run python -m strategy.redteam report --out $(RT_OUT)

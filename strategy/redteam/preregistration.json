@@ -1,0 +1,63 @@
+{
+ "version": "redteam-suite-v1",
+ "title": "Final bot (HandHQ exploit pack) vs three blind red-team bots",
+ "base_seed": "redteam-v1-suite-a",
+ "isolation": "in_process",
+ "table": {"players": 8, "starting_stack": 2000, "hand_cap": 200, "hands_per_level": 25},
+ "par": 12.5,
+ "level": 0.95,
+ "alpha": 0.05,
+ "blocks": {"single": 100, "multiples": 100, "population": 50, "previous": 100},
+ "hero": "ours",
+ "previous_rev": "redteam-prereg-v1",
+ "references": ["blueprint-only", "nlhe-v2", "previous-final"],
+ "previous_bots": {
+  "blueprint-only": {"path": "artifacts/blueprint/bundles/final", "build": "blueprint", "sha256": "da5ed399c9d5"},
+  "nlhe-v2": {"path": "artifacts/bots/baseline-candidate", "build": "baseline", "sha256": "32d7dfd9b9f7"},
+  "previous-final": {"path": "artifacts/final/bundle", "build": "final", "sha256": "a2dbd67f84b0"}
+ },
+ "sets": {
+  "single": "seven copies of one red-team bot",
+  "multiples": "red-team bots only, mixed in multiples (4+3 and 3+2+2)",
+  "population": "one of each red-team bot plus four pop-v1+handhq-v1 validation members",
+  "previous": "red-team bots plus our previous bots (blueprint-only, nlhe-v2, previous-final)"
+ },
+ "cells": [
+  {"id": "single-pressure", "set": "single", "opponents": ["rt-pressure x7"]},
+  {"id": "single-equilibrium", "set": "single", "opponents": ["rt-equilibrium x7"]},
+  {"id": "single-adaptive", "set": "single", "opponents": ["rt-adaptive x7"]},
+  {"id": "mult-P4E3", "set": "multiples", "opponents": ["rt-pressure x4", "rt-equilibrium x3"]},
+  {"id": "mult-E4A3", "set": "multiples", "opponents": ["rt-equilibrium x4", "rt-adaptive x3"]},
+  {"id": "mult-A4P3", "set": "multiples", "opponents": ["rt-adaptive x4", "rt-pressure x3"]},
+  {"id": "mult-P3E2A2", "set": "multiples", "opponents": ["rt-pressure x3", "rt-equilibrium x2", "rt-adaptive x2"]},
+  {"id": "mult-E3A2P2", "set": "multiples", "opponents": ["rt-equilibrium x3", "rt-adaptive x2", "rt-pressure x2"]},
+  {"id": "mult-A3P2E2", "set": "multiples", "opponents": ["rt-adaptive x3", "rt-pressure x2", "rt-equilibrium x2"]},
+  {"id": "prev-P4", "set": "previous", "opponents": ["rt-pressure x4", "prev:blueprint-only", "prev:nlhe-v2", "prev:previous-final"]},
+  {"id": "prev-E4", "set": "previous", "opponents": ["rt-equilibrium x4", "prev:blueprint-only", "prev:nlhe-v2", "prev:previous-final"]},
+  {"id": "prev-A4", "set": "previous", "opponents": ["rt-adaptive x4", "prev:blueprint-only", "prev:nlhe-v2", "prev:previous-final"]},
+  {"id": "prev-PEA", "set": "previous", "opponents": ["rt-pressure", "rt-equilibrium", "rt-adaptive", "prev:blueprint-only", "prev:blueprint-only", "prev:nlhe-v2", "prev:previous-final"]}
+ ],
+ "population": {
+  "source": "strategy.population.handhq:HandhqPopulationSource",
+  "partition": "validation",
+  "lineups": 8,
+  "population_seats": 4,
+  "red_team": ["rt-pressure", "rt-equilibrium", "rt-adaptive"],
+  "seed": "redteam-v1-population-a",
+  "id_prefix": "pop"
+ },
+ "hypotheses": {
+  "primary": "For each of the 21 cells, H0: the final bot's mean terminal points per tournament = 12.5 (par for 8 seats). Two-sided paired-block t-test (blocks are seed blocks with all 8 seat rotations), Holm across the 21 cells at alpha 0.05.",
+  "classification": "Per cell and per set from the 95% interval of the final bot's mean points: LOSES when the upper bound is below 12.5, WINS when the lower bound is above 12.5, otherwise BREAK-EVEN (not distinguishable from par at this sample size).",
+  "secondary": "The final bot minus each reference arm (blueprint-only, nlhe-v2, previous-final) on the same seeds, per cell and per set, with 95% intervals (paired by block)."
+ },
+ "attribution": {
+  "note": "Exploratory and descriptive: each rule below flags a behaviour as implicated in a LOSES or BREAK-EVEN cell; none is a causal claim.",
+  "overbet": "OVERBET implicated when, in the cell's pooled tables, the hero folds at least 10 points more often to a red-team post-flop overbet than to a red-team bet of up to one pot, AND the hero's chips per hand (big blinds) in hands where it was live when a red-team seat overbet have a 95% bootstrap interval entirely below zero, with at least 30 overbets faced.",
+  "bubble": "BUBBLE implicated when the hero's summed points-equity change over hands that start with 4 or 3 players alive is negative with a 95% bootstrap interval entirely below zero, and the red-team seats' preflop 3-bet, 4-bet and shove rate per hand dealt is higher at 4 or 3 players than at 6 or more.",
+  "image": "IMAGE implicated when an adaptive opponent is in the cell and the hero's chips per hand (big blinds) against it differ between its tight and loose phases with a 95% bootstrap interval for the difference excluding zero.",
+  "reference_contrast": "Every rule is also evaluated for the three reference arms on the same seeds, so a behaviour that hurts every bot equally is reported as such."
+ },
+ "stopping": "Block counts are fixed above. No cell is rerun with new seeds to change a result. A different bundle is run with the same seeds (paired across bundles); a bot tuned on these results must be evaluated with a new base_seed.",
+ "smoke": "Smoke runs for timing and bug-finding use base seed 'redteam-smoke' only; their results are not read for hypotheses."
+}
