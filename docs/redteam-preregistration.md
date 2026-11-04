@@ -86,4 +86,8 @@ hypotheses. A bot tuned on these results must be evaluated with a new `--seed`.
 
 ## Results
 
-Added to `docs/redteam-report.md` in the project store after the runs.
+Run `main-a` (seed `redteam-v1-suite-a`, commit `2d3d04b`, tag `redteam-prereg-v1`), final bot
+bundle `c3e0fa54` (the HandHQ final, identical to the bundle adopted on main): all 21 cells are
+classified WINS against par 12.5 after Holm, with zero illegal actions, errors, fallbacks or
+invalid tables on 13,600 tables per arm. The full tables are `docs/redteam-results-main-a.md`
+(and `.json`); the interpretation is `docs/redteam-report.md` in the project store.
