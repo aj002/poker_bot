@@ -42,7 +42,7 @@ def test_arena_does_not_import_strategy():
 def test_numba_is_confined_to_the_kernels():
     users = {str(p.relative_to(ROOT)) for p in _python_files(ROOT / "strategy") if "numba" in _imports(p)}
     assert users == {"strategy/solve/kernels.py", "strategy/endgame/kernels.py", "strategy/blueprint/kernels.py",
-                     "strategy/league/kernels.py", "strategy/exploit/kernels.py"}
+                     "strategy/league/kernels.py", "strategy/exploit/kernels.py", "strategy/eval/kernels.py"}
 
 
 def test_oracle_and_training_packages_are_not_runtime_dependencies():

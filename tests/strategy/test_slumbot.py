@@ -9,6 +9,7 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
+import numpy as np
 import pytest
 
 from arena.domain.cards import RANKS, SUITS
@@ -220,8 +221,8 @@ def test_hand_evaluator_agrees_with_pokerkit():
         h1, h2, b = c[:2], c[2:4], c[4:]
         a = StandardHighHand.from_game("".join(h1), "".join(b))
         z = StandardHighHand.from_game("".join(h2), "".join(b))
-        s1 = ST.score7([ST._CARD[x] for x in h1 + b])
-        s2 = ST.score7([ST._CARD[x] for x in h2 + b])
+        s1 = ST.score7(np.array([ST._CARD[x] for x in h1 + b]))
+        s2 = ST.score7(np.array([ST._CARD[x] for x in h2 + b]))
         assert (s1 > s2) - (s1 < s2) == (a > z) - (a < z)
 
 
