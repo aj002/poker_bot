@@ -362,3 +362,84 @@ def test_off_bundle_patches_only_exploit_weights(tmp_path: Path):
     text = (tmp_path / "dst" / "bot.py").read_text()
     assert 'overrides={"lam_scale": 0.0}' in text and 'blueprint-practice_nlhe.npz' in text
     compile(text, "bot.py", "exec")
+
+
+def test_report_summarises_a_log(tmp_path: Path):
+    from strategy.eval import slumbot_report as RP
+
+    bot_dir = tmp_path / "tiny"
+    bot_dir.mkdir()
+    (bot_dir / "bot.py").write_text(BOT_SRC)
+    out = tmp_path / "r.jsonl"
+    R.play({"tiny": bot_dir, "twin": bot_dir}, 30, out, block=10, api=FakeSlumbot(seed=9), log=lambda *a, **k: None)
+    rep = RP.report(RP.load(out))
+    assert set(rep["configs"]) == {"tiny", "twin"}
+    c = rep["configs"]["tiny"]
+    assert c["hands"] == 30 and c["reconciled"] == 30
+    assert c["adjusted_mbb"]["n"] == 30
+    assert rep["difference"]["raw"]["lo"] <= rep["difference"]["raw"]["diff"] <= rep["difference"]["raw"]["hi"]
+    assert "tiny minus twin" in RP.markdown(rep)
+
+
+def test_luck_terms_shapes_and_zero_without_villain_cards():
+    rec = {"n": 1, "action": "b300c/kk/kb400f", "hole": ["As", "Kd"], "bot_hole": ["Qh", "Qd"],
+           "board": ["2c", "7h", "9d", "Jc", "3s"], "winnings": 700}
+    chips, terms = ST.luck_terms(rec)
+    assert chips == 700 and terms[0] != 0 and terms[1] != 0 and terms[2] != 0 and terms[3] == 0
+    rec["action"] = "f"
+    assert ST.luck_terms(rec)[1][1:] == [0.0, 0.0, 0.0]
+    rec["bot_hole"] = None
+    assert ST.luck_terms(rec) == (700.0, [0.0] * 4)
+    # all-in on the flop: the result becomes an expectation and only terms up to the flop remain
+    rec = {"n": 2, "action": "b300c/kb20000c//", "hole": ["As", "Ah"], "bot_hole": ["Kd", "Kc"],
+           "board": ["2c", "7h", "9d", "Jc", "3s"], "winnings": 20000}
+    chips, terms = ST.luck_terms(rec)
+    assert 0 < chips < S.STACK and terms[1] != 0 and terms[2:] == [0.0, 0.0]
+
+
+def test_luck_terms_have_zero_mean_over_random_deals():
+    rng = random.Random(4)
+    xs = []
+    for i in range(400):
+        c = rng.sample(CARDS, 9)
+        rec = {"n": i, "action": "ck/kk/kk/kk", "hole": c[:2], "bot_hole": c[2:4], "board": c[4:], "winnings": 0}
+        xs.append(ST.luck_terms(rec)[1])
+    mean = [sum(x[j] for x in xs) / len(xs) for j in range(4)]
+    sd = [(sum(x[j] ** 2 for x in xs) / len(xs)) ** 0.5 for j in range(4)]
+    assert all(abs(m) < 4 * s / len(xs) ** 0.5 for m, s in zip(mean, sd))
+
+
+def test_regression_adjust_removes_explained_noise_and_keeps_the_mean():
+    rng = random.Random(8)
+    x = [[rng.gauss(0, 1), 0.0, 0.0, 0.0] for _ in range(4000)]
+    y = [100.0 + 3000 * xi[0] + rng.gauss(0, 300) for xi in x]
+    raw = ST.summarize([ST.mbb(v) for v in y])
+    adj = ST.regression_adjust(y, x)
+    assert adj["beta"][0] == pytest.approx(3000, rel=0.05)
+    assert adj["se"] < raw["se"] / 5
+    assert adj["lo"] < ST.mbb(100.0) < adj["hi"]
+
+
+def test_decision_ids_are_unique_across_hands_and_stable_within_one():
+    """The bot draws its mixed-strategy random number from the decision id, so a rebuilt table
+    must give each hand its own ids; the same decision rebuilt twice must repeat its id."""
+    ids = []
+    for h in range(1, 40):
+        t = S.replay(1, ("As", "Kd"), (), "", first_hand=h)
+        ids.append(observation(t, S.HERO).decision_id)
+        again = S.replay(1, ("As", "Kd"), (), "", first_hand=h)
+        assert observation(again, S.HERO).decision_id == ids[-1]
+    assert len(set(ids)) == len(ids)
+    t = S.replay(0, ("As", "Kd"), ("2c", "7h", "9d"), "b200c/", first_hand=3)
+    t2 = S.replay(0, ("As", "Kd"), ("2c", "7h", "9d"), "b200c/", first_hand=4)
+    assert observation(t, S.HERO).decision_id != observation(t2, S.HERO).decision_id
+
+
+def test_mixed_strategy_draws_vary_across_hands():
+    from strategy.blueprint.runtime import _uniform
+
+    us = []
+    for h in range(1, 200):
+        t = S.replay(1, ("As", "Kd"), (), "", first_hand=h)
+        us.append(_uniform("seed", observation(t, S.HERO).decision_id))
+    assert len({round(u, 6) for u in us}) == len(us) and 0.3 < sum(us) / len(us) < 0.7

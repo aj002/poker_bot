@@ -191,6 +191,47 @@ def _preflop_exact(hero0, hero1, vil0, vil1, rest):  # type: ignore[no-untyped-d
     return wins, total
 
 
+@njit(cache=True)
+def _preflop_mc(hero0, hero1, vil0, vil1, rest, samples, seed):  # type: ignore[no-untyped-def]
+    np.random.seed(seed)
+    n = len(rest)
+    pool = rest.copy()
+    wins = 0.0
+    cards = np.zeros(7, dtype=np.int64)
+    cards2 = np.zeros(7, dtype=np.int64)
+    cards[0] = hero0
+    cards[1] = hero1
+    cards2[0] = vil0
+    cards2[1] = vil1
+    for _ in range(samples):
+        for i in range(5):
+            j = i + np.random.randint(0, n - i)
+            tmp = pool[i]
+            pool[i] = pool[j]
+            pool[j] = tmp
+            cards[2 + i] = pool[i]
+            cards2[2 + i] = pool[i]
+        h = score7(cards)
+        v = score7(cards2)
+        if h > v:
+            wins += 1.0
+        elif h == v:
+            wins += 0.5
+    return wins / samples
+
+
+def preflop_equity_mc(hero: Sequence[str], villain: Sequence[str], *, samples: int = 20_000, seed: int = 0) -> float:
+    """Unbiased Monte Carlo preflop equity (a fixed ``seed`` makes it repeatable)."""
+    h = [_CARD[c] for c in hero]
+    v = [_CARD[c] for c in villain]
+    rest = np.array([c for c in range(52) if c not in set(h) | set(v)], dtype=np.int64)
+    if HAVE_NUMBA:
+        return float(_preflop_mc(h[0], h[1], v[0], v[1], rest, samples, seed))
+    rng = random.Random(seed)
+    wins, n = _eval_boards(tuple(h), tuple(v), (rng.sample(list(rest), 5) for _ in range(min(samples, 2000))))
+    return wins / n
+
+
 def equity(hero: Sequence[str], villain: Sequence[str], board: Sequence[str], *, seed: int = 0) -> float:
     """The hero's share of the pot against ``villain`` given ``board`` (ties count half).
 
@@ -282,3 +323,58 @@ def difference(a: Sequence[float], b: Sequence[float]) -> dict[str, float]:
     d = sa["mean"] - sb["mean"]
     se = math.sqrt(sa["se"] ** 2 + sb["se"] ** 2)
     return {"diff": d, "se": se, "lo": d - 1.96 * se, "hi": d + 1.96 * se}
+
+
+# ------------------------------------------------------------- luck control variates
+
+
+def luck_terms(rec: dict) -> tuple[float, list[float]]:
+    """The hand's result in chips and its zero-mean chance terms ``2 * (eq_t - eq_{t-1})``.
+
+    The deal is uniformly random and independent of both players' choices, and an equity
+    against the opponent's actual cards is a martingale as cards arrive. So the first term
+    (hole cards, ``2 * (eq_preflop - 1/2)``, zero mean by symmetry between the two seats) and each
+    street's increment (zero mean given everything before the card) have expectation exactly
+    zero, whatever the players do. They are included only for cards dealt before the hand ended,
+    and, when the hand ends in an all-in call, only up to the street of the call, with the
+    result replaced by its expectation there (see :func:`adjusted_winnings`).
+
+    Returns ``(chips, [x_preflop, x_flop, x_turn, x_river])``; the opponent's hole cards are
+    shown at the end of every hand in the API, so no hand is dropped.
+    """
+    terms = [0.0, 0.0, 0.0, 0.0]
+    bot_hole = rec.get("bot_hole")
+    chips = adjusted_winnings(rec)
+    if not bot_hole:
+        return chips, terms
+    allin = all_in_street(rec["action"])
+    dealt = min(3, rec["action"].count("/"))
+    last = dealt if allin is None else min(dealt, allin)
+    eq = preflop_equity_mc(rec["hole"], bot_hole, seed=int(rec.get("n", 0)))
+    terms[0] = 2.0 * (eq - 0.5)
+    prev = eq
+    for street in range(1, last + 1):
+        now = equity(rec["hole"], bot_hole, rec["board"][: STREET_BOARD[street]])
+        terms[street] = 2.0 * (now - prev)
+        prev = now
+    return chips, terms
+
+
+def regression_adjust(chips: Sequence[float], terms: Sequence[Sequence[float]],
+                      beta: Sequence[float] | None = None) -> dict:
+    """Control-variate estimate of the mean: ``mean(chips - beta . terms)``, ``beta`` by least squares.
+
+    The terms have mean zero, so subtracting them leaves the expectation unchanged and the
+    estimate is consistent; the standard error is that of the residuals, which treats ``beta`` as
+    known (its estimation error is of order 1/n). Returns mbb/hand statistics and ``beta``.
+    """
+    y = np.asarray(chips, dtype=float)
+    x = np.asarray(terms, dtype=float)
+    if beta is None:
+        beta_arr = np.linalg.lstsq(x, y, rcond=None)[0] if len(y) > x.shape[1] else np.zeros(x.shape[1])
+    else:
+        beta_arr = np.asarray(beta, dtype=float)
+    resid = y - x @ beta_arr
+    out = summarize([mbb(float(v)) for v in resid])
+    out["beta"] = [float(b) for b in beta_arr]
+    return out

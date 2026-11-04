@@ -40,6 +40,7 @@ HERO, VILLAIN = 0, 1
 HAND_CAP = 1_000_000
 BUDGET_NS = 1_000_000
 TABLE_ID = "t_slumbot"
+DECISION_IDS_PER_HAND = 100
 STREET_BOARD = (0, 3, 4, 5)
 
 _TOKEN = re.compile(r"[kcf]|b\d+|/")
@@ -130,6 +131,9 @@ class MirrorTable(Table):
             self._finalize()
             return
         self.hand_number = self._first_hand - 1
+        # A real table numbers decisions across hands, and the bot seeds its mixed strategy from
+        # the decision id; a rebuilt table must not repeat ids from hand to hand.
+        self._decision_seq = (self._first_hand - 1) * DECISION_IDS_PER_HAND
         super()._start_next_hand()
 
 
