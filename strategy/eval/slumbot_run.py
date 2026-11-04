@@ -55,6 +55,8 @@ class Api:
         self.requests = 0
         self.retries = 0
         self.token: str | None = None
+        self.slow = 0
+        self.max_latency = 0.0
 
     def _post(self, path: str, body: dict) -> dict:
         wait = self.min_interval - (self._clock() - self._last)
@@ -64,8 +66,14 @@ class Api:
                                      {"Content-Type": "application/json", "User-Agent": USER_AGENT})
         self._last = self._clock()
         self.requests += 1
-        with urllib.request.urlopen(req, timeout=self.timeout) as resp:
-            return json.loads(resp.read())
+        started = self._clock()
+        try:
+            with urllib.request.urlopen(req, timeout=self.timeout) as resp:
+                return json.loads(resp.read())
+        finally:
+            took = self._clock() - started
+            self.max_latency = max(self.max_latency, took)
+            self.slow += took > 5.0
 
     def call(self, path: str, body: dict) -> dict:
         delay = 2.0
@@ -183,7 +191,7 @@ def play_hand(api: Api, seat: BotSeat, n: int, cfg_name: str) -> dict:
     rec: dict[str, Any] = {
         "n": n, "cfg": cfg_name, "serial": seat.serial, "client_pos": st.client_pos, "hole": list(st.hole),
         "bot_hole": list(st.villain_hole) if st.villain_hole else None, "board": list(st.board),
-        "action": st.action, "winnings": st.winnings, "decisions": decisions, "t": round(time.time(), 1),
+        "action": st.action, "winnings": st.winnings, "decisions": decisions, "t": round(time.time(), 1), "m": round(time.monotonic(), 1),
     }
     if seat.serial % 50 == 0:
         rec["bot_state"] = seat.state_summary()
@@ -247,13 +255,18 @@ def play(bundles: dict[str, Path], hands: int, out: Path, *, block: int = 50, mi
                         if stop:
                             break
                         total = sum(done.values())
+                        w0, m0 = time.time(), time.monotonic()
                         rec = play_hand(api, seat, total, name)
+                        dw, dm = time.time() - w0, time.monotonic() - m0
+                        if dw > 60:
+                            log(f"long hand {rec['serial']}: wall={dw:.0f}s monotonic={dm:.0f}s "
+                                f"max_latency={getattr(api, 'max_latency', 0.0):.1f}s", file=sys.stderr, flush=True)
                         fh.write(json.dumps(rec, separators=(",", ":")) + "\n")
                         fh.flush()
                         done[name] += 1
                         if sum(done.values()) % 100 == 0:
                             log(f"{dict(done)} requests={api.requests} retries={api.retries} "
-                                f"elapsed={time.time() - t0:.0f}s", file=sys.stderr, flush=True)
+                                f"slow={getattr(api, 'slow', 0)} max_latency={getattr(api, 'max_latency', 0.0):.1f}s elapsed={time.time() - t0:.0f}s", file=sys.stderr, flush=True)
         finally:
             for seat in seats.values():
                 seat.close()
