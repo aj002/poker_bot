@@ -93,3 +93,29 @@ power at about +0.65 points.
 **Decision.** Recommend shipping `translate=postflop` only if H1 is a win, H2, H3 and H4 all
 pass, and both gates pass. Otherwise the flag stays available and off. Either way, this
 change does not alter the default bundle.
+
+## Results
+
+Runs were in-process with 7 jobs, from commit `8a025ba` (tag `prereg-redteam-translation`,
+pushed before the first run), with the pre-registered bundles unchanged. After the runs the
+exploiter code moved from `strategy/redteam` to `strategy/exploiters`, because the blind
+red-team suite took that package name on main. The tag keeps the code as it was run.
+Regenerated exploiter bot files import `strategy.exploiters.bots`, so their hashes differ
+from those recorded above. Their play is the same. `python -m strategy.exploit.evaluate confirm`
+(Holm, α = 0.05, margin 0.5):
+
+| id | B − A (95% CI) | one-sided p | Holm p | result |
+| --- | --- | --- | --- | --- |
+| H1 | +0.84 [+0.32, +1.36] | 0.0008 | 0.003 | win |
+| H2 | −0.80 [−1.26, −0.34] | 0.90 | 0.90 | fails: B is worse than the margin allows |
+| H3 | +0.07 [−0.59, +0.72] | 0.045 | 0.135 | not shown |
+| H4 | −0.18 [−0.69, +0.32] | 0.11 | 0.220 | not shown |
+
+H2 is negative in every one of the 17 validation families (−0.37 to −1.29), and most of the
+loss is in levels 6–8 (−0.59 [−0.89, −0.28]). Against this population, reading an off-tree
+bet as the bigger trained size protects the bot: those bets are value-heavy, and reading them
+as cheaper makes it call too wide.
+
+**Decision.** H2 fails, so `translate=postflop` is not recommended. The flag stays available
+and off, and the default bundle is unchanged. The deployed gates were not run on B, because
+H2 had already decided the outcome.
