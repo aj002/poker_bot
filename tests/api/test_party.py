@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import sys
 
 import pytest
 from starlette.websockets import WebSocketDisconnect
@@ -11,6 +10,7 @@ from starlette.websockets import WebSocketDisconnect
 from arena.api import party
 from arena.api.seats import FINAL_BOT_ENTRY, FINAL_BOT_RULESETS, FINAL_SUBMISSION
 from tests.api.helpers import HUMAN, bot, harness
+from tests.no_numba import run_without_numba
 
 
 def test_final_bot_is_a_public_builtin_seat_with_the_submission_hash():
@@ -31,14 +31,23 @@ def test_final_bot_metadata_matches_the_bot_itself():
     assert FINAL_BOT_ENTRY.is_file()
 
 
-def test_two_final_bot_copies_play_a_table_without_numba():
+def test_two_final_bot_copies_play_a_table_with_the_right_labels():
     with harness() as h:
         snap = h.setup([bot("final_bot"), bot("final_bot"), bot("calling_station")], hand_cap=8, hands_per_level=4)
         assert snap["status"] == "complete"
         seats = snap["setup"]["seats"]
         assert [s["label"] for s in seats[:2]] == ["Final bot", "Final bot"]
         assert {s["source"] for s in seats[:2]} == {"strategy"}
-        assert "numba" not in sys.modules and "llvmlite" not in sys.modules
+
+
+def test_two_final_bot_copies_play_a_table_without_numba():
+    done = run_without_numba("""
+        from tests.api.helpers import bot, harness
+        with harness() as h:
+            snap = h.setup([bot("final_bot"), bot("final_bot"), bot("calling_station")], hand_cap=4, hands_per_level=4)
+            assert snap["status"] == "complete", snap["status"]
+    """)
+    assert done.returncode == 0, done.stderr[-2000:]
 
 
 def test_final_bot_plays_the_other_rulesets_too():

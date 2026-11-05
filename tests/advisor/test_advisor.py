@@ -3,12 +3,11 @@
 from __future__ import annotations
 
 import json
-import sys
-
 import pytest
 
 from arena.advisor.ops import do
 from arena.advisor.session import Advisor, AdvisorError, new_session
+from tests.no_numba import run_without_numba
 
 ADV = Advisor(samples=40)
 
@@ -258,7 +257,17 @@ def test_sessions_are_deterministic_and_the_bot_needs_no_numba():
     for s in (a, b):
         do(ADV, s, {"op": "edit_hand", "button": 0})
     assert hand_to_hero(a)["advice"] == hand_to_hero(b)["advice"]
-    assert "numba" not in sys.modules and "llvmlite" not in sys.modules
+    done = run_without_numba("""
+        from arena.advisor.ops import do
+        from arena.advisor.session import Advisor, new_session
+        s = new_session({"players": 3, "hero": 0, "sb": 50, "bb": 100, "mode": "cash", "stacks": [5000] * 3})
+        adv = Advisor(samples=10)
+        do(adv, s, {"op": "edit_hand", "button": 0})
+        do(adv, s, {"op": "hole", "cards": ["Ah", "Kd"]})
+        v = adv.view(s)
+        assert v["stage"] == "action" and v["actor"] == 0 and v["advice"]["headline"], v
+    """)
+    assert done.returncode == 0, done.stderr[-2000:]
 
 
 def test_short_stacks_get_the_push_fold_chart():
