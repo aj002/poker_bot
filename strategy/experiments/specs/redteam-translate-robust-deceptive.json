@@ -1,0 +1,89 @@
+{
+  "experiment_id": "redteam-translate-robust-deceptive",
+  "title": "H4: price translation vs the final bot against deceptive lineups",
+  "description": "Confirmation H4 of docs/redteam-translation-preregistration.md: non-inferiority, H0 mean(B - A) <= -0.5.",
+  "stage": "confirmation",
+  "min_effect": 0.0,
+  "interval": "paired_t",
+  "arms": {
+    "A": {
+      "policy": "artifacts/redteam/target-base"
+    },
+    "B": {
+      "policy": "artifacts/redteam/target-translate"
+    }
+  },
+  "variants": [
+    "practice_nlhe"
+  ],
+  "table": {
+    "players": 8,
+    "starting_stack": 2000,
+    "hand_cap": 200
+  },
+  "population": {
+    "source": "strategy.population:PopulationSource",
+    "partition": "validation",
+    "lineups_per_variant": 1,
+    "explicit_lineups": [
+      [
+        "strategy/exploit/bots/adv_bait_station.py",
+        "strategy/exploit/bots/adv_bait_station.py",
+        "strategy/exploit/bots/adv_bait_station.py",
+        "strategy/exploit/bots/adv_bait_station.py",
+        "strategy/exploit/bots/adv_bait_station.py",
+        "strategy/exploit/bots/adv_bait_station.py",
+        "strategy/exploit/bots/adv_bait_station.py"
+      ],
+      [
+        "strategy/exploit/bots/adv_bait_nit.py",
+        "strategy/exploit/bots/adv_bait_nit.py",
+        "strategy/exploit/bots/adv_bait_nit.py",
+        "strategy/exploit/bots/adv_bait_nit.py",
+        "strategy/exploit/bots/adv_bait_nit.py",
+        "strategy/exploit/bots/adv_bait_nit.py",
+        "strategy/exploit/bots/adv_bait_nit.py"
+      ],
+      [
+        "strategy/exploit/bots/adv_image.py",
+        "strategy/exploit/bots/adv_image.py",
+        "strategy/exploit/bots/adv_image.py",
+        "strategy/exploit/bots/adv_image.py",
+        "strategy/exploit/bots/adv_image.py",
+        "strategy/exploit/bots/adv_image.py",
+        "strategy/exploit/bots/adv_image.py"
+      ],
+      [
+        "strategy/exploit/bots/adv_flip.py",
+        "strategy/exploit/bots/adv_flip.py",
+        "strategy/exploit/bots/adv_flip.py",
+        "strategy/exploit/bots/adv_flip.py",
+        "strategy/exploit/bots/adv_flip.py",
+        "strategy/exploit/bots/adv_flip.py",
+        "strategy/exploit/bots/adv_flip.py"
+      ],
+      [
+        "strategy/exploit/bots/adv_bait_station.py",
+        "strategy/exploit/bots/adv_bait_station.py",
+        "strategy/exploit/bots/adv_bait_nit.py",
+        "strategy/exploit/bots/adv_bait_nit.py",
+        "strategy/exploit/bots/adv_image.py",
+        "strategy/exploit/bots/adv_image.py",
+        "strategy/exploit/bots/adv_flip.py"
+      ],
+      [
+        "style:switcher",
+        "style:switcher",
+        "style:switcher",
+        "style:switcher",
+        "style:switcher",
+        "style:switcher",
+        "style:switcher"
+      ]
+    ]
+  },
+  "blocks_per_lineup": 50,
+  "base_seed": "redteam-translate-robust-deceptive-v1",
+  "isolation": "in_process",
+  "bootstrap_resamples": 2000
+}

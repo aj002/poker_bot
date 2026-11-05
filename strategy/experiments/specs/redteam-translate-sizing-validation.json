@@ -1,0 +1,53 @@
+{
+  "experiment_id": "redteam-translate-sizing-validation",
+  "title": "H1: price translation vs the final bot at tables of bet-size translation exploiters",
+  "description": "Confirmation H1 of docs/redteam-translation-preregistration.md: superiority, H0 mean(B - A) <= 0.",
+  "stage": "confirmation",
+  "min_effect": 0.0,
+  "interval": "paired_t",
+  "arms": {
+    "A": {
+      "policy": "artifacts/redteam/target-base"
+    },
+    "B": {
+      "policy": "artifacts/redteam/target-translate"
+    }
+  },
+  "variants": [
+    "practice_nlhe"
+  ],
+  "table": {
+    "players": 8,
+    "starting_stack": 2000,
+    "hand_cap": 200
+  },
+  "population": {
+    "source": "strategy.population:PopulationSource",
+    "partition": "validation",
+    "lineups_per_variant": 2,
+    "explicit_lineups": [
+      [
+        "artifacts/redteam/handhq-v1/bots/sizing-all.py",
+        "artifacts/redteam/handhq-v1/bots/sizing-all.py",
+        "artifacts/redteam/handhq-v1/bots/sizing-all.py",
+        "artifacts/redteam/handhq-v1/bots/sizing-all.py",
+        "artifacts/redteam/handhq-v1/bots/sizing-all.py",
+        "artifacts/redteam/handhq-v1/bots/sizing-all.py",
+        "artifacts/redteam/handhq-v1/bots/sizing-all.py"
+      ],
+      [
+        "artifacts/redteam/handhq-v1/bots/sizing-bluff.py",
+        "artifacts/redteam/handhq-v1/bots/sizing-bluff.py",
+        "artifacts/redteam/handhq-v1/bots/sizing-bluff.py",
+        "artifacts/redteam/handhq-v1/bots/sizing-bluff.py",
+        "artifacts/redteam/handhq-v1/bots/sizing-bluff.py",
+        "artifacts/redteam/handhq-v1/bots/sizing-bluff.py",
+        "artifacts/redteam/handhq-v1/bots/sizing-bluff.py"
+      ]
+    ]
+  },
+  "blocks_per_lineup": 400,
+  "base_seed": "redteam-translate-sizing-validation-v1",
+  "isolation": "in_process",
+  "bootstrap_resamples": 2000
+}

@@ -1,0 +1,62 @@
+{
+  "experiment_id": "redteam-translate-robust-equilibrium",
+  "title": "H3: price translation vs the final bot against equilibrium-style lineups",
+  "description": "Confirmation H3 of docs/redteam-translation-preregistration.md: non-inferiority, H0 mean(B - A) <= -0.5.",
+  "stage": "confirmation",
+  "min_effect": 0.0,
+  "interval": "paired_t",
+  "arms": {
+    "A": {
+      "policy": "artifacts/redteam/target-base"
+    },
+    "B": {
+      "policy": "artifacts/redteam/target-translate"
+    }
+  },
+  "variants": [
+    "practice_nlhe"
+  ],
+  "table": {
+    "players": 8,
+    "starting_stack": 2000,
+    "hand_cap": 200
+  },
+  "population": {
+    "source": "strategy.population:PopulationSource",
+    "partition": "validation",
+    "lineups_per_variant": 1,
+    "explicit_lineups": [
+      [
+        "artifacts/redteam/handhq-v1/arms/blueprint-only",
+        "artifacts/redteam/handhq-v1/arms/blueprint-only",
+        "artifacts/redteam/handhq-v1/arms/blueprint-only",
+        "artifacts/redteam/handhq-v1/arms/blueprint-only",
+        "artifacts/redteam/handhq-v1/arms/blueprint-only",
+        "artifacts/redteam/handhq-v1/arms/blueprint-only",
+        "artifacts/redteam/handhq-v1/arms/blueprint-only"
+      ],
+      [
+        "strategy/blueprint/bots/blueprint_capped.py",
+        "strategy/blueprint/bots/blueprint_capped.py",
+        "strategy/blueprint/bots/blueprint_capped.py",
+        "strategy/blueprint/bots/blueprint_capped.py",
+        "strategy/blueprint/bots/blueprint_capped.py",
+        "strategy/blueprint/bots/blueprint_capped.py",
+        "strategy/blueprint/bots/blueprint_capped.py"
+      ],
+      [
+        "artifacts/redteam/handhq-v1/arms/blueprint-only",
+        "artifacts/redteam/handhq-v1/arms/blueprint-only",
+        "artifacts/redteam/handhq-v1/arms/blueprint-only",
+        "strategy/blueprint/bots/blueprint_chips.py",
+        "strategy/blueprint/bots/blueprint_chips.py",
+        "strategy/endgame/bots/points.py",
+        "strategy/endgame/bots/points.py"
+      ]
+    ]
+  },
+  "blocks_per_lineup": 100,
+  "base_seed": "redteam-translate-robust-equilibrium-v1",
+  "isolation": "in_process",
+  "bootstrap_resamples": 2000
+}
