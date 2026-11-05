@@ -325,3 +325,99 @@ def test_translation_only_moves_the_price_digit():
     assert moved > 0
     with pytest.raises(ValueError):
         TranslatingBlueprintBot(translate="sometimes")
+
+
+def test_pseudo_harmonic_weights():
+    from strategy.blueprint.translate import pseudo_harmonic
+
+    assert pseudo_harmonic(1.0, 1.0, 4.0) == 1.0 and pseudo_harmonic(4.0, 1.0, 4.0) == 0.0
+    assert 1.0 > pseudo_harmonic(1.5, 1.0, 4.0) > pseudo_harmonic(2.0, 1.0, 4.0) > pseudo_harmonic(3.0, 1.0, 4.0) > 0.0
+    assert pseudo_harmonic(2.0, 1.0, 5.0) == pytest.approx(0.5)
+
+
+RECORDER = '''from strategy.blueprint.runtime import BlueprintBot
+
+
+class Recorder(BlueprintBot):
+    def decide(self, obs, state):
+        with open({out!r}, "a") as f:
+            f.write(obs.model_dump_json() + "\\n")
+        return super().decide(obs, state)
+
+
+def make_bot():
+    return Recorder()
+'''
+OVERBETTOR = '''from strategy.exploiters.bots import OverbetExploitBot
+
+
+def make_bot():
+    return OverbetExploitBot(pack={pack!r}, mode="polar", size={size})
+'''
+
+
+def overbet_observations(tmp_path):
+    """The hero's observations at a three-handed table with two overbettors."""
+    from arena.benchmark.runner import Entrant, TableRunner, schedule
+    from arena.domain.models import TournamentConfig
+    from arena.domain.observations import Observation
+    from strategy.blueprint.runtime import pack_path
+
+    out = tmp_path / "obs.jsonl"
+    (tmp_path / "hero.py").write_text(RECORDER.format(out=str(out)))
+    ents = [Entrant("hero", tmp_path / "hero.py")]
+    for i, size in enumerate((1.5, 3.0)):
+        (tmp_path / f"ob{i}.py").write_text(OVERBETTOR.format(pack=str(pack_path("practice_nlhe")), size=size))
+        ents.append(Entrant(f"ob{i}", tmp_path / f"ob{i}.py"))
+    cfg = TournamentConfig(ruleset_id="practice_nlhe", initial_player_count=3, starting_stack=2000, hand_cap=60)
+    runner = TableRunner(cfg, ents, isolation="in_process")
+    for a in schedule(cfg, 3, 1, "overbet-translation-test")[:3]:
+        runner.run(a)
+    return [Observation.model_validate_json(line) for line in out.read_text().splitlines()]
+
+
+@pytest.mark.parametrize("mode", ["overbet", "harmonic"])
+def test_size_translation_rekeys_only_mapped_bets(tmp_path, mode):
+    from strategy.blueprint.translate import TranslatingBlueprintBot, read_as, size_map
+
+    pol = TranslatingBlueprintBot(translate=mode).policy("practice_nlhe")
+    pol.seed = "s"
+    faced = mapped = 0
+    for obs in overbet_observations(tmp_path):
+        f = pol.plain_features(obs)
+        lo, hi = size_map(obs, 0.0, mode == "harmonic"), size_map(obs, 1.0 - 1e-12, mode == "harmonic")
+        if obs.street != "preflop" and obs.legal.call_amount:
+            faced += 1
+        if lo is None:
+            assert hi is None and pol.features(obs) == f
+            continue
+        mapped += 1
+        t = lo[0]
+        assert hi[0] == t and lo[1] < t < hi[1]
+        assert pol.plain_features(read_as(obs, t, t)) == f
+        keys = [pol.plain_features(read_as(obs, *m)) for m in (lo, hi)]
+        for g in keys:
+            assert A.split_key(g[0])[:2] == A.split_key(f[0])[:2]
+        assert keys[0][0] != f[0] or keys[1][0] != f[0]
+        assert pol.features(obs) in [(g[0], *f[1:]) for g in keys]
+    assert faced > mapped > 0
+
+
+@pytest.mark.parametrize("mode", ["pot", "shove"])
+def test_one_sided_overbet_reads(tmp_path, mode):
+    from strategy.blueprint.translate import TranslatingBlueprintBot, read_as, size_map
+
+    pol = TranslatingBlueprintBot(translate=mode).policy("practice_nlhe")
+    pol.seed = "s"
+    mapped = 0
+    for obs in overbet_observations(tmp_path):
+        f = pol.plain_features(obs)
+        m = size_map(obs, 0.5, shove=mode == "shove", pot=mode == "pot")
+        if m is None:
+            assert size_map(obs, 0.0) is None and pol.features(obs) == f
+            continue
+        mapped += 1
+        assert m == size_map(obs, 0.0, shove=mode == "shove", pot=mode == "pot")
+        assert (m[1] < m[0]) if mode == "pot" else (m[1] > m[0])
+        assert pol.features(obs) == (pol.plain_features(read_as(obs, *m))[0], *f[1:])
+    assert mapped > 0

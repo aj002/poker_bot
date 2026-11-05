@@ -8,6 +8,12 @@ pseudo-harmonic probability of the bet-to-pot fractions at those edges
 (:func:`lower_price_probability`), drawn from a stream keyed by the table's policy seed
 and the decision id; a bet at a trained size is read as before.
 
+``translate="overbet"`` leaves bets up to a pot alone and reads a postflop overbet (above
+the largest trained size, a pot, and below the all-in) as the pot-sized raise or the
+all-in; ``"harmonic"`` also reads a bet between a half pot and a pot as one of those two
+(:func:`size_map`); ``"shove"`` reads every overbet as the all-in and ``"pot"`` as the pot-sized raise. The key is then that of the mapped bet: price, depth and bet level
+as if it had been made (:func:`read_as`), while the hero's actions stay the real ones.
+
 :class:`TranslatingBlueprintBot` is the blueprint bot with translation;
 :class:`strategy.final.translated.TranslatingFinalBot` is the final bot with it, and
 ``strategy.final.package --override translate=...`` bundles that one. The default bundle
@@ -20,7 +26,7 @@ from strategy.blueprint import abstraction as A
 from strategy.blueprint.policy import PolicyPack
 from strategy.blueprint.runtime import BlueprintBot, BlueprintPolicy, HandReplay, _uniform
 
-TRANSLATE = ("off", "postflop", "all")
+TRANSLATE = ("off", "postflop", "all", "overbet", "harmonic", "shove", "pot")
 
 # Bet-to-pot fraction ``x`` of a plain bet whose price ``x / (1 + 2x)`` is each price edge.
 EDGE_FRACTIONS = tuple(num / (den - 2 * num) for num, den in A.PRICE_EDGES)
@@ -40,6 +46,94 @@ def lower_price_probability(to_call: int, pot: int) -> float:
     if x >= hi:
         return 0.0
     return min(1.0, (hi - x) * (1.0 + lo) / ((hi - lo) * (1.0 + x)))
+
+
+def pseudo_harmonic(x: float, lo: float, hi: float) -> float:
+    """Probability of reading a bet of ``x`` pots as the smaller of the sizes ``lo < hi``."""
+    if x <= lo:
+        return 1.0
+    if x >= hi:
+        return 0.0
+    return (hi - x) * (1.0 + lo) / ((hi - lo) * (1.0 + x))
+
+
+def last_raise(obs):
+    """``(seat, level before, raise-to, pot after)`` of the current street's last raise, or None."""
+    events = []
+    for e in reversed(obs.action_history):
+        if e.hand_id != obs.hand_id or e.type == "HandStarted":
+            break
+        if e.type == "ActionApplied":
+            if e.data["street"] != obs.street:
+                break
+            events.append(e.data)
+    after = 0
+    for i, d in enumerate(events):
+        if d["action"]["type"] == "raise_to":
+            level = max((int(o["street_committed"]) for o in events[i + 1:]), default=0)
+            return int(d["seat"]), level, int(d["street_committed"]), obs.pot_total - after
+        after += int(d.get("added", 0))
+    return None
+
+
+def size_map(obs, u: float, between: bool = False, shove: bool = False, pot: bool = False):
+    """``(raise-to, mapped raise-to)`` for the postflop bet the hero faces, or None to read it as it is.
+
+    The bettor's fraction ``x`` of the pot (the tree's ``cur + x * (pot + to_call)``) is read
+    as one of its two neighbouring trained sizes with the pseudo-harmonic weight, ``u`` picking
+    the side: an overbet (above a pot, below the effective all-in) as the pot-sized raise or
+    the all-in, and with ``between`` a bet between a half pot and a pot as one of those two.
+    All-ins, bets that put the hero all-in and raises after the last sized raise are left as
+    they are."""
+    me = next((p for p in obs.players if p.seat == obs.hero_seat), None)
+    call = obs.legal.call_amount or 0
+    if me is None or obs.street == "preflop" or not call or call >= me.stack:
+        return None
+    lr = last_raise(obs)
+    if lr is None:
+        return None
+    seat, level, t, pot_after = lr
+    if t != obs.current_bet_to or seat == me.seat:
+        return None
+    bettor = next((p for p in obs.players if p.seat == seat), None)
+    if bettor is None or bettor.status != "active" or bettor.stack <= 0:
+        return None
+    raises = sum(1 for e in obs.action_history if e.hand_id == obs.hand_id and e.type == "ActionApplied"
+                 and e.data["street"] == obs.street and e.data["action"]["type"] == "raise_to")
+    base = pot_after - t + level
+    if raises > A.MAX_SIZED_RAISES or base <= 0:
+        return None
+    t_all = min(t + bettor.stack, me.street_committed + me.stack)
+    x, x_all = (t - level) / base, (t_all - level) / base
+    if 1.0 < x < x_all:
+        if shove:
+            return t, t_all
+        if pot:
+            return t, level + base
+        lo, hi = 1.0, x_all
+    elif between and 0.5 < x < min(1.0, x_all):
+        lo, hi = 0.5, min(1.0, x_all)
+    else:
+        return None
+    small = level + round(lo * base)
+    big = t_all if hi == x_all else level + round(hi * base)
+    return t, (small if u < pseudo_harmonic(x, lo, hi) else big)
+
+
+def read_as(obs, t: int, mapped: int):
+    """The observation as the hero would see it had every player at bet level ``t`` put in ``mapped``."""
+    delta = mapped - t
+    players, pot = [], obs.pot_total
+    for p in obs.players:
+        if p.seat != obs.hero_seat and p.status not in ("folded", "eliminated") and p.street_committed == t:
+            d = min(delta, p.stack)
+            pot += d
+            p = p.model_copy(update={"stack": p.stack - d, "street_committed": p.street_committed + d,
+                                     "hand_committed": p.hand_committed + d})
+        players.append(p)
+    me = next(p for p in obs.players if p.seat == obs.hero_seat)
+    legal = obs.legal.model_copy(update={"call_amount": mapped - me.street_committed})
+    return obs.model_copy(update={"players": players, "pot_total": pot, "current_bet_to": mapped, "legal": legal})
 
 
 def check_mode(translate: str) -> str:
@@ -64,6 +158,11 @@ class TranslatingPolicy(BlueprintPolicy):
 
     def features(self, obs, rp: HandReplay | None = None):
         f = super().features(obs, rp)
+        if f is not None and self.translate in ("overbet", "harmonic", "shove", "pot"):
+            m = size_map(obs, _uniform("size-map|" + self.seed, obs.decision_id), self.translate == "harmonic",
+                         self.translate == "shove", self.translate == "pot")
+            g = super().features(read_as(obs, *m), rp) if m is not None else None
+            return f if g is None else (g[0], *f[1:])
         if f is None or self.translate == "off" or (self.translate == "postflop" and obs.street == "preflop"):
             return f
         call_amount = obs.legal.call_amount or 0
