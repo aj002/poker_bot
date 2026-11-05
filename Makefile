@@ -443,3 +443,14 @@ redteam-suite-pack:
 
 redteam-report:
 	$(UV) run python -m strategy.redteam report --out $(RT_OUT)
+
+# Full-information exploiters (strategy/exploiters; docs in the exploiter report): build a final
+# bundle from the default packs (or PACK/XPACK), train the exploiters against it, measure them
+# against it, blueprint-only and nlhe-v2, and print the summary. Re-run after a retrain.
+.PHONY: exploiters
+EX_BUNDLE ?= artifacts/exploiters/target
+EX_RUN ?= artifacts/exploiters/run
+exploiters:
+	$(UV) run python -m strategy.final.package --out $(EX_BUNDLE) $(if $(PACK),--pack $(PACK)) \
+		$(if $(XPACK),--exploit-pack $(XPACK))
+	$(REQUIRE_NUMBA) $(UV) run $(TRAIN) python -m strategy.exploiters --target $(EX_BUNDLE) --run $(EX_RUN)
