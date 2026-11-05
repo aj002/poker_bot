@@ -281,3 +281,45 @@ def test_bot_plays_legal_tournaments_within_budget(tmp_path, monkeypatch, leaf):
     if leaf == "blueprint_noleaf":
         assert not any("push/fold" in n for n in notes)
     assert float(np.quantile(timings, 0.99)) < TournamentConfig().bot_budget_ns
+
+
+def test_price_translation_probability():
+    from strategy.blueprint.runtime import lower_price_probability
+
+    pot_before = 1000
+    def p(frac):
+        bet = round(frac * pot_before)
+        return lower_price_probability(bet, pot_before + bet)
+
+    # Trained sizes sit on price edges and keep their bucket; so do the smallest and largest buckets.
+    for frac in (0.5, 1.0, 2.0, 0.1, 3.0):
+        assert p(frac) == 0.0
+    assert lower_price_probability(0, 1000) == 0.0
+    # Just above an edge reads as the lower bucket almost surely; the weight falls with the size.
+    assert p(0.51) > 0.95 and p(1.02) > 0.95 and p(0.22) > 0.95
+    assert p(0.3) > p(0.4) > p(0.49) > 0.0
+    assert 0.0 < p(0.75) < 1.0
+
+
+def test_translation_is_off_by_default_and_only_moves_the_price_digit():
+    from arena.domain.observations import Observation
+    from strategy.blueprint.runtime import PRICE_STRIDE, BlueprintBot, warm_observations
+
+    off, on = BlueprintBot(), BlueprintBot(translate="all")
+    pol_off, pol_on = off.policy("practice_nlhe"), on.policy("practice_nlhe")
+    moved = 0
+    for raw in warm_observations("practice_nlhe"):
+        obs = Observation.model_validate_json(raw)
+        f = pol_off.features(obs)
+        assert pol_off.play_features(obs, "s") == f
+        g = pol_on.play_features(obs, "s")
+        if f is None:
+            assert g is None
+            continue
+        assert g[1:] == f[1:] and g[0] in (f[0], f[0] - PRICE_STRIDE)
+        if g[0] != f[0]:
+            moved += 1
+            assert A.split_key(g[0])[:2] == A.split_key(f[0])[:2]
+    assert moved > 0
+    with pytest.raises(ValueError):
+        BlueprintBot(translate="sometimes")

@@ -54,7 +54,7 @@ DATA = Path(__file__).resolve().parent / "strategy" / "tables" / "data"
 
 
 def make_bot():
-    return FinalBot(pack=DATA / "{pack_file}", exploit_pack=DATA / "{xpack_file}")
+    return FinalBot(pack=DATA / "{pack_file}", exploit_pack=DATA / "{xpack_file}"{extra})
 '''
 
 _PROBE = r'''
@@ -124,7 +124,9 @@ def bundle_hash(bundle: Path) -> str:
 
 
 def build(out: Path, *, pack: Path | None = None, xpack: Path | None = None, reveal: Path | None = None,
-          ruleset_id: str = "practice_nlhe") -> dict:
+          ruleset_id: str = "practice_nlhe", overrides: dict | None = None) -> dict:
+    """``overrides``: :class:`~strategy.exploit.runtime.ExploitBot` overrides baked into ``bot.py``
+    (none by default, which leaves ``bot.py`` as it was)."""
     from strategy.blueprint.policy import PolicyPack
     from strategy.blueprint.runtime import pack_path
     from strategy.exploit.pack import ExploitPack
@@ -161,7 +163,9 @@ def build(out: Path, *, pack: Path | None = None, xpack: Path | None = None, rev
         shutil.copyfile(src, dst)
     (tmp / "bot.py").write_text(BOT_TEMPLATE.format(pack_sha=pk.provenance["data_sha256"][:16],
                                                     xpack_sha=xp.provenance["data_sha256"][:16],
-                                                    pack_file=pack_file, xpack_file=xpack_file), encoding="ascii")
+                                                    pack_file=pack_file, xpack_file=xpack_file,
+                                                    extra=f", overrides={dict(sorted(overrides.items()))!r}"
+                                                    if overrides else ""), encoding="ascii")
     hashed = bundle_files(tmp)
     size = sum(p.stat().st_size for p in hashed)
     if size > SIZE_LIMIT:
@@ -178,6 +182,8 @@ def build(out: Path, *, pack: Path | None = None, xpack: Path | None = None, rev
         "files": {p.relative_to(tmp).as_posix(): hashlib.sha256(p.read_bytes()).hexdigest() for p in hashed},
         "bundle_sha256": bundle_hash(tmp),
     }
+    if overrides:
+        manifest["overrides"] = dict(sorted(overrides.items()))
     if reveal is not None:
         from strategy.rules.variants import VariantSpec
 
@@ -317,7 +323,18 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--verify", action="store_true",
                     help="only check an existing bundle: hashes, smoke and the size / memory limits")
     ap.add_argument("--submit", type=Path, help="with --verify: write the tarball and SHA256SUMS to this directory")
+    ap.add_argument("--override", action="append", default=[], metavar="KEY=VALUE",
+                    help="ExploitBot override baked into bot.py, e.g. translate=postflop (repeatable)")
     a = ap.parse_args(argv)
+    overrides = {}
+    for item in a.override:
+        k, sep, v = item.partition("=")
+        if not sep:
+            ap.error(f"--override {item!r} is not KEY=VALUE")
+        try:
+            overrides[k] = json.loads(v)
+        except json.JSONDecodeError:
+            overrides[k] = v
     if a.verify:
         m = verify(a.out)
         smoke(a.out)
@@ -327,7 +344,7 @@ def main(argv: list[str] | None = None) -> int:
             rep["tarball"] = submit(a.out, a.submit)
         print(json.dumps(rep, indent=1))
         return 0 if lim["ok"] else 1
-    manifest = build(a.out, pack=a.pack, xpack=a.exploit_pack, reveal=a.reveal)
+    manifest = build(a.out, pack=a.pack, xpack=a.exploit_pack, reveal=a.reveal, overrides=overrides or None)
     smoke(a.out)
     verify(a.out)
     print(json.dumps({k: v for k, v in manifest.items() if k != "files"}, indent=1, sort_keys=True))

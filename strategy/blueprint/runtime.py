@@ -16,8 +16,13 @@ Layers, in order:
 3. on a miss at every back-off level, the endgame bots' base policy.
 
 Off-tree bets need no translation table: the context reads the real price, pot, stacks
-and raise count, so an unseen size lands in the nearest price and SPR buckets. The
-hero's own sized raises are clamped to the nearest legal raise.
+and raise count, so an unseen size lands in a price and SPR bucket. The trained sizes sit
+at the top of their price buckets, so by default a bet is read as the next trained size
+up (a third-pot bet as a half-pot bet). ``translate`` (off by default) instead reads a
+bet between two price edges as the lower bucket with the pseudo-harmonic probability of
+the bet-to-pot fractions at those edges (:func:`lower_price_probability`); a bet at a
+trained size is read as before. The hero's own sized raises are clamped to the nearest
+legal raise.
 """
 
 from __future__ import annotations
@@ -39,6 +44,7 @@ from strategy.tables import store
 
 RULESETS = ("practice_nlhe",)
 LEAVES = ("points", "chips", "capped", "none")
+TRANSLATE = ("off", "postflop", "all")
 STREETS = ("preflop", "flop", "turn", "river")
 WARM_DIR = Path(__file__).resolve().parent / "data"
 WARM_PASSES = 3
@@ -60,6 +66,26 @@ def pack_path(ruleset_id: str) -> Path:
 def _uniform(seed: str, decision_id: str) -> float:
     h = hashlib.sha256(f"blueprint-bot-v1|{seed}|{decision_id}".encode()).digest()
     return int.from_bytes(h[:8], "big") / 2.0 ** 64
+
+
+# Bet-to-pot fraction ``x`` of a plain bet whose price ``x / (1 + 2x)`` is each price edge.
+EDGE_FRACTIONS = tuple(num / (den - 2 * num) for num, den in A.PRICE_EDGES)
+PRICE_STRIDE = A.R_DEPTH * A.R_ACTED * A.R_INIT * A.R_PRESSURE
+
+
+def lower_price_probability(to_call: int, pot: int) -> float:
+    """Probability of reading a bet as the price bucket below its own: the pseudo-harmonic
+    weight ``(B - x)(1 + A) / ((B - A)(1 + x))`` of the edges ``A < x <= B`` around the
+    bet's price-equivalent fraction ``x``. Zero at an edge (a trained size), in the
+    nothing-to-call and smallest buckets, and above the top edge."""
+    b = A.price_bucket(to_call, pot)
+    if b < 2 or b > len(A.PRICE_EDGES):
+        return 0.0
+    x = to_call / (pot - to_call)
+    lo, hi = EDGE_FRACTIONS[b - 2], EDGE_FRACTIONS[b - 1]
+    if x >= hi:
+        return 0.0
+    return min(1.0, (hi - x) * (1.0 + lo) / ((hi - lo) * (1.0 + x)))
 
 
 class HandReplay:
@@ -162,6 +188,7 @@ class BlueprintPolicy:
         self.cards = CardAbstraction(self.caps)
         self.pack = pack or PolicyPack(pack_path(ruleset_id))
         self.offsets = A.OFFSETS
+        self.translate = "off"
         self._pressure: dict[tuple[str, int], int] = {}
         for i, a in enumerate(self.caps.deck):
             for b in self.caps.deck[i + 1:]:
@@ -235,9 +262,25 @@ class BlueprintPolicy:
             mask &= ~(1 << A.FOLD)
         return key, mask, (0, 0, t_min, t_a, t_b, t_all)
 
-    def act(self, obs, u: float):
+    def play_features(self, obs, seed: str, rp: HandReplay | None = None):
+        """:meth:`features` of a decision being played: with :attr:`translate` on, the key
+        of a facing bet may move one price bucket down (:func:`lower_price_probability`),
+        drawn from a stream keyed by the policy seed and the decision id."""
+        f = self.features(obs, rp)
+        if f is None or self.translate == "off" or (self.translate == "postflop" and obs.street == "preflop"):
+            return f
+        call_amount = obs.legal.call_amount or 0
+        if not call_amount:
+            return f
+        stack = next(p.stack for p in obs.players if p.seat == obs.hero_seat)
+        p_low = lower_price_probability(min(call_amount, stack), obs.pot_total)
+        if p_low and _uniform("translate|" + seed, obs.decision_id) < p_low:
+            return (f[0] - PRICE_STRIDE, *f[1:])
+        return f
+
+    def act(self, obs, u: float, seed: str = ""):
         """``(action, note)`` from the blueprint, or None on a table miss."""
-        return self.act_on(obs, u, self.features(obs))
+        return self.act_on(obs, u, self.play_features(obs, seed))
 
     def act_on(self, obs, u: float, f):
         """:meth:`act` given ``f = self.features(obs)``."""
@@ -281,10 +324,13 @@ class BlueprintPolicy:
 class BlueprintBot(ExplicitStateBot):
     rulesets = RULESETS
 
-    def __init__(self, leaf: str = "points", pack: str | Path | None = None) -> None:
+    def __init__(self, leaf: str = "points", pack: str | Path | None = None, translate: str = "off") -> None:
         if leaf not in LEAVES:
             raise ValueError(f"leaf is one of {LEAVES}")
+        if translate not in TRANSLATE:
+            raise ValueError(f"translate is one of {TRANSLATE}")
         self.leaf = leaf
+        self.translate = translate
         self.name = "blueprint" if leaf == "points" else f"blueprint_{leaf}"
         self._pack_path = Path(pack) if pack else None
         self._policies: dict[str, BlueprintPolicy] = {}
@@ -302,6 +348,7 @@ class BlueprintBot(ExplicitStateBot):
         if p is None:
             pack = PolicyPack(self._pack_path) if self._pack_path else None
             p = self._policies[ruleset_id] = BlueprintPolicy(ruleset_id, pack)
+            p.translate = self.translate
         return p
 
     def initial_state(self, table):
@@ -334,7 +381,7 @@ class BlueprintBot(ExplicitStateBot):
         if action is not None:
             self.stats["leaf"] += 1
             return with_note(action, "push/fold table"), state
-        hit = policy.act(obs, _uniform(seed, obs.decision_id))
+        hit = policy.act(obs, _uniform(seed, obs.decision_id), seed)
         if hit is not None:
             action, note = hit
             self.stats["blueprint"] += 1
