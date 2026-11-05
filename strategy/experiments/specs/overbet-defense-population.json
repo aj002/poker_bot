@@ -1,0 +1,33 @@
+{
+  "experiment_id": "overbet-defense-population",
+  "title": "H3: overbet reads as pot vs the final bot on sampled pop-v1+handhq-v1 validation lineups",
+  "description": "Confirmation H3 of docs/overbet-defense-preregistration.md: non-inferiority, H0 mean(B - A) <= -0.5.",
+  "stage": "confirmation",
+  "min_effect": 0.0,
+  "interval": "paired_t",
+  "arms": {
+    "A": {
+      "policy": "artifacts/redteam/target-handhq"
+    },
+    "B": {
+      "policy": "artifacts/redteam/target-pot"
+    }
+  },
+  "variants": [
+    "practice_nlhe"
+  ],
+  "table": {
+    "players": 8,
+    "starting_stack": 2000,
+    "hand_cap": 200
+  },
+  "population": {
+    "source": "strategy.population.handhq:HandhqPopulationSource",
+    "partition": "validation",
+    "lineups_per_variant": 16
+  },
+  "blocks_per_lineup": 50,
+  "base_seed": "overbet-defense-population-v1",
+  "isolation": "in_process",
+  "bootstrap_resamples": 2000
+}
