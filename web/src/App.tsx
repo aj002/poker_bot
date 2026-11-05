@@ -9,6 +9,7 @@ import {
   useTableStream,
   type Credentials,
 } from './api'
+import { AdvisorScreen } from './screens/Advisor'
 import { LearnScreen } from './screens/Learn'
 import { Lobby } from './screens/Lobby'
 import { ReplayScreen } from './screens/Replay'
@@ -135,6 +136,9 @@ function Header({ route, navigate }: { route: string; navigate: (p: string) => v
         <a href="#/" aria-current={route === '/' ? 'page' : undefined}>
           New table
         </a>
+        <a href="#/advisor" aria-current={route === '/advisor' ? 'page' : undefined}>
+          Advisor
+        </a>
         <a href="#/learn" aria-current={route === '/learn' ? 'page' : undefined}>
           Learn
         </a>
@@ -253,6 +257,8 @@ export default function App() {
         <StudyScreen route={route} navigate={navigate} />
       ) : route === '/learn' ? (
         <LearnScreen navigate={navigate} />
+      ) : route === '/advisor' ? (
+        <AdvisorScreen />
       ) : route === '/runs' ? (
         <RunsScreen navigate={navigate} />
       ) : (

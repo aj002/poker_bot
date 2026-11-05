@@ -13,6 +13,7 @@ The 3b policy ids stay accepted as aliases so existing clients keep working.
 
 from __future__ import annotations
 
+import json
 import secrets
 import threading
 from dataclasses import dataclass, field
@@ -39,8 +40,8 @@ from arena.domain.models import RULESET_IDS, TournamentConfig
 from arena.table.projections import observation
 from arena.table.service import ActionRejected, Table
 
-Source = Literal["baseline", "registered", "style"]
-BUILTIN_SOURCES = ("baseline", "style")
+Source = Literal["baseline", "registered", "style", "strategy"]
+BUILTIN_SOURCES = ("baseline", "style", "strategy")
 """Repository-owned bots: trusted, run in-process at live tables and allowed in in-process runs."""
 
 BASELINE_TEXT: dict[str, tuple[str, str]] = {
@@ -49,6 +50,12 @@ BASELINE_TEXT: dict[str, tuple[str, str]] = {
     "legal_random": ("Legal random", "A random legal action kind, then a random legal raise size."),
     "nlhe_heuristic": ("NLHE heuristic", "Simple hand-strength heuristic. Hold'em only; not a strong player."),
 }
+
+FINAL_BOT_ID = "final_bot"
+FINAL_BOT_RULESETS = (*RULESET_IDS, "reveal_variant")
+"""Kept equal to ``strategy.final.runtime.RULESETS`` by a test; importing that module here would load the whole bot."""
+FINAL_BOT_ENTRY = Path(__file__).resolve().parents[2] / "strategy" / "final" / "bots" / "final.py"
+FINAL_SUBMISSION = FINAL_BOT_ENTRY.parents[1] / "submission.json"
 
 LEGACY_ALIASES = {"check_or_fold": "check_fold", "check_or_call": "calling_station"}
 
@@ -115,6 +122,25 @@ def _style_spec(style: str) -> BotSpec:
     )
 
 
+def _final_bot_spec() -> BotSpec | None:
+    """The competition bot as a trusted, in-process seat: no 1 ms deadline, so a busy laptop never makes it fold.
+
+    Absent when the repository has no ``strategy/final`` (an ``arena``-only install).
+    """
+    if not FINAL_BOT_ENTRY.is_file():
+        return None
+    try:
+        bundle = json.loads(FINAL_SUBMISSION.read_text())["submission_bundle_sha256"]
+    except (OSError, KeyError, ValueError):
+        bundle = artifact_hash(FINAL_BOT_ENTRY)
+    return BotSpec(
+        id=FINAL_BOT_ID, label="Final bot", source="strategy", artifact_hash=bundle,
+        description=f"The competition entry (bundle {bundle[:8]}): exploiting blueprint on Hold'em, generic play on "
+                    "other variants. Runs in the server process with no decision deadline; needs no numba.",
+        rulesets=FINAL_BOT_RULESETS, state_mode="explicit", bot_name=FINAL_BOT_ID, run_path=FINAL_BOT_ENTRY,
+    )
+
+
 @dataclass
 class BotRegistry:
     """Bot choices for live seats; owns the sandbox worker pool for registered files."""
@@ -122,6 +148,7 @@ class BotRegistry:
     pool_size: int = 4
     baselines: dict[str, BotSpec] = field(init=False)
     styles: dict[str, BotSpec] = field(init=False)
+    strategy: dict[str, BotSpec] = field(init=False)
     registered: dict[str, BotSpec] = field(init=False, default_factory=dict)
     _pool: WorkerPool | None = field(init=False, default=None)
     _lock: threading.Lock = field(init=False, default_factory=threading.Lock)
@@ -129,18 +156,22 @@ class BotRegistry:
     def __post_init__(self) -> None:
         self.baselines = {name: _baseline_spec(name) for name in BASELINES}
         self.styles = {spec.id: spec for spec in (_style_spec(sid) for sid in STYLES)}
+        final = _final_bot_spec()
+        self.strategy = {final.id: final} if final is not None else {}
 
     # -- lookup
     def resolve(self, policy_id: str | None) -> BotSpec | None:
         if policy_id is None:
             return None
         policy_id = LEGACY_ALIASES.get(policy_id, policy_id)
-        return self.baselines.get(policy_id) or self.styles.get(policy_id) or self.registered.get(policy_id)
+        return (self.baselines.get(policy_id) or self.styles.get(policy_id) or self.strategy.get(policy_id)
+                or self.registered.get(policy_id))
 
     def catalog(self, *, operator: bool = False) -> list[dict[str, Any]]:
         out = [s.public() for s in self.baselines.values()]
         out += [self.baselines[target].public(alias_of=target, alias_id=alias) for alias, target in LEGACY_ALIASES.items()]
         out += [s.public() for s in self.styles.values()]
+        out += [s.public() for s in self.strategy.values()]
         if operator:
             out += [s.public(operator=True) for s in self.registered.values()]
         return out
@@ -205,7 +236,7 @@ class BotRegistry:
         if spec.source == "baseline":
             bot, bot_info = load_baseline(spec.id)
             return InProcessSeat(seat, bot, bot_info, info, spec.artifact_hash)
-        if spec.source == "style":
+        if spec.source in ("style", "strategy"):
             assert spec.run_path is not None
             bot, bot_info = load_bot(spec.run_path, module_name=f"arena_{spec.id}")
             return InProcessSeat(seat, bot, bot_info, info, spec.artifact_hash)

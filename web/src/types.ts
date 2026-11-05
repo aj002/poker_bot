@@ -90,7 +90,7 @@ export interface SeatInfo {
   policy: string | null
   label: string
   artifact_hash: string | null
-  source: 'baseline' | 'registered' | 'style' | null
+  source: 'baseline' | 'registered' | 'style' | 'strategy' | null
   claimed: boolean
   you: boolean
   /** Set up hidden: before the reveal its policy, label and style are withheld by the server. */
@@ -286,7 +286,7 @@ export interface Policy {
   label: string
   description: string
   artifact_hash: string
-  source: 'baseline' | 'registered' | 'style'
+  source: 'baseline' | 'registered' | 'style' | 'strategy'
   style?: string
   rulesets: string[]
   state_mode: string
@@ -536,3 +536,90 @@ export interface StudyHand {
 }
 
 export type AntePosting = 'classic' | 'big_blind'
+
+export interface AdvisorSetup {
+  players: number
+  hero: number
+  sb: number
+  bb: number
+  ante: number
+  ante_posting: AntePosting | null
+  mode: 'cash' | 'tournament'
+  payouts: number[]
+  stacks: number[]
+}
+
+export interface AdvisorSeat {
+  seat: number
+  hero: boolean
+  button: boolean
+  position: string | null
+  in_hand: boolean
+  stack_start: number
+  stack: number
+  street_committed: number
+  status: string
+}
+
+export interface AdvisorAction {
+  type: 'fold' | 'check' | 'call' | 'raise_to'
+  amount?: number
+}
+
+export interface AdvisorAdvice {
+  headline: string
+  pick: AdvisorAction
+  mix: { label: string; action: AdvisorAction; pct: number }[]
+  mixed: boolean
+  reason: string
+  source: string
+  position: string
+  effective_bb: number
+}
+
+export interface AdvisorLegal {
+  fold: boolean
+  check: boolean
+  call_amount: number
+  can_raise: boolean
+  min_raise_to: number | null
+  max_raise_to: number | null
+  short_all_in_raise_to: number | null
+  pot_raise_to: number | null
+  all_in_raise_to: number | null
+  blocked: string | null
+}
+
+export interface AdvisorView {
+  session: string
+  setup: AdvisorSetup
+  hand_number: number
+  button: number
+  blinds: { sb: number; bb: number; ante: number; ante_posting: AntePosting | null }
+  stage: 'hole' | 'action' | 'board' | 'complete'
+  street: string
+  board: string[]
+  hole: string[] | null
+  used_cards: string[]
+  pot: number
+  seats: AdvisorSeat[]
+  actor: number | null
+  legal: AdvisorLegal | null
+  need_board: number | null
+  street_needed: string | null
+  advice: AdvisorAdvice | null
+  log: string[]
+  result: {
+    ended_by_fold: boolean
+    resolved: boolean
+    winner: number | null
+    pots: { amount: number; eligible: number[] }[]
+    awards: number[][] | null
+    stacks_after: Record<string, number>
+  } | null
+  can_undo: boolean
+  editable: boolean
+  next_stacks: Record<string, number>
+}
+
+export type AdvisorOp = { op: string } & Record<string, unknown>

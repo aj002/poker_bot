@@ -18,6 +18,7 @@ import json
 import logging
 import os
 import threading
+from pathlib import Path
 from collections.abc import AsyncIterator
 from typing import Any
 
@@ -29,6 +30,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict, Field, StrictStr
 
 from arena.api.clock import Clock, FakeClock
+from arena.api.advisor import SessionStore, advisor_dir_from_env, register_advisor
 from arena.api.manager import (
     ApiError,
     CreateTableRequest,
@@ -37,6 +39,7 @@ from arena.api.manager import (
     TableManager,
 )
 from arena.api.operator import is_operator, operator_token_from_env
+from arena.api.party import same_origin
 from arena.api.replay import ReplayCache, ReplayError, check_perspective
 from arena.api.runs import RunManager, RunRejected, RunRequest
 from arena.api.seats import BotRegistrationError
@@ -95,6 +98,7 @@ def create_app(
     runs: RunManager | None = None,
     test_hooks: bool | None = None,
     study: StudyLibrary | None = None,
+    advisor_dir: Path | str | None = "env",
 ) -> FastAPI:
     """``ARENA_FAKE_CLOCK=1`` (end-to-end tests only) swaps in a fake clock that
     advances solely through ``POST /__test__/clock/advance``."""
@@ -145,6 +149,7 @@ def create_app(
             await run_in_threadpool(manager.bots.close)
 
     app = FastAPI(title="arena practice table", version="0.1.0", lifespan=lifespan)
+    register_advisor(app, SessionStore(advisor_dir_from_env() if advisor_dir == "env" else advisor_dir))
     app.state.manager = manager
     app.state.runs = runs
 
@@ -331,7 +336,7 @@ def create_app(
     @app.websocket("/tables/{table_id}/stream")
     async def stream(ws: WebSocket, table_id: str) -> None:
         origin = ws.headers.get("origin")
-        if origin is not None and origin not in allowed_origins:
+        if origin is not None and origin not in allowed_origins and not same_origin(origin, ws.headers.get("host")):
             await ws.close(code=4403)
             return
         await ws.accept()

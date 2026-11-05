@@ -120,7 +120,7 @@ def harness(*, bot_delay_ms: int = 0, hand_pause_ms: int = 0, runs_root: Path | 
     store = _api_test_store()
     manager = TableManager(clock, bot_delay_ms=bot_delay_ms, hand_pause_ms=hand_pause_ms, store=store)
     runs = RunManager(manager.bots, runs_root) if runs_root is not None else None
-    app = create_app(manager, background_pump=False, operator_token=OPERATOR, runs=runs)
+    app = create_app(manager, background_pump=False, operator_token=OPERATOR, runs=runs, advisor_dir=None)
     try:
         with TestClient(app) as client:
             yield Harness(client, manager, clock, app.state.runs)

@@ -33,6 +33,7 @@ export default defineConfig({
         ARENA_OPERATOR_TOKEN: 'e2e-operator-token',
         ARENA_ALLOWED_ORIGINS: `http://127.0.0.1:${WEB_PORT}`,
         ARENA_STUDY_DIR: 'artifacts/e2e-study',
+        ARENA_ADVISOR_DIR: 'artifacts/e2e-advisor',
       },
       reuseExistingServer: false,
     },

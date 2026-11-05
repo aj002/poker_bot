@@ -208,11 +208,13 @@ export function Setup({ navigate }: { navigate: (path: string) => void }) {
                       </option>
                     </optgroup>
                   )}
-                  {(['baseline', 'registered'] as const).map((source) => {
+                  {(['strategy', 'baseline', 'registered'] as const).map((source) => {
                     const group = policies.filter((p) => p.source === source)
                     if (group.length === 0) return null
                     return (
-                      <optgroup key={source} label={source === 'baseline' ? 'Baseline bots' : 'Registered files (operator)'}>
+                      <optgroup key={source} label={
+                          source === 'strategy' ? 'Competition bot' : source === 'baseline' ? 'Baseline bots' : 'Registered files (operator)'
+                        }>
                         {group.map((p) => {
                           const ok = p.rulesets.includes(ruleset)
                           return (

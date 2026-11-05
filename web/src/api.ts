@@ -1,6 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
 import type {
   Action,
+  AdvisorOp,
+  AdvisorSetup,
+  AdvisorView,
   Aids,
   Perspective,
   Policy,
@@ -119,6 +122,14 @@ export interface CreateBody {
   config: Record<string, unknown>
   seats: { kind: 'human' | 'bot'; policy?: string | null; reveal?: boolean }[]
   styles?: { mode: StyleMode; learning_aids: boolean; random_pool?: string[] }
+}
+
+export const advisorApi = {
+  create: (body: Omit<AdvisorSetup, 'payouts' | 'ante_posting'> & { payouts?: string | number[]; ante_posting?: string | null; button?: number }) =>
+    request<AdvisorView>('/advisor/sessions', { method: 'POST', body: JSON.stringify(body) }),
+  get: (id: string) => request<AdvisorView>(`/advisor/sessions/${id}`),
+  do: (id: string, op: AdvisorOp) =>
+    request<AdvisorView>(`/advisor/sessions/${id}/do`, { method: 'POST', body: JSON.stringify(op) }),
 }
 
 export const api = {

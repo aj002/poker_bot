@@ -1,6 +1,6 @@
 UV ?= uv
 
-.PHONY: setup dev dev-postgres db-up db-down verify-fast verify-postgres verify-release verify-release-status \
+.PHONY: setup dev party dev-postgres db-up db-down verify-fast verify-postgres verify-release verify-release-status \
 	verify-release-report verify-release-smoke verify-web test cli-demo \
 	verify-solve-slow verify-oracle gates-stage2 bench-solve
 
@@ -10,6 +10,9 @@ setup:
 
 dev:
 	UV=$(UV) ./scripts/dev.sh
+
+party:
+	UV=$(UV) ./scripts/party.sh
 
 db-up:
 	docker compose up -d --wait postgres
