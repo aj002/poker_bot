@@ -28,6 +28,7 @@ import os
 import shutil
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 from strategy.blueprint.package import FORBIDDEN, SIZE_LIMIT, _table_files
@@ -48,13 +49,19 @@ Any other ruleset: strategy.policy.generic.GenericBot.
 
 from pathlib import Path
 
-from strategy.final.runtime import FinalBot
+from {entry_module} import {entry_class}
 
 DATA = Path(__file__).resolve().parent / "strategy" / "tables" / "data"
 
 
 def make_bot():
-    return FinalBot(pack=DATA / "{pack_file}", exploit_pack=DATA / "{xpack_file}"{extra})
+    return {entry_class}(pack=DATA / "{pack_file}", exploit_pack=DATA / "{xpack_file}"{extra})
+'''
+PROBE_BOT = '''from {entry_module} import {entry_class}
+
+
+def make_bot():
+    return {entry_class}(overrides={overrides!r})
 '''
 
 _PROBE = r'''
@@ -95,9 +102,27 @@ print(json.dumps({"modules": mods, "files": files, "tables": sorted(loaded),
 '''
 
 
-def closure(pack: Path, xpack: Path, rulesets: tuple[str, ...] = PROBE_RULESETS) -> dict:
+def entry(overrides: dict | None) -> tuple[str, str]:
+    """``(module, class)`` of the bundle's bot: the final bot, or the translating one when an
+    override turns translation on (so the shipped bundle never contains translation code)."""
+    if (overrides or {}).get("translate", "off") != "off":
+        return "strategy.final.translated", "TranslatingFinalBot"
+    return "strategy.final.runtime", "FinalBot"
+
+
+def closure(pack: Path, xpack: Path, rulesets: tuple[str, ...] = PROBE_RULESETS,
+            overrides: dict | None = None) -> dict:
     """Modules, source files and tables the bot touches while playing every ruleset (fresh interpreter)."""
-    bot = REPO / "strategy" / "final" / "bots" / "final.py"
+    with tempfile.TemporaryDirectory() as tmp:
+        bot = REPO / "strategy" / "final" / "bots" / "final.py"
+        if overrides:
+            module, cls = entry(overrides)
+            bot = Path(tmp) / "bot.py"
+            bot.write_text(PROBE_BOT.format(entry_module=module, entry_class=cls, overrides=overrides))
+        return _probe(pack, xpack, rulesets, bot)
+
+
+def _probe(pack: Path, xpack: Path, rulesets: tuple[str, ...], bot: Path) -> dict:
     out = subprocess.run([sys.executable, "-c", _PROBE, str(pack), str(xpack), str(bot), str(REPO),
                           json.dumps(list(rulesets))], cwd=REPO, capture_output=True, text=True,
                          env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"})
@@ -126,7 +151,8 @@ def bundle_hash(bundle: Path) -> str:
 def build(out: Path, *, pack: Path | None = None, xpack: Path | None = None, reveal: Path | None = None,
           ruleset_id: str = "practice_nlhe", overrides: dict | None = None) -> dict:
     """``overrides``: :class:`~strategy.exploit.runtime.ExploitBot` overrides baked into ``bot.py``
-    (none by default, which leaves ``bot.py`` as it was)."""
+    (none by default, which leaves ``bot.py`` as it was); ``translate`` builds the bundle
+    around :class:`~strategy.final.translated.TranslatingFinalBot` instead."""
     from strategy.blueprint.policy import PolicyPack
     from strategy.blueprint.runtime import pack_path
     from strategy.exploit.pack import ExploitPack
@@ -135,7 +161,8 @@ def build(out: Path, *, pack: Path | None = None, xpack: Path | None = None, rev
     pack = Path(pack or pack_path(ruleset_id))
     xpack = Path(xpack or exploit_pack_path(ruleset_id))
     pk, xp = PolicyPack(pack), ExploitPack(xpack)
-    info = closure(pack, xpack)
+    info = closure(pack, xpack, overrides=overrides)
+    module, cls = entry(overrides)
     bad = [m for m in info["modules"] if any(m == f or m.startswith(f + ".") for f in FORBIDDEN_HERE)]
     bad += [m for m in info["all_modules"] if m in ("numba", "llvmlite")]
     if bad:
@@ -164,6 +191,7 @@ def build(out: Path, *, pack: Path | None = None, xpack: Path | None = None, rev
     (tmp / "bot.py").write_text(BOT_TEMPLATE.format(pack_sha=pk.provenance["data_sha256"][:16],
                                                     xpack_sha=xp.provenance["data_sha256"][:16],
                                                     pack_file=pack_file, xpack_file=xpack_file,
+                                                    entry_module=module, entry_class=cls,
                                                     extra=f", overrides={dict(sorted(overrides.items()))!r}"
                                                     if overrides else ""), encoding="ascii")
     hashed = bundle_files(tmp)

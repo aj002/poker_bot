@@ -284,7 +284,7 @@ def test_bot_plays_legal_tournaments_within_budget(tmp_path, monkeypatch, leaf):
 
 
 def test_price_translation_probability():
-    from strategy.blueprint.runtime import lower_price_probability
+    from strategy.blueprint.translate import lower_price_probability
 
     pot_before = 1000
     def p(frac):
@@ -301,18 +301,20 @@ def test_price_translation_probability():
     assert 0.0 < p(0.75) < 1.0
 
 
-def test_translation_is_off_by_default_and_only_moves_the_price_digit():
+def test_translation_only_moves_the_price_digit():
     from arena.domain.observations import Observation
-    from strategy.blueprint.runtime import PRICE_STRIDE, BlueprintBot, warm_observations
+    from strategy.blueprint.runtime import warm_observations
+    from strategy.blueprint.translate import PRICE_STRIDE, TranslatingBlueprintBot
 
-    off, on = BlueprintBot(), BlueprintBot(translate="all")
+    off, on = TranslatingBlueprintBot(), TranslatingBlueprintBot(translate="all")
     pol_off, pol_on = off.policy("practice_nlhe"), on.policy("practice_nlhe")
+    pol_off.seed = pol_on.seed = "s"
     moved = 0
     for raw in warm_observations("practice_nlhe"):
         obs = Observation.model_validate_json(raw)
-        f = pol_off.features(obs)
-        assert pol_off.play_features(obs, "s") == f
-        g = pol_on.play_features(obs, "s")
+        f = pol_off.plain_features(obs)
+        assert pol_off.features(obs) == f and pol_on.plain_features(obs) == f
+        g = pol_on.features(obs)
         if f is None:
             assert g is None
             continue
@@ -322,4 +324,4 @@ def test_translation_is_off_by_default_and_only_moves_the_price_digit():
             assert A.split_key(g[0])[:2] == A.split_key(f[0])[:2]
     assert moved > 0
     with pytest.raises(ValueError):
-        BlueprintBot(translate="sometimes")
+        TranslatingBlueprintBot(translate="sometimes")

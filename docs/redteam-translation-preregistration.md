@@ -119,3 +119,11 @@ as cheaper makes it call too wide.
 **Decision.** H2 fails, so `translate=postflop` is not recommended. The flag stays available
 and off, and the default bundle is unchanged. The deployed gates were not run on B, because
 H2 had already decided the outcome.
+
+**Correction (after a642404).** The default bundle's decisions were unchanged, but its bytes
+were not: the flag code sat in two bundled files, so the default build hashed 0c1a9119…
+instead of the recorded c3e0fa54…. The translation now lives in `strategy/blueprint/translate.py`
+and `strategy/final/translated.py`, which only a `--override translate=...` bundle imports.
+The default build is c3e0fa54… again, and `test_the_default_build_is_the_recorded_submission`
+checks this. A rebuilt `translate=postflop` bundle (2070cb94…) played 24 of 24
+equivalence tables identically to B (fbde598b…), so the results above still describe the code.

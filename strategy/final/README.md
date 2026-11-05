@@ -34,8 +34,11 @@ submission procedure is in `docs/submission-checklist.md`.
 | `equivalence` | two bundles through the sandbox worker on the same tables: identical play or not |
 | `distill` | the distillation study: teacher rollouts, the table student, agreement, and the hybrid counterfactual |
 | `holdout` | the one-shot holdout runner: refuses a changed bundle or a comparison already run, and writes the Holm confirmation |
+| `translated` | `TranslatingFinalBot`, the final bot with off-tree bet translation (`strategy.blueprint.translate`); bundled only by `package --override translate=...`, never by default |
 
-Only `runtime` and the modules it imports are shipped. The probe that records the closure
+Only `runtime` and the modules it imports are shipped. A default build of main must hash to
+`submission_bundle_sha256` (`test_the_default_build_is_the_recorded_submission`). A change to
+any bundled file fails that test until the bundle is rebuilt, gated and recorded again. The probe that records the closure
 refuses numba, llvmlite, the solvers, the exploit trainers and the four tool modules
 above.
 

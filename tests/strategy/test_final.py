@@ -145,6 +145,29 @@ def test_bundle_is_deterministic_self_contained_and_verified(tmp_path):
         package.verify(tmp_path / "one")
 
 
+def test_the_default_build_is_the_recorded_submission(tmp_path, monkeypatch):
+    from strategy.final import package
+
+    monkeypatch.delenv("BLUEPRINT_PACK", raising=False)
+    monkeypatch.delenv("EXPLOIT_PACK", raising=False)
+    sub = json.loads((ROOT / "strategy/final/submission.json").read_text())
+    m = package.build(tmp_path / "bundle")
+    assert m["bundle_sha256"] == sub["submission_bundle_sha256"], "rebuild, gate and record a changed bundle"
+    assert m["bytes"] == sub["bytes"] and m["py_files"] == sub["py_files"]
+    assert not any("translat" in f for f in m["files"])
+
+
+def test_a_translate_override_bundles_the_translating_bot(tmp_path):
+    from strategy.final import package
+
+    pack, xpack = uniform_pack(tmp_path / "u.npz"), exploit_pack(tmp_path / "x.npz")
+    m = package.build(tmp_path / "t", pack=pack, xpack=xpack, overrides={"translate": "postflop"})
+    assert {"strategy/blueprint/translate.py", "strategy/final/translated.py"} <= set(m["files"])
+    bot = (tmp_path / "t" / "bot.py").read_text()
+    assert "TranslatingFinalBot(" in bot and "overrides={'translate': 'postflop'}" in bot
+    package.smoke(tmp_path / "t")
+
+
 # ------------------------------------------------------------------ distillation
 
 
