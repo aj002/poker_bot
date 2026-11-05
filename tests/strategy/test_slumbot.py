@@ -471,3 +471,24 @@ def test_report_tolerates_repeated_hand_indices(tmp_path: Path):
     joined = recs + [{**r, "n": r["n"]} for r in recs]
     rep = RP.report(joined)
     assert rep["configs"]["t"]["hands"] == 40
+
+
+def _rec(n, fb=None, w=0, m=None):
+    d = {"e2e": 1_100_000 if fb else 600_000, "wall": None if fb else 300_000, "fb": fb, "kind": "none" if fb else "blueprint", "act": "k"}
+    r = {"n": n, "serial": n, "cfg": "on", "decisions": [d], "winnings": w, "t": 1000.0 + n, "reconciled": True, "action": "kk/kk/kk/kk"}
+    if m is not None:
+        r["m"] = m
+    return r
+
+
+def test_final_fallback_blocks_and_freeze_audit():
+    from strategy.eval import slumbot_final as F
+
+    recs = [_rec(i, fb="timeout" if i % 10 == 0 else None, m=float(i)) for i in range(1, 41)]
+    recs[20]["t"] += 500.0
+    rows = F.fallback_blocks(recs, block=20)
+    assert [r["fallbacks"] for r in rows] == [2, 2]
+    assert rows[0]["reasons"] == {"timeout": 2}
+    audit = F.gap_audit(recs)
+    assert len(audit["vm_freezes"]) == 1 and audit["vm_freezes"][0]["wall_s"] == 501.0
+    assert audit["fallback_e2e_us_max"] == 1100.0
