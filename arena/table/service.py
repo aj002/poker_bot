@@ -7,7 +7,8 @@ Deadlines, persistence and the command queue are layered on top later.
 
 from __future__ import annotations
 
-from collections.abc import Callable, Mapping
+import dataclasses
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -19,7 +20,7 @@ from arena.domain.events import EVENT_SCHEMA_VERSION, EventEnvelope
 from arena.domain.models import Action, LegalActions, TournamentConfig, level_index
 from arena.domain.rng import Rng, SeededRng, SystemRng, shuffled
 from arena.rules.base import HandEvent, HandResult, IllegalAction
-from arena.rules.pokerkit_adapter import POKERKIT_VERSION, HandSpec, PokerKitHand
+from arena.rules.pokerkit_adapter import POKERKIT_VERSION, HandSpec, PokerKitHand, engine_order
 from arena.rules.profiles import RuleProfile, get_profile
 from arena.table.positions import Positions, initial_positions, next_positions, positions_from_button
 from arena.table.state_hash import decision_hash, hand_start_hash, hand_start_state
@@ -69,6 +70,18 @@ def rng_info(rng: Rng | None) -> dict[str, str | None]:
         "seed": getattr(rng, "seed", None),
         "stream": getattr(rng, "stream", None),
     }
+
+
+def seat_keyed_deck(deck: Sequence[str], ring: Sequence[int], order: Sequence[int], hole_cards: int) -> tuple[str, ...]:
+    """``deck`` reordered so that the engine, dealing ``hole_cards`` rounds to ``order`` and then
+    the board, gives hole card ``j`` of ring seat ``ring[i]`` from slot ``j * len(ring) + i`` and
+    the burns and board from the slots after every seat's; unused slots follow in deck order."""
+    n = len(ring)
+    pos = {s: i for i, s in enumerate(ring)}
+    holes = [j * n + pos[s] for j in range(hole_cards) for s in order]
+    board = list(range(hole_cards * n, min(hole_cards * n + 8, len(deck))))
+    used = set(holes) | set(board)
+    return tuple(deck[i] for i in holes + board) + tuple(c for i, c in enumerate(deck) if i not in used)
 
 
 def seeded_deck_source(rng: Rng) -> DeckSource:
@@ -409,6 +422,9 @@ class Table:
                 ante=ante,
                 ante_posting=posting,
             )
+            if self.config.deal == "seat_keyed":
+                deck = seat_keyed_deck(deck, self.seat_ring, engine_order(spec), self.profile.hole_card_count)
+                spec = dataclasses.replace(spec, deck=deck)
             record = HandRecord(
                 hand_number=self.hand_number,
                 hand_id=f"h_{self.hand_number:03d}",

@@ -19,6 +19,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from strategy.eval.luck import LuckSettings, table_luck
 from strategy.objective.points import Finish, TerminalOutcome, chip_diagnostics, outcome_from_events
 
 DEPTH_BUCKETS = ((0, 8, "<8bb"), (8, 15, "8-15bb"), (15, 25, "15-25bb"), (25, 50, "25-50bb"), (50, 10 ** 12, "50bb+"))
@@ -45,6 +46,8 @@ class EntrantTable:
     chips: dict[str, Any]
     opportunities: Counter = field(default_factory=Counter)
     """``"<slice>=<bucket>|<action class>"`` -> count; ``"<slice>=<bucket>|*"`` is the denominator."""
+    luck: dict[str, float] | None = None
+    """Zero-mean luck terms (:mod:`strategy.eval.luck`), when the run asked for them."""
 
 
 @dataclass
@@ -133,8 +136,9 @@ def opportunities(events: Iterable[Mapping[str, Any]], seat: int, hand_cap: int)
 
 
 def table_record(result: Any, history_path: Path | None, focus: Sequence[int] = (0,), *,
-                 delete: bool = True) -> TableRecord:
-    """Summarize one final table attempt. ``result`` is a runner ``TableResult``."""
+                 delete: bool = True, luck: LuckSettings | None = None) -> TableRecord:
+    """Summarize one final table attempt. ``result`` is a runner ``TableResult``; with ``luck``
+    the focus entrants also get their luck terms."""
     rec = TableRecord(result.table_id, result.block, result.rotation, dict(result.seats), result.valid,
                       result.error, result.hands, dict(result.points),
                       timeouts=sum(f.get("timeout", 0) for f in getattr(result, "fallbacks", {}).values()))
@@ -156,6 +160,8 @@ def table_record(result: Any, history_path: Path | None, focus: Sequence[int] = 
     for entrant in focus:
         seat = seat_of[entrant]
         rec.entrants[entrant] = _entrant_table(entrant, seat, outcome, events, config)
+        if luck is not None:
+            rec.entrants[entrant].luck = table_luck(events, seat, luck)["terms"]
     return rec
 
 

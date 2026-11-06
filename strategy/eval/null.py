@@ -29,11 +29,12 @@ from __future__ import annotations
 
 import hashlib
 import random
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from typing import Any
 
 from strategy.eval.paired import CANDIDATE, BlockPair, CellResult, pair_blocks
 from strategy.eval.stats import binomial_sf, bootstrap_mean, clopper_pearson, mean, paired_t, welch_t
+from strategy.eval.variance import DEFAULT_FOLDS, DEFAULT_TERMS, adjust
 
 CALIBRATION_P = 0.01
 
@@ -63,7 +64,10 @@ def _method_rows(intervals: dict[str, list[tuple[float | None, float | None]]], 
 
 
 def calibrate(results: Sequence[CellResult], *, replicates: int, blocks_per_replicate: int, alpha: float,
-              min_effect: float, resamples: int = 1000, seed: str = "null") -> dict[str, Any]:
+              min_effect: float, resamples: int = 1000, seed: str = "null",
+              variance_reduction: Mapping[str, Any] | None = None) -> dict[str, Any]:
+    """With ``variance_reduction`` (a spec's section) every replicate is also analysed with the
+    luck-adjusted estimator (method ``luck_cv``), cross-fitted within the replicate."""
     pairs: list[BlockPair] = []
     tables: dict[tuple[str, int], tuple[list[float], list[float]]] = {}
     for c in results:
@@ -76,6 +80,9 @@ def calibrate(results: Sequence[CellResult], *, replicates: int, blocks_per_repl
     level = 1 - alpha
     intervals: dict[str, list[tuple[float | None, float | None]]] = {"paired_t": [], "cluster_bootstrap": [],
                                                                        "unpaired_welch_tables": []}
+    vr = variance_reduction
+    if vr is not None and pairs and all(p.luck_a is not None and p.luck_b is not None for p in pairs):
+        intervals["luck_cv"] = []
     estimates = []
     for k in range(replicates):
         rep = [p for p in pairs if p.block // blocks_per_replicate == k]
@@ -95,6 +102,12 @@ def calibrate(results: Sequence[CellResult], *, replicates: int, blocks_per_repl
         tb = [x for p in rep for x in tables[(p.cell_id, p.block)][1]]
         w = welch_t(ta, tb, level)
         intervals["unpaired_welch_tables"].append((w.lo, w.hi))
+        if "luck_cv" in intervals:
+            z = [{t: p.luck_b[t] - p.luck_a[t] for t in p.luck_a} for p in rep]
+            v = adjust(diffs, z, strata, [p.block for p in rep], terms=vr.get("terms", DEFAULT_TERMS),
+                       coefficients=vr.get("coefficients", "crossfit"), folds=int(vr.get("folds", DEFAULT_FOLDS)),
+                       stratify=bool(vr.get("stratify", False)), alpha=alpha)
+            intervals["luck_cv"].append((v["lo"], v["hi"]))
     return {
         "replicates": replicates,
         "blocks_per_replicate": blocks_per_replicate,

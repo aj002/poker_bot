@@ -19,6 +19,7 @@ from strategy.eval.execution import evaluate_gates, merge_execution, merge_seat_
 from strategy.eval.outcomes import ACTION_CLASSES
 from strategy.eval.paired import CANDIDATE, STRICT_ARM, BlockPair, CellResult, pair_blocks
 from strategy.eval.stalls import merge_tallies
+from strategy.eval.variance import DEFAULT_FOLDS, DEFAULT_TERMS, adjust
 from strategy.eval.stats import (
     bootstrap_mean,
     holm,
@@ -46,6 +47,8 @@ class Declared:
     seed: str = "analysis"
     stage: str = "discovery"
     gates: Mapping[str, Any] | None = None
+    variance_reduction: Mapping[str, Any] | None = None
+    """The spec's ``variance_reduction`` section (:mod:`strategy.eval.variance`), if declared."""
 
     @property
     def level(self) -> float:
@@ -300,6 +303,7 @@ def analyze(cells: Sequence[CellResult], declared: Declared) -> dict[str, Any]:
         primary["chosen_interval"] = [chosen["lo"], chosen["hi"]]
         primary["minimum_detectable_effect"] = minimum_detectable_effect(
             primary["sd_difference"], len(pairs), alpha=declared.alpha, power=declared.power)
+    reduced = variance_reduced(pairs, declared) if declared.variance_reduction is not None else None
     payouts = cells[0].cell.config.resolved_payouts if cells else []
 
     by_seat: dict[str, list[float]] = defaultdict(list)
@@ -338,7 +342,9 @@ def analyze(cells: Sequence[CellResult], declared: Declared) -> dict[str, Any]:
     gate_checks += _bot_gate(classes, declared.gates or {})
     gates_ok = all(g["passed"] for g in gate_checks)
     lo, hi = primary.get("chosen_interval", (None, None))
-    return {
+    if reduced is not None and reduced.get("primary"):
+        lo, hi = reduced.get("lo"), reduced.get("hi")
+    out = {
         "primary": primary,
         "decision": {**decide(lo, hi, declared.min_effect, gates_ok, len(excluded)), "stage": declared.stage,
                      "note": "discovery results must be confirmed on fresh locked data" if declared.stage ==
@@ -356,3 +362,26 @@ def analyze(cells: Sequence[CellResult], declared: Declared) -> dict[str, Any]:
         "pairs": [{"cluster": p.cluster, "cell_id": p.cell_id, "block": p.block, "u_a": p.u_a, "u_b": p.u_b,
                    "d": p.d} for p in pairs],
     }
+    if reduced is not None:
+        out["variance_reduced"] = reduced
+        if reduced.get("primary"):
+            out["decision"]["estimator"] = "luck_cv"
+    return out
+
+
+def variance_reduced(pairs: Sequence[BlockPair], declared: Declared) -> dict[str, Any]:
+    """The declared luck-adjusted estimate, with every block's luck terms for re-analysis."""
+    vr = declared.variance_reduction or {}
+    base = {"primary": bool(vr.get("primary", True))}
+    missing = [p.cluster for p in pairs if p.luck_a is None or p.luck_b is None]
+    if missing or len(pairs) < 2:
+        return {**base, "available": False,
+                "reason": f"{len(missing)} blocks without luck terms" if missing else "fewer than two blocks",
+                "lo": None, "hi": None}
+    z = [{t: p.luck_b[t] - p.luck_a[t] for t in p.luck_a} for p in pairs]
+    res = adjust([p.d for p in pairs], z, [p.cell_id for p in pairs], [p.block for p in pairs],
+                 terms=vr.get("terms", DEFAULT_TERMS), coefficients=vr.get("coefficients", "crossfit"),
+                 folds=int(vr.get("folds", DEFAULT_FOLDS)), stratify=bool(vr.get("stratify", False)),
+                 alpha=declared.alpha, power=declared.power)
+    res["pairs"] = [{"cluster": p.cluster, "luck_a": dict(p.luck_a), "luck_b": dict(p.luck_b)} for p in pairs]
+    return {**base, "available": True, **res}

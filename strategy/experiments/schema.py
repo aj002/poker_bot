@@ -26,6 +26,9 @@ from pydantic import (BaseModel, ConfigDict, Field, SerializerFunctionWrapHandle
                       StrictStr, model_serializer, model_validator)
 
 from arena.domain.models import AntePosting, RulesetId, TournamentConfig, default_blind_levels
+from strategy.eval.luck import RULESETS as LUCK_RULESETS
+from strategy.eval.luck import TERMS, LuckSettings
+from strategy.eval.variance import DEFAULT_FOLDS, DEFAULT_TERMS
 from strategy.rules.canonical import canonical_hash, canonical_json
 
 SPEC_SCHEMA_VERSION = 1
@@ -60,23 +63,29 @@ class TableSpec(_S):
     payout_points: list[StrictInt] | None = None
     antes: list[StrictInt] | None = None
     ante_posting: AntePosting | None = None
+    deal: Literal["seat_keyed"] | None = None
+    """``seat_keyed``: every seat keeps its deck slots whoever busts (:class:`TournamentConfig`),
+    so the arms' cards stay matched after their tables diverge."""
 
     @model_serializer(mode="wrap")
     def _without_unset_antes(self, handler: SerializerFunctionWrapHandler) -> dict[str, Any]:
-        """Ante-free specs dump (and hash) exactly as before antes existed."""
+        """Ante-free (and deal-free) specs dump (and hash) exactly as before those fields existed."""
         out = handler(self)
         if self.antes is None and self.ante_posting is None:
             out.pop("antes", None)
             out.pop("ante_posting", None)
+        if self.deal is None:
+            out.pop("deal", None)
         return out
 
     def config(self, ruleset_id: str) -> TournamentConfig:
         antes = {} if self.antes is None else {"antes": self.antes, "ante_posting": self.ante_posting}
+        deal = {} if self.deal is None else {"deal": self.deal}
         return TournamentConfig(ruleset_id=ruleset_id, initial_player_count=self.players,
                                 starting_stack=self.starting_stack, hand_cap=self.hand_cap,
                                 hands_per_level=self.hands_per_level,
                                 blind_levels=self.blind_levels or default_blind_levels(),
-                                payout_points=self.payout_points, **antes)
+                                payout_points=self.payout_points, **antes, **deal)
 
 
 DEFAULT_POPULATION_SOURCE = "strategy.population:PopulationSource"
@@ -131,6 +140,36 @@ class ExecutionGates(_S):
     """Reruns of a host-invalid, bot-excess or stall-excess arm (same seeds; every attempt reported)."""
 
 
+class VarianceReductionSpec(_S):
+    """Opt-in luck-adjusted estimate (:mod:`strategy.eval.variance`, terms from :mod:`strategy.eval.luck`)."""
+
+    method: Literal["luck_cv"] = "luck_cv"
+    terms: list[StrictStr] = Field(default_factory=lambda: list(DEFAULT_TERMS), min_length=1)
+    coefficients: Literal["crossfit"] | dict[str, StrictFloat] = "crossfit"
+    """``crossfit`` fits them on the other folds; a mapping fixes them before the run."""
+    folds: StrictInt = Field(DEFAULT_FOLDS, ge=2)
+    stratify: StrictBool = False
+    """Within-lineup variance: an interval conditional on the sampled lineups (narrower question)."""
+    primary: StrictBool = True
+    """The decision uses the adjusted interval; the raw paired result is always reported too."""
+    runout_samples: StrictInt = Field(LuckSettings.runout_samples, ge=100)
+    equity_samples: StrictInt = Field(LuckSettings.equity_samples, ge=100)
+
+    @model_validator(mode="after")
+    def _check(self) -> VarianceReductionSpec:
+        unknown = sorted(set(self.terms) - set(TERMS))
+        if unknown:
+            raise ValueError(f"unknown luck terms {unknown}; known: {', '.join(TERMS)}")
+        if len(set(self.terms)) != len(self.terms):
+            raise ValueError("luck terms must be distinct")
+        if isinstance(self.coefficients, dict) and set(self.coefficients) != set(self.terms):
+            raise ValueError("fixed coefficients must name exactly the declared terms")
+        return self
+
+    def settings(self) -> LuckSettings:
+        return LuckSettings(runout_samples=self.runout_samples, equity_samples=self.equity_samples)
+
+
 class NullCalibrationSpec(_S):
     replicates: StrictInt = Field(ge=2)
     blocks_per_replicate: StrictInt = Field(ge=2)
@@ -162,11 +201,24 @@ class ExperimentSpec(_S):
     budget_ns: StrictInt | None = None
     gates: ExecutionGates = Field(default_factory=ExecutionGates)
     null: NullCalibrationSpec | None = None
+    variance_reduction: VarianceReductionSpec | None = None
+
+    @model_serializer(mode="wrap")
+    def _without_unset_variance_reduction(self, handler: SerializerFunctionWrapHandler) -> dict[str, Any]:
+        """Specs without the estimator dump (and hash) exactly as before it existed."""
+        out = handler(self)
+        if self.variance_reduction is None:
+            out.pop("variance_reduction", None)
+        return out
 
     @model_validator(mode="after")
     def _check(self) -> ExperimentSpec:
         if len(set(self.variants)) != len(self.variants):
             raise ValueError("variants must be distinct")
+        if self.variance_reduction is not None:
+            bad = [v for v in self.variants if v not in LUCK_RULESETS]
+            if bad:
+                raise ValueError(f"variance_reduction supports {', '.join(LUCK_RULESETS)} only, not {', '.join(bad)}")
         if (self.stage == "final_holdout") != (self.population.partition == "holdout"):
             raise ValueError("the holdout partition is used by, and only by, a final_holdout run")
         if self.kind == "null_calibration":

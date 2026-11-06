@@ -28,9 +28,11 @@ from arena.benchmark.runner import BenchmarkRun, RetryPolicy, run_benchmark
 from arena.domain.models import TournamentConfig
 from strategy.eval import burn, stalls
 from strategy.eval.execution import entrant_execution, seat_timeouts
+from strategy.eval.luck import LuckSettings
 from strategy.eval.outcomes import TableRecord, table_record
 from strategy.eval.policies import ResolvedPolicy, resolve_policy, salted_bundle
 from strategy.eval.population import Lineup
+from strategy.eval.variance import block_luck
 
 CANDIDATE = 0
 STRICT_ARM = "B"
@@ -89,6 +91,9 @@ class BlockPair:
     u_a: float
     u_b: float
     seat_diffs: Mapping[int, float]
+    luck_a: Mapping[str, float] | None = None
+    """Arm A's luck terms averaged over the block's rotations, when the run computed them."""
+    luck_b: Mapping[str, float] | None = None
 
     @property
     def d(self) -> float:
@@ -109,10 +114,11 @@ def resolve_arm(arm: Arm, work_dir: Path) -> ResolvedPolicy:
 def run_arm(cell: Cell, arm: Arm, policy: ResolvedPolicy, *, isolation: str, out_dir: Path, jobs: int = 1,
             budget_ns: int | None = None, retry: RetryPolicy | None = None, keep_histories: bool = False,
             progress: Callable[[str, int, int], None] | None = None, control_every: int = 0,
-            timeout_inputs: int = 0, control_policy: ResolvedPolicy | None = None) -> ArmRun:
+            timeout_inputs: int = 0, control_policy: ResolvedPolicy | None = None,
+            luck: LuckSettings | None = None) -> ArmRun:
     """``control_every`` > 0 (sandbox only) interleaves control tables of ``control_policy``
     (default the calling station) and classifies timeouts; ``timeout_inputs`` replays
-    that many timeouts per seat per table."""
+    that many timeouts per seat per table; ``luck`` adds the candidate's luck terms."""
     classify = isolation == "sandbox" and control_every > 0
     control = None
     if classify:
@@ -127,7 +133,7 @@ def run_arm(cell: Cell, arm: Arm, policy: ResolvedPolicy, *, isolation: str, out
 
     def collect(done: int, total: int, r: Any) -> None:
         path = tables_dir / f"{r.table_id}.json" if r.valid else None
-        records.append(table_record(r, path, focus=(CANDIDATE,), delete=not keep_histories))
+        records.append(table_record(r, path, focus=(CANDIDATE,), delete=not keep_histories, luck=luck))
         if progress is not None:
             progress(f"{cell.cell_id}/{arm.label}", done, total)
 
@@ -254,5 +260,6 @@ def pair_blocks(result: CellResult, a: str = "A", b: str = "B") -> tuple[list[Bl
         pb = [row.entrants[CANDIDATE].points for row in rows_b if row]
         seat_diffs = {seats[r]: pb[r] - pa[r] for r in range(rotations)}
         pairs.append(BlockPair(cell.cell_id, cell.ruleset_id, cell.lineup.lineup_id, cell.lineup.families, block,
-                               sum(pa) / rotations, sum(pb) / rotations, seat_diffs))
+                               sum(pa) / rotations, sum(pb) / rotations, seat_diffs,
+                               block_luck(rows_a, CANDIDATE), block_luck(rows_b, CANDIDATE)))
     return pairs, excluded

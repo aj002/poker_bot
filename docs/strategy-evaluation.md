@@ -213,6 +213,102 @@ never treated as independent.
 - **Report**: `report.md` (concise) and `report.json` (full, including every block
   pair).
 
+### Luck-adjusted estimate (opt-in: `strategy.eval.luck`, `strategy.eval.variance`)
+
+A spec with a `variance_reduction` section also reports a luck-adjusted estimate and,
+with `primary: true` (the default), decides on its interval. The raw paired result is
+always reported next to it. Specs without the section are unchanged, down to their
+hash, so old reports reproduce.
+
+```json
+"variance_reduction": {"terms": ["allin", "flop_pot", "turn_pot", "river_pot"]}
+```
+
+**Luck terms.** For every table, `strategy.eval.luck` reads the private event log and
+sums, for the candidate seat, the change in its *points-equity* that the cards alone
+caused. Points-equity is the official points if the candidate busted this hand (ties
+by start-of-hand stack, as in the scorer), otherwise ICM over the remaining payouts, so
+it telescopes to the official result at the end of the table.
+
+- `allin`: cards dealt after the hand's last decision. Realized points-equity minus its
+  expectation over every runout (exact for one or two cards to come, 2,000 seeded
+  Monte Carlo boards for more), with the realized pots and their eligible players.
+  `allin_in`/`allin_out` split it by whether the candidate is in the hand.
+- `flop_pot`, `turn_pot`, `river_pot`: on each street dealt before a later decision,
+  the change in each live player's showdown share against the other live hands,
+  weighted by the pot (`_stack` variants weight by the effective stack instead).
+- `deal_stack`, `deal_raw`: the hole cards' share against all dealt hands, minus 1/k.
+
+Every term is a sum of martingale differences: given everything logged before a card
+is dealt, that card is uniform over the unseen ones, so each term has mean exactly zero
+whatever the bots do. The block value of a term is its mean over the block's
+rotations, and `Z = X(B) − X(A)` per block.
+
+**Estimator.** `Y_i = D_i − b·Z_i` and the estimate is `mean(Y)`. Any `b` fixed
+independently of block `i` keeps `E[Y_i] = E[D_i]`. With `coefficients: "crossfit"`
+(the default) blocks are split into `folds` (10) groups by block index, and the slopes
+for a fold are the least-squares fit of `D` on `Z` over the other folds; the interval is
+Student t on `Y` with one degree of freedom less per term. A mapping of fixed slopes
+(for example from a pilot run) is the other option. `stratify: true` uses within-lineup
+variance; that interval is conditional on the sampled lineups, so it answers a
+narrower question and is never the default. Luck extraction takes about 0.3 s per
+8-player, 200-hand table with numba (the `train` group) and about 40 times longer
+without it; the runner warns in that case. Rulesets other than `practice_nlhe` are
+refused.
+
+**Measured** on in-process 8-player, 2,000-chip, 200-hand-cap tables, 16 validation
+lineups × 40 blocks (the 640-block test). A-vs-B is the blueprint against the final
+bot; A-vs-A is the final bot against itself with salted arms. Variance reduction is
+`(SE raw / SE adjusted)²`; MDE is two-sided at α = 0.05 with 80% power.
+
+| terms | A-vs-B factor | A-vs-A factor | MDE A-vs-B (raw 0.97) | MDE A-vs-A (raw 1.08) |
+|---|---|---|---|---|
+| `allin` | 1.72 | 1.62 | 0.74 | 0.85 |
+| `allin` + street pots (default) | 1.94 | 1.96 | 0.70 | 0.77 |
+| `allin` + street stacks | 1.84 | 1.80 | 0.72 | 0.81 |
+| all eleven terms | 2.00 | 1.96 | 0.69 | 0.78 |
+| street pots only | 1.08 | 1.09 | 0.93 | 1.04 |
+| `deal_stack` only | 1.00 | 1.01 | 0.97 | 1.08 |
+
+With the default terms the A-vs-B difference is +2.20 [+1.71, +2.69] against the raw
++2.39 [+1.71, +3.07], and the A-vs-A difference +0.31 [−0.23, +0.85] against −0.04
+[−0.80, +0.71]. Stratifying by lineup adds at most 1%. Fitted slopes are 1.1–1.2 on
+`allin` and 1–1.7 on the street terms, so slopes fixed at 1 lose little for `allin`
+alone but over-correct once the noisier `_stack` and `deal` terms are added.
+
+Unbiasedness is checked three ways (`tests/strategy/test_variance_reduction.py` and the
+runs above): for real all-in hands the `allin` term averages to exactly zero
+over every possible runout; on simulated tables every term's mean is within sampling
+error of zero; and the A-vs-A blocks with random sign flips (the arms are
+exchangeable, so the true difference is exactly 0) plus injected effects of known size
+(constant, proportional to the block's all-in luck, or varying by lineup) give bias
+t-statistics within ±0.7 and 95–96% coverage over 1,000 draws. At the raw method's
+MDE the power goes from 79% to 98%.
+
+**Seat-keyed dealing** (`table.deal: "seat_keyed"`, opt-in, `arena.table.service.seat_keyed_deck`).
+The standard deal goes one card at a time to the live seats from the button, so after
+the first bust the two arms' tables give every later hand's cards to different seats
+even though the decks match. Seat-keyed dealing gives ring seat `i` deck slots `i` and
+`seats + i` every hand, so a seat's cards depend only on the deck. The deal stays
+uniform (the permutation is fixed before the shuffle), but every table plays out
+differently, so it is a new config hash and never the default. Matched runs (same
+lineups and seeds, 320 blocks, the only change the deal):
+
+| | A-vs-B variance ratio, standard / seat-keyed | A-vs-A |
+|---|---|---|
+| raw block differences | 1.56 [1.24, 1.94] | 1.19 [0.95, 1.49] |
+| after the default luck terms | 1.36 [1.11, 1.67] | 1.10 [0.88, 1.37] |
+| seat-keyed and luck terms against the standard raw | 3.03 | 2.53 |
+
+(Block-bootstrap 95% intervals.) A salted A-vs-A diverges from the first hand, so it
+gains less than a real A-vs-B, whose arms share policy seeds and play identically until
+their first different decision.
+
+Other designs measured and not adopted: stratifying the interval by lineup (at most 1%,
+and it narrows the question); slopes fixed at 1 instead of fitted (equal for `allin`,
+worse with the `_stack` and `deal` terms); and the deal and street terms on their own
+(1.00–1.09).
+
 ### Partition interface (population registry stub)
 
 The registry belongs to `strategy.population`. Evaluation needs only this protocol
@@ -257,7 +353,9 @@ everything before the run:
 - blocks per lineup and the base seed;
 - `min_effect`, `alpha`, `power` and the interval method;
 - isolation, the decision budget, and execution gates;
-- for `kind: null_calibration`, the replicate layout.
+- for `kind: null_calibration`, the replicate layout;
+- optionally `variance_reduction`, the luck-adjusted estimate (see above), and
+  `table.deal: "seat_keyed"`.
 
 Two rules are enforced. The holdout partition is used by, and only by,
 `final_holdout` runs. A null calibration must compare identical policies.

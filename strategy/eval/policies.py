@@ -4,8 +4,8 @@ A *salted* arm is the same artifact with its policy random stream re-keyed: the
 wrapper replaces ``TableInfo.policy_seed`` with ``sha256(salt | policy_seed)`` and
 changes nothing else. Decks, buttons and seats still come from the shared table
 seed, so a salted A/A comparison is a true null with independent policy noise.
-The wrapper is a self-contained bundle (it imports only the SDK), so it runs in the
-sandbox as well as in-process.
+The wrapper of a single-file bot imports only the SDK, and a bundle directory is copied
+into its wrapper, so salted arms run in the sandbox as well as in-process.
 """
 
 from __future__ import annotations
@@ -112,12 +112,20 @@ def resolve_policy(spec: str) -> ResolvedPolicy:
 
 
 def salted_bundle(policy: ResolvedPolicy, salt: str, out_dir: Path) -> ResolvedPolicy:
-    """Write (or reuse) a wrapper bundle in ``out_dir`` and resolve it as a policy."""
-    if not policy.path.is_file():
-        raise ValueError("salted arms support single-file bots only")
+    """Write (or reuse) a wrapper bundle in ``out_dir`` and resolve it as a policy.
+
+    A bundle directory is copied whole, with its ``bot.py`` renamed ``inner_bot.py``, so the
+    bundle's own packages stay importable from the wrapper's root in the sandbox."""
     out_dir.mkdir(parents=True, exist_ok=True)
-    inner = "inner_" + policy.path.name
-    shutil.copyfile(policy.path, out_dir / inner)
+    if policy.path.is_file():
+        inner = "inner_" + policy.path.name
+        shutil.copyfile(policy.path, out_dir / inner)
+    else:
+        inner = "inner_bot.py"
+        if (policy.path / inner).exists():
+            raise ValueError(f"cannot salt {policy.path}: it already has an {inner}")
+        shutil.copytree(policy.path, out_dir, dirs_exist_ok=True, ignore=shutil.ignore_patterns("__pycache__"))
+        (out_dir / "bot.py").replace(out_dir / inner)
     (out_dir / "bot.py").write_text(SALTED_TEMPLATE.format(salt=salt, inner=inner), encoding="utf-8")
     return ResolvedPolicy(f"{policy.spec}#salt={salt}", policy.name, policy.family, out_dir, artifact_hash(out_dir),
                           policy.rulesets, policy.builtin, _bytes(out_dir))

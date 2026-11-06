@@ -15,6 +15,7 @@ them by ``hypothesis_id``.
 from __future__ import annotations
 
 import hashlib
+import warnings
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -189,12 +190,20 @@ def run_experiment(spec: ExperimentSpec, *, out_dir: Path | None = None, root: P
     for label, policy in policies.items():
         if policy.artifact_sha256 != manifest.policies[label].artifact_sha256:
             raise RuntimeError(f"arm {label} artifact changed after the manifest was written")
+    vr = spec.variance_reduction
     kwargs = dict(isolation=spec.isolation, work_dir=run_dir, jobs=jobs, budget_ns=spec.budget_ns,
                   keep_histories=keep_histories, progress=progress, gates=spec.gates.model_dump())
+    if vr is not None:
+        from strategy.eval.kernels import HAVE_NUMBA
+
+        if not HAVE_NUMBA:
+            warnings.warn("variance_reduction without numba (`uv sync --group train`): luck terms are about "
+                          "40 times slower to compute", RuntimeWarning, stacklevel=2)
+        kwargs["luck"] = vr.settings()
     results: list[CellResult] = [run_cell(c, plan.arms, policies, **kwargs) for c in plan.cells]
     declared = Declared(min_effect=spec.min_effect, alpha=spec.alpha, power=spec.power, interval=spec.interval,
                         bootstrap_resamples=spec.bootstrap_resamples, seed=manifest.manifest_id, stage=spec.stage,
-                        gates=spec.gates.model_dump())
+                        gates=spec.gates.model_dump(), variance_reduction=vr.model_dump() if vr else None)
     analysis = analyze(results, declared)
     report: dict[str, Any] = {
         "report_kind": "strategy_experiment_report",
@@ -215,7 +224,7 @@ def run_experiment(spec: ExperimentSpec, *, out_dir: Path | None = None, root: P
         report["null_calibration"] = calibrate(
             results, replicates=spec.null.replicates, blocks_per_replicate=spec.null.blocks_per_replicate,
             alpha=spec.alpha, min_effect=spec.min_effect, resamples=spec.bootstrap_resamples,
-            seed=manifest.manifest_id)
+            seed=manifest.manifest_id, variance_reduction=vr.model_dump() if vr else None)
         report["null_calibration"]["exact_coupling"] = exact_coupling(coupling) if coupling else None
     write_report(run_dir, report)
     _prune_staging(staging)

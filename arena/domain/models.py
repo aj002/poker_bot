@@ -72,6 +72,12 @@ class TournamentConfig(_Strict):
     rake: Literal[0] = 0
     compatibility_status: Literal["practice_assumptions"] = "practice_assumptions"
     local_rules: LocalRules = Field(default_factory=LocalRules)
+    deal: Literal["seat_keyed"] | None = None
+    """Evaluation option. ``seat_keyed`` gives each physical seat the same deck slots every hand
+    (hole card ``j`` of the ``i``-th ring seat from slot ``j * seats + i``, burns and board from
+    the slots after every seat's), so who holds which cards does not depend on who has busted.
+    A permutation fixed before the shuffle leaves the deal uniform. ``None``: the standard
+    deal, one card at a time from the first seat after the button."""
 
     @model_validator(mode="after")
     def _validate(self) -> TournamentConfig:
@@ -130,11 +136,13 @@ class TournamentConfig(_Strict):
         return sorted(self.seats)
 
     def resolved(self) -> dict:
-        """The canonical config dict. Ante fields appear only when antes are set, so an
-        ante-free config resolves (and hashes) exactly as it did before antes existed."""
+        """The canonical config dict. Ante and deal fields appear only when set, so a config
+        without them resolves (and hashes) exactly as it did before they existed."""
         data = self.model_dump()
         if self.antes is None:
             del data["antes"], data["ante_posting"]
+        if self.deal is None:
+            del data["deal"]
         data["payout_points"] = self.resolved_payouts
         data["seats"] = self.resolved_seats
         return data

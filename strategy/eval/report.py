@@ -154,13 +154,16 @@ def render_markdown(report: Mapping[str, Any]) -> str:
             ["SD of block differences", _f(p["sd_difference"])],
             [f"{int(p['level'] * 100)}% paired t interval", _ci(t["lo"], t["hi"])],
             [f"{int(p['level'] * 100)}% cluster bootstrap interval", _ci(b["lo"], b["hi"])],
-            ["decision interval", p["interval_method"]],
+            ["decision interval", "luck-adjusted (below)" if a.get("decision", {}).get("estimator") == "luck_cv"
+             else p["interval_method"]],
             ["declared minimum effect", _f(p["min_effect"])],
             ["minimum detectable effect (80% power)", _f(p["minimum_detectable_effect"])],
             ["blocks B better / tied / A better", f"{p['blocks_B_better']} / {p['blocks_tied']} / {p['blocks_A_better']}"],
         ])
     else:
         lines += ["No complete blocks."]
+    if a.get("variance_reduced"):
+        lines += render_variance_section(a["variance_reduced"])
     if p["blocks_excluded"]:
         lines += ["", f"**{len(p['blocks_excluded'])} blocks excluded** (incomplete in an arm):"]
         lines += [f"- {x['cell_id']} block {x['block']}: {'; '.join(x['reasons'][:3])}" for x in p["blocks_excluded"][:10]]
@@ -220,6 +223,33 @@ def render_markdown(report: Mapping[str, Any]) -> str:
         lines += ["", render_null_section(report["null_calibration"])]
     lines += _provenance(m)
     return "\n".join(lines) + "\n"
+
+
+def render_variance_section(v: Mapping[str, Any]) -> list[str]:
+    role = "the decision interval" if v.get("primary") else "reported alongside; the decision uses the raw interval"
+    lines = ["", "## Luck-adjusted estimate", ""]
+    if not v.get("available"):
+        return lines + [f"Unavailable: {v.get('reason')}."]
+    coef = (f"cross-fitted over {v['folds']} folds" if v["coefficients"] == "crossfit"
+            else "fixed before the run")
+    lines += [f"Block differences minus zero-mean luck terms ({', '.join(v['terms'])}), coefficients {coef}"
+              + ("; within-lineup variance (conditional on these lineups)" if v["stratify"] else "")
+              + f"; {role} (strategy.eval.variance).", ""]
+    lines += _table(["metric", "value"], [
+        ["mean difference B - A (adjusted)", _f(v["mean_difference"])],
+        ["mean difference B - A (raw)", _f(v["raw"]["mean_difference"])],
+        [f"{int(v['level'] * 100)}% interval (adjusted)", _ci(v["lo"], v["hi"])],
+        ["SD of block differences: raw / adjusted", f"{_f(v['raw']['sd'])} / {_f(v['sd_adjusted'])}"],
+        ["variance reduction factor", _f(v["variance_reduction_factor"], 2)],
+        ["minimum detectable effect (80% power): raw / adjusted",
+         f"{_f(v['minimum_detectable_effect_raw'])} / {_f(v['minimum_detectable_effect'])}"],
+        ["mean correction (raw - adjusted)", f"{_f(v['correction']['mean'])} (SE {_f(v['correction']['se'])})"],
+    ])
+    lines += ["", "Luck differences (each has mean exactly zero by construction):", ""]
+    lines += _table(["term", "mean B - A", "SE", "t", "corr. with block difference"],
+                    [[t, _f(d["mean_difference"]), _f(d["se"]), _f(d["t_stat"], 2), _f(d["corr_with_difference"], 2)]
+                     for t, d in v["luck_differences"].items()])
+    return lines
 
 
 def render_null_section(n: Mapping[str, Any]) -> str:

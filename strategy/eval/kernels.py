@@ -1,4 +1,5 @@
-"""Compiled kernels for Slumbot statistics: a seven-card hand evaluator and preflop equity.
+"""Compiled kernels for Slumbot statistics and luck terms: a seven-card hand evaluator, preflop
+equity, and batched board scoring (:mod:`strategy.eval.luck`).
 
 numba is optional here (it lives in the ``train`` dependency group): without it the same code
 runs as plain Python, and :mod:`strategy.eval.slumbot_stats` falls back to a smaller Monte Carlo.
@@ -159,6 +160,27 @@ def _preflop_exact(hero0, hero1, vil0, vil1, rest):  # type: ignore[no-untyped-d
                             wins += 0.5
                         total += 1
     return wins, total
+
+
+@njit(cache=True)
+def score_boards(holes, board, extra):  # type: ignore[no-untyped-def]
+    """``(n, k)`` strengths of the ``k`` two-card ``holes`` on ``board`` completed by each row of ``extra``."""
+    n = extra.shape[0]
+    m = extra.shape[1]
+    k = holes.shape[0]
+    b = board.shape[0]
+    out = np.zeros((n, k), dtype=np.int64)
+    cards = np.zeros(7, dtype=np.int64)
+    for i in range(b):
+        cards[2 + i] = board[i]
+    for r in range(n):
+        for j in range(m):
+            cards[2 + b + j] = extra[r, j]
+        for p in range(k):
+            cards[0] = holes[p, 0]
+            cards[1] = holes[p, 1]
+            out[r, p] = score7(cards)
+    return out
 
 
 @njit(cache=True)

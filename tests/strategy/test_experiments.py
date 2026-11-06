@@ -160,6 +160,27 @@ def test_salted_bundles(tmp_path):
     assert a.rulesets == base.rulesets
 
 
+def test_salted_bundle_directory(tmp_path):
+    bundle = tmp_path / "bundle"
+    (bundle / "data").mkdir(parents=True)
+    (bundle / "data" / "name.txt").write_text("dir_random\n")
+    (bundle / "bot.py").write_text(
+        "from pathlib import Path\n"
+        "from arena.agents.baselines.legal_random import LegalRandom\n"
+        "NAME = (Path(__file__).resolve().parent / 'data' / 'name.txt').read_text().strip()\n"
+        "class DirRandom(LegalRandom):\n    name = NAME\n"
+        "def make_bot():\n    return DirRandom()\n")
+    a = salted_bundle(resolve_policy(str(bundle)), "a", tmp_path / "a")
+    assert (a.path / "inner_bot.py").read_text() == (bundle / "bot.py").read_text()
+    assert (a.path / "data" / "name.txt").exists() and "SALT = 'a'" in (a.path / "bot.py").read_text()
+    spec = tiny(experiment_id="pytest-null-dir", kind="null_calibration",
+                arms={"A": {"policy": str(bundle), "salt": "a"}, "B": {"policy": str(bundle), "salt": "b"}},
+                blocks_per_lineup=4, null={"replicates": 2, "blocks_per_replicate": 2, "exact_coupling_blocks": 1})
+    _, report = run_experiment(spec, out_dir=tmp_path / "run", jobs=1)
+    assert report["null_calibration"]["exact_coupling"]["identical"]
+    assert any(p["d"] != 0 for p in report["analysis"]["pairs"])
+
+
 def test_real_null_calibration_and_exact_coupling(tmp_path):
     spec = tiny(experiment_id="pytest-null", kind="null_calibration",
                 arms={"A": {"policy": "baseline:legal_random", "salt": "a"},

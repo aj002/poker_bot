@@ -141,6 +141,11 @@ def brief(result: Mapping[str, Any]) -> str:
     lines = [f"blocks {p['blocks']}  A {p['mean_points_A']:.2f}  B {p['mean_points_B']:.2f}  "
              f"diff {p['mean_difference']:+.2f}  95% CI [{p['chosen_interval'][0]:+.2f}, {p['chosen_interval'][1]:+.2f}]"
              f"  min_effect {p['min_effect']}  -> {d.get('decision', d)}"]
+    v = a.get("variance_reduced")
+    if v and v.get("available"):
+        lines.append(f"  luck-adjusted diff {v['mean_difference']:+.2f}  95% CI [{v['lo']:+.2f}, {v['hi']:+.2f}]  "
+                     f"variance reduction x{v['variance_reduction_factor']:.2f}"
+                     + ("  (decision interval)" if v.get("primary") else ""))
     for group in ("family", "seat"):
         for k, v in sorted(a["slices"][group].items()):
             if v.get("n", 0) < 2:
