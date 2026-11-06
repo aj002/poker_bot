@@ -33,8 +33,9 @@ def settle_dead(levels: Sequence[int], folded: Sequence[bool], strength: Sequenc
     rank = {p: i for i, p in enumerate(odd_order)}
     prev = 0
     last: list[int] | None = None
-    carry = 0
-    for i, level in enumerate(sorted({c for c in levels if c > 0})):
+    layers = sorted({c for c in levels if c > 0})
+    carry = 0 if layers else dead
+    for i, level in enumerate(layers):
         amount = sum(min(max(c - prev, 0), level - prev) for c in levels) + (dead if i == 0 else 0)
         eligible = [p for p in range(n) if not folded[p] and levels[p] >= level]
         prev = level

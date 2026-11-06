@@ -117,6 +117,8 @@ def test_settle_dead_puts_dead_chips_in_the_main_pot():
     assert [a - b for a, b in zip(awards, base)] == [0, 0, 30]
     awards = settle_dead([20, 100, 0], [False, False, True], [0, -1, 0], [0, 1, 2], 30)
     assert awards == [40 + 30, 80, 0]
+    # Walk to a big blind with no small blind: its bet is returned, the dead ante is its win.
+    assert settle_dead([0, 0, 0], [True, True, False], [0, 0, 0], [2, 0, 1], 300) == [0, 0, 300]
 
 
 @pytest.mark.parametrize("posting", ["classic", "big_blind"])

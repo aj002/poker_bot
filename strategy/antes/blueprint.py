@@ -8,12 +8,13 @@
   ``jitter`` of them gets an ante drawn from the posting mode's ratio range
   (:data:`strategy.antes.tables.RATIOS`) instead of the schedule's, so training covers
   a range of ante-to-big-blind ratios. Pools of both posting modes are concatenated.
-* :func:`fork` writes a :mod:`strategy.blueprint.train` run that continues a merged
-  sharded checkpoint (:func:`strategy.blueprint.shards.get_arrays`) on an ante pool,
-  under a fresh seed. The discount intervals of that checkpoint are over, so every
-  update is a plain sum and the strategy sums gained in the run are its average strategy
-  in ante hands.
-* :func:`overlay` packs those gains for the preflop keys (:mod:`strategy.blueprint.policy`
+* :func:`fork` writes a :mod:`strategy.blueprint.train` run on an ante pool, under a
+  fresh seed, warm-started at the regrets of a merged sharded checkpoint
+  (:func:`strategy.blueprint.shards.get_arrays`). Progress and strategy sums start at
+  zero: the run's linear-CFR discount intervals fade the warm-start regrets, and its
+  strategy sums are its average strategy in ante hands alone (the checkpoint's float32
+  sums, up to ~4e7 a slot, would round such increments away).
+* :func:`overlay` packs those sums for the preflop keys (:mod:`strategy.blueprint.policy`
   levels and thresholds). :class:`~strategy.blueprint.runtime.BlueprintPolicy` reads an
   overlay before its pack in hands with an ante; the trainer's preflop contexts leave the
   antes out of the pot, as the policy's ``ante_view = "stripped"`` does, so both packs
@@ -21,7 +22,7 @@
 
     python -m strategy.antes.blueprint pool --lineups 40 --out artifacts/antes/states-antes.npz
     python -m strategy.antes.blueprint fork --base DIR/final --states POOL --run RUN
-    python -m strategy.antes.blueprint overlay --base DIR/final --run RUN --out PACK
+    python -m strategy.antes.blueprint overlay --run RUN --out PACK
 """
 
 from __future__ import annotations
@@ -92,19 +93,20 @@ def concat(pools: Sequence[StatePool]) -> StatePool:
 
 
 def fork(base: Path, states: Path, run: Path, *, seed: int) -> dict:
-    """A training run at ``base``'s merged checkpoint, continuing on the ante pool ``states``."""
+    """A training run on the ante pool ``states``, warm-started at ``base``'s merged regrets."""
     from strategy.blueprint.shards import get_arrays
     from strategy.blueprint.train import TrainConfig
+
+    from strategy.blueprint.train import Progress
 
     if (run / "config.json").exists():
         raise SystemExit(f"{run} exists")
     arrays, meta = get_arrays(base)
     pool, _ = StatePool.load(states)
-    progress = meta["progress"]
     cfg = dict(meta["config"], states=str(states), states_digest=pool.digest(), seed=seed)
     tc = TrainConfig(**cfg)
-    if progress["intervals"] < tc.linear_intervals:
-        raise SystemExit("the base checkpoint is still inside its discount intervals")
+    progress = asdict(Progress())
+    arrays = {"regret": arrays["regret"], "strat": np.zeros_like(arrays["strat"])}
     (run / "ckpt").mkdir(parents=True)
     for n in ("regret", "strat"):
         np.save(run / "ckpt" / f"{n}.npy", arrays[n])
@@ -113,20 +115,17 @@ def fork(base: Path, states: Path, run: Path, *, seed: int) -> dict:
         "regret_sha256": hashlib.sha256(arrays["regret"].tobytes()).hexdigest(),
         "strat_sha256": hashlib.sha256(arrays["strat"].tobytes()).hexdigest()}, indent=1))
     (run / "config.json").write_text(json.dumps(asdict(tc), indent=1, sort_keys=True))
-    info = {"base": str(base), "base_progress": progress, "base_config_digest": meta.get("config_digest"),
+    info = {"base": str(base), "base_progress": meta["progress"], "base_config_digest": meta.get("config_digest"),
             "states": str(states), "states_digest": pool.digest(), "seed": seed}
     (run / "fork.json").write_text(json.dumps(info, indent=1))
     return info
 
 
-def gains(base: Path, run: Path) -> tuple[np.ndarray, dict]:
-    """Strategy sums the run added to ``base`` (float64, clipped at 0) and the run's progress."""
-    from strategy.blueprint.shards import get_arrays
-
-    arrays, _ = get_arrays(base)
+def gains(run: Path) -> tuple[np.ndarray, dict]:
+    """The run's strategy sums (float64; they start at zero at the fork) and its progress."""
     strat = np.load(run / "ckpt" / "strat.npy")
     meta = json.loads((run / "ckpt" / "meta.json").read_text())
-    return np.clip(strat.astype(np.float64) - arrays["strat"].astype(np.float64), 0.0, None), meta["progress"]
+    return strat.astype(np.float64), meta["progress"]
 
 
 def overlay_levels(delta: np.ndarray, streets: int = 1, min_mass=None) -> dict[str, np.ndarray]:
@@ -139,17 +138,17 @@ def overlay_levels(delta: np.ndarray, streets: int = 1, min_mass=None) -> dict[s
     return build_levels(d, min_mass or DEFAULT_MIN_MASS)
 
 
-def overlay(base: Path, run: Path, out: Path, *, streets: int = 1) -> dict:
+def overlay(run: Path, out: Path, *, streets: int = 1) -> dict:
     from strategy.blueprint.policy import DEFAULT_MIN_MASS, write_levels
 
-    delta, progress = gains(base, run)
+    delta, progress = gains(run)
     fork_info = json.loads((run / "fork.json").read_text())
     levels = overlay_levels(delta, streets)
     cfg = json.loads((run / "config.json").read_text())
     return write_levels(out, levels, {
         "ruleset_id": cfg["ruleset_id"], "run": run.name, "config": cfg, "progress": progress,
         "overlay": {"base": fork_info["base"], "base_pairs": fork_info["base_progress"]["pairs"],
-                    "pairs": progress["pairs"] - fork_info["base_progress"]["pairs"], "streets": streets,
+                    "pairs": progress["pairs"], "streets": streets,
                     "states_digest": fork_info["states_digest"]}}, DEFAULT_MIN_MASS)
 
 
@@ -169,7 +168,6 @@ def main(argv: list[str] | None = None) -> None:
     f.add_argument("--run", type=Path, required=True)
     f.add_argument("--seed", type=int, default=7001)
     o = sub.add_parser("overlay")
-    o.add_argument("--base", type=Path, required=True)
     o.add_argument("--run", type=Path, required=True)
     o.add_argument("--out", type=Path, required=True)
     o.add_argument("--streets", type=int, default=1)
@@ -184,7 +182,7 @@ def main(argv: list[str] | None = None) -> None:
     elif a.cmd == "fork":
         print(json.dumps(fork(a.base, a.states, a.run, seed=a.seed), indent=1))
     else:
-        prov = overlay(a.base, a.run, a.out, streets=a.streets)
+        prov = overlay(a.run, a.out, streets=a.streets)
         print(f"{a.out}: rows per level {prov['rows']}, {a.out.stat().st_size / 1e6:.2f} MB on disk")
 
 
