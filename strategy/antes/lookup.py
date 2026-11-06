@@ -7,14 +7,12 @@ ante from the posting mode's ante table (:mod:`strategy.antes.tables`), and fall
 to the ante-free leaf (its M-equivalent approximation) where that table has no support.
 Hands without an ante never reach this module's tables.
 
-:class:`CompactTable` holds a table as one sorted key array, one probability blob and
-one count array per kind (about ``rows * (classes + 12)`` bytes), not per-row Python
-objects.
+:class:`CompactTable` holds a table as one sorted key array and one probability blob per
+kind, about ``rows * (classes / 2 + 8)`` bytes, read in place from the store's arrays.
 """
 
 from __future__ import annotations
 
-from array import array
 from bisect import bisect_left
 from dataclasses import dataclass
 from functools import lru_cache
@@ -144,8 +142,9 @@ class CompactTable:
         self.ruleset_id = ruleset_id
         self.h = len(hc.keys)
         self.stride = (self.h + 1) // 2
-        self._keys = {k: array("q", arrays[f"{k}_keys"].tolist()) for k in KINDS}
-        self._nib = {k: arrays[f"{k}_nib"].tobytes() for k in KINDS}
+        # Views of the store's cached arrays (no copies): indexing yields Python ints.
+        self._keys = {k: memoryview(arrays[f"{k}_keys"]).cast("B").cast("q") for k in KINDS}
+        self._nib = {k: memoryview(arrays[f"{k}_nib"]).cast("B") for k in KINDS}
 
     def lookup(self, kind: str, keys: tuple[int, ...], cls: int, *,
                min_count: int = MIN_COUNT) -> tuple[float, int] | None:

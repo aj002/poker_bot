@@ -49,7 +49,7 @@ def compact_name(posting: str, ruleset_id: str = "practice_nlhe") -> str:
 
 
 def compact(arrays: dict) -> dict:
-    """The rows a lookup can use (count at least ``MIN_COUNT``), probabilities in 4 bits.
+    """The rows a lookup can use (count at least ``MIN_COUNT``, not stored), probabilities in 4 bits.
 
     ``{kind}_nib`` holds two hand classes a byte, the even class in the low nibble; a
     nibble ``q`` is the probability ``q / 15`` of the aggressive action."""
@@ -63,7 +63,6 @@ def compact(arrays: dict) -> dict:
             q = np.concatenate([q, np.zeros((q.shape[0], 1), np.uint8)], axis=1)
         out[f"{k}_keys"] = arrays[f"{k}_keys"][keep]
         out[f"{k}_nib"] = q[:, 0::2] | (q[:, 1::2] << 4)
-        out[f"{k}_count"] = arrays[f"{k}_count"][keep]
     return out
 
 
