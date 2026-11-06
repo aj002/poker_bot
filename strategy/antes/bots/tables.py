@@ -1,10 +1,7 @@
-"""Development candidate: the final bot with ante hands' push/fold played from the ante tables."""
+"""Candidate: the final bot with ``antes="tables"`` (:mod:`strategy.antes.runtime`)."""
 
-from strategy.antes.lookup import AntePushFoldBot
-from strategy.final.runtime import FinalBot
+from strategy.antes.runtime import AnteFinalBot
 
 
 def make_bot():
-    bot = FinalBot()
-    bot.teacher._leaf = AntePushFoldBot("points")
-    return bot
+    return AnteFinalBot(overrides={"antes": "tables"})

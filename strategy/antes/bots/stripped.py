@@ -1,9 +1,7 @@
-"""Development candidate: the final bot with the blueprint's preflop pot read without the antes."""
+"""Candidate: the final bot with ``antes="stripped"`` (:mod:`strategy.antes.runtime`)."""
 
-from strategy.final.runtime import FinalBot
+from strategy.antes.runtime import AnteFinalBot
 
 
 def make_bot():
-    bot = FinalBot()
-    bot.teacher.policy("practice_nlhe").ante_view = "stripped"
-    return bot
+    return AnteFinalBot(overrides={"antes": "stripped"})

@@ -105,8 +105,14 @@ print(json.dumps({"modules": mods, "files": files, "tables": sorted(loaded),
 def entry(overrides: dict | None) -> tuple[str, str]:
     """``(module, class)`` of the bundle's bot: the final bot, or the translating one when an
     override turns translation on (so the shipped bundle never contains translation code)."""
-    if (overrides or {}).get("translate", "off") != "off":
+    translate = (overrides or {}).get("translate", "off") != "off"
+    antes = (overrides or {}).get("antes", "off") != "off"
+    if translate and antes:
+        raise ValueError("translate and antes overrides build different bots; pick one")
+    if translate:
         return "strategy.final.translated", "TranslatingFinalBot"
+    if antes:
+        return "strategy.antes.runtime", "AnteFinalBot"
     return "strategy.final.runtime", "FinalBot"
 
 
@@ -177,11 +183,20 @@ def build(out: Path, *, pack: Path | None = None, xpack: Path | None = None, rev
               if (REPO / Path(*Path(f).parts[:k]) / "__init__.py").exists()}
     files |= {str(f.relative_to(REPO)) for f in (REPO / "strategy" / "blueprint" / "data").glob("*.json.gz")}
     files |= set(_table_files(info["tables"]))
+    antes = (overrides or {}).get("antes", "off")
+    if antes != "off":
+        files |= {str(f.relative_to(REPO)) for f in (REPO / "strategy" / "antes" / "data").glob("*.json.gz")}
     copies = [(REPO / rel, rel) for rel in sorted(files)]
     data = "strategy/tables/data"
     pack_file, xpack_file = f"blueprint-{ruleset_id}.npz", f"exploit-{ruleset_id}.npz"
     copies = [c for c in copies if c[1] not in (f"{data}/{pack_file}", f"{data}/{xpack_file}")]
     copies += [(pack, f"{data}/{pack_file}"), (xpack, f"{data}/{xpack_file}")]
+    overlay = None
+    if antes == "overlay":
+        from strategy.antes.runtime import overlay_path
+
+        overlay = (overlay_path(ruleset_id), f"{data}/blueprint-antes-{ruleset_id}.npz")
+        copies.append(overlay)
     if reveal is not None:
         copies += reveal_files(Path(reveal), tables=False)
     for src, rel in copies:
@@ -212,6 +227,8 @@ def build(out: Path, *, pack: Path | None = None, xpack: Path | None = None, rev
     }
     if overrides:
         manifest["overrides"] = dict(sorted(overrides.items()))
+    if overlay is not None:
+        manifest["ante_overlay"] = {"file": overlay[1], "data_sha256": PolicyPack(overlay[0]).provenance["data_sha256"]}
     if reveal is not None:
         from strategy.rules.variants import VariantSpec
 

@@ -155,6 +155,22 @@ def test_the_default_build_is_the_recorded_submission(tmp_path, monkeypatch):
     assert m["bundle_sha256"] == sub["submission_bundle_sha256"], "rebuild, gate and record a changed bundle"
     assert m["bytes"] == sub["bytes"] and m["py_files"] == sub["py_files"]
     assert not any("translat" in f for f in m["files"])
+    assert not any("antes" in f for f in m["files"])
+
+
+def test_an_antes_override_bundles_the_ante_bot_and_its_tables(tmp_path):
+    from strategy.final import package
+
+    pack, xpack = uniform_pack(tmp_path / "u.npz"), exploit_pack(tmp_path / "x.npz")
+    m = package.build(tmp_path / "a", pack=pack, xpack=xpack, overrides={"antes": "tables"})
+    assert {"strategy/antes/runtime.py", "strategy/antes/lookup.py", "strategy/antes/data/warm-practice_nlhe.json.gz",
+            "strategy/tables/data/antes-pushfold-classic-practice_nlhe.npz",
+            "strategy/tables/data/antes-pushfold-big_blind-practice_nlhe.npz"} <= set(m["files"])
+    assert not any(f.endswith(("subgame.py", "tables.py", "census.py", "blueprint.py", "warm.py"))
+                   and "antes" in f for f in m["files"])
+    bot = (tmp_path / "a" / "bot.py").read_text()
+    assert "AnteFinalBot(" in bot and "overrides={'antes': 'tables'}" in bot
+    package.smoke(tmp_path / "a")
 
 
 def test_a_translate_override_bundles_the_translating_bot(tmp_path):

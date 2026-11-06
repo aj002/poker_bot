@@ -21,7 +21,7 @@ from functools import lru_cache
 from pathlib import Path
 
 from arena.agents.sdk import call, check, fold, raise_to
-from strategy.antes.pushfold import AnteSnapshot, ante_keys_for, ante_seated_snapshot
+from strategy.antes.pushfold import POSTINGS, AnteSnapshot, ante_keys_for, ante_seated_snapshot
 from strategy.endgame.bot import BLIND_OPEN_MAX_BB, PushFoldBot, _uniform
 from strategy.endgame.classes import hand_classes
 from strategy.endgame.keys import KINDS, MAX_DEPTH_BB
@@ -178,14 +178,13 @@ class AntePushFoldBot(PushFoldBot):
 
     def __init__(self, mode: str = "points", **kw) -> None:
         super().__init__(mode, **kw)
+        if mode != "points":
+            raise ValueError("the ante tables are point-aware: mode must be 'points'")
         self.name = f"endgame_{mode}_antes"
         self.ante_stats = {"ante": 0, "ante_miss": 0}
-
-    def initial_state(self, table):
-        out = super().initial_state(table)
-        for posting in ("classic", "big_blind"):
-            load_ante_table(posting, table.ruleset_id)
-        return out
+        # In the untimed load: a restored worker goes straight to a timed decision.
+        for posting in POSTINGS:
+            load_ante_table(posting)
 
     def push_fold(self, obs, base, seed: str):
         blinds = obs.blinds
