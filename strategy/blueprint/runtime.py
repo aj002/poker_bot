@@ -152,7 +152,19 @@ class HandReplay:
 
 
 class BlueprintPolicy:
-    """Everything the bot loads once per process for one ruleset."""
+    """Everything the bot loads once per process for one ruleset.
+
+    ``ante_view``: ``"raw"`` keys every decision by the pot as it is; ``"stripped"`` takes
+    the hand's antes (the preflop settled pot) out of the preflop pot, so an unopened ante
+    pot reads as an unopened pot and not as one with a limper.
+
+    ``overlay``: a pack trained in ante hands (:mod:`strategy.antes.blueprint`, keyed as the
+    stripped view keys), read before the pack for preflop decisions of a hand with an
+    ante when its row is at the same or a finer back-off level.
+    """
+
+    ante_view = "raw"
+    overlay: PolicyPack | None = None
 
     def __init__(self, ruleset_id: str, pack: PolicyPack | None = None) -> None:
         if ruleset_id not in RULESETS:
@@ -219,6 +231,8 @@ class BlueprintPolicy:
             return None
         to_call = min(legal.call_amount or 0, me.stack)
         pot = obs.pot_total
+        if street == 0 and self.ante_view == "stripped":
+            pot -= obs.settled_pot
         eff = min(me.stack, other_max)
         eff_start = min(me.stack + me.hand_committed, other_max_start)
         bb = obs.blinds.big_blind if obs.blinds else rp.bb
@@ -239,11 +253,21 @@ class BlueprintPolicy:
         """``(action, note)`` from the blueprint, or None on a table miss."""
         return self.act_on(obs, u, self.features(obs))
 
+    def lookup(self, obs, key: int):
+        """The pack's (or in a hand with an ante, the overlay's) ``(row, level)`` for ``key``."""
+        hit = self.pack.lookup(key)
+        ov = self.overlay
+        if ov is not None and obs.street == "preflop" and obs.blinds is not None and obs.blinds.ante:
+            o = ov.lookup(key)
+            if o is not None and (hit is None or o[1] <= hit[1]):
+                return o
+        return hit
+
     def act_on(self, obs, u: float, f):
         """:meth:`act` given ``f = self.features(obs)``."""
         if f is None:
             return None
-        return self.act_row(obs, u, f, self.pack.lookup(f[0]))
+        return self.act_row(obs, u, f, self.lookup(obs, f[0]))
 
     def act_row(self, obs, u: float, f, hit):
         """:meth:`act_on` given ``hit = self.pack.lookup(f[0])`` (``f`` not None)."""

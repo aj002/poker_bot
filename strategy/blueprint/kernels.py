@@ -13,8 +13,18 @@ level per decision depth: ``I[d, channel, player]`` with channels
 6      acted this street
 7      scalars by index: 0 street, 1 bet to match, 2 last full raise size, 3 raises this
        street, 4 position of the current actor in the street's order (-1 at street start),
-       5 last raiser this street, 6 last raiser of the previous street
+       5 last raiser this street, 6 last raiser of the previous street, 7 the hand's antes
+8      dead chips the player put in the main pot (a big-blind ante)
 =====  ========================================================================
+
+Antes: a state's ``posts`` row is either the 8 blind posts or 24 values, the blind posts,
+then each player's live ante (a classic ante: committed this hand, not this street, so it
+is a contribution level), then each player's dead chips (a big-blind ante: in the pot,
+paid with the main pot, never a contribution level). Stacks are before both. The start
+stacks of a decision context include both, as the arena's ``stack + hand_committed``
+does; its pot includes them from the flop on, while preflop it leaves the antes out,
+as :class:`~strategy.blueprint.runtime.BlueprintPolicy` does with ``ante_view =
+"stripped"``, so an unopened ante pot keys and sizes as an unopened pot.
 
 Betting rights follow the arena adapter: a player may raise when it has not acted this
 street or the bet level rose by at least a full raise since it did (short all-ins
@@ -47,9 +57,9 @@ from strategy.blueprint import abstraction as A
 MAX_PLAYERS = 8
 NUM_ACTIONS = A.NUM_ACTIONS
 MAX_DEPTH = 512
-CH = 8
+CH = 9
 
-ST_STREET, ST_BET, ST_LAST_RAISE, ST_RAISES, ST_POS, ST_AGGR, ST_PREV_AGGR = range(7)
+ST_STREET, ST_BET, ST_LAST_RAISE, ST_RAISES, ST_POS, ST_AGGR, ST_PREV_AGGR, ST_ANTES = range(8)
 
 # int params
 P_MODE, P_MAX_STREET, P_EQ_SHOWDOWN, P_OPP_FIXED, P_TRAV_FIXED, P_UPDATE_AVG, P_PRUNE, P_FLOOR_ZERO, P_FREEZE, P_RESPOND = range(10)
@@ -109,14 +119,23 @@ def init_hand(I, n, stacks, posts, bb):
         for p in range(MAX_PLAYERS):
             I[0, c, p] = 0
     cur = 0
+    antes = 0
     for p in range(MAX_PLAYERS):
         if p >= n:
             I[0, 3, p] = 1
             continue
-        I[0, 0, p] = stacks[p] - posts[p]
+        live = 0
+        dead = 0
+        if posts.shape[0] >= 3 * MAX_PLAYERS:
+            live = posts[MAX_PLAYERS + p]
+            dead = posts[2 * MAX_PLAYERS + p]
+        behind = stacks[p] - posts[p] - live - dead
+        I[0, 0, p] = behind
         I[0, 1, p] = posts[p]
-        I[0, 2, p] = posts[p]
-        I[0, 3, p] = 2 if stacks[p] - posts[p] <= 0 else 0
+        I[0, 2, p] = posts[p] + live
+        I[0, 8, p] = dead
+        antes += live + dead
+        I[0, 3, p] = 2 if behind <= 0 else 0
         I[0, 5, p] = -1
         if posts[p] > cur:
             cur = posts[p]
@@ -127,6 +146,7 @@ def init_hand(I, n, stacks, posts, bb):
     I[0, 7, ST_POS] = -1
     I[0, 7, ST_AGGR] = -1
     I[0, 7, ST_PREV_AGGR] = -1
+    I[0, 7, ST_ANTES] = antes
 
 
 @njit
@@ -227,7 +247,7 @@ def decision_context(I, d, n, p, bb, pressure_b):
     other_max_start = 0
     other_live = 0
     for q in range(n):
-        pot += I[d, 2, q]
+        pot += I[d, 2, q] + I[d, 8, q]
         if I[d, 3, q] == 1:
             continue
         active += 1
@@ -240,11 +260,13 @@ def decision_context(I, d, n, p, bb, pressure_b):
                 behind += 1
         if I[d, 0, q] > other_max:
             other_max = I[d, 0, q]
-        s = I[d, 0, q] + I[d, 2, q]
+        s = I[d, 0, q] + I[d, 2, q] + I[d, 8, q]
         if s > other_max_start:
             other_max_start = s
+    if street == 0:
+        pot -= I[d, 7, ST_ANTES]
     eff = stack if stack < other_max else other_max
-    start = stack + I[d, 2, p]
+    start = stack + I[d, 2, p] + I[d, 8, p]
     eff_start = start if start < other_max_start else other_max_start
     acted = I[d, 6, p]
     init = 1 if I[d, 7, ST_PREV_AGGR] == p else 0
@@ -265,6 +287,7 @@ def decision_context(I, d, n, p, bb, pressure_b):
 def settle(I, d, n, ranks, post_order, eq_mode, eq, classes, fin):
     """Final stacks (float) after the pot is paid out; ``eq_mode`` pays heads-up showdowns by equity."""
     total = 0
+    dead = 0
     nf = 0
     last = -1
     for q in range(MAX_PLAYERS):
@@ -272,19 +295,20 @@ def settle(I, d, n, ranks, post_order, eq_mode, eq, classes, fin):
     for q in range(n):
         fin[q] = float(I[d, 0, q])
         total += I[d, 2, q]
+        dead += I[d, 8, q]
         if I[d, 3, q] != 1:
             nf += 1
             last = q
     if nf == 1:
-        fin[last] += float(total)
+        fin[last] += float(total + dead)
         return
     if eq_mode:
         m = I[d, 2, 0] if I[d, 2, 0] < I[d, 2, 1] else I[d, 2, 1]
         for q in range(2):
             fin[q] += float(I[d, 2, q] - m)
         e = eq[classes[0], classes[1]]
-        fin[0] += e * 2.0 * m
-        fin[1] += (1.0 - e) * 2.0 * m
+        fin[0] += e * (2.0 * m + dead)
+        fin[1] += (1.0 - e) * (2.0 * m + dead)
         return
     prev = 0
     big = 1 << 60
@@ -296,7 +320,7 @@ def settle(I, d, n, ranks, post_order, eq_mode, eq, classes, fin):
                 lev = c
         if lev == big:
             break
-        amount = 0
+        amount = dead if prev == 0 else 0
         best = -(1 << 62)
         for q in range(n):
             c = I[d, 2, q]
