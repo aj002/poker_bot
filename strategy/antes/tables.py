@@ -44,6 +44,33 @@ def table_name(posting: str, ruleset_id: str = "practice_nlhe") -> str:
     return f"endgame-points-{posting}-{ruleset_id}"
 
 
+def compact_name(posting: str, ruleset_id: str = "practice_nlhe") -> str:
+    return f"antes-pushfold-{posting}-{ruleset_id}"
+
+
+def compact(arrays: dict) -> dict:
+    """The rows a lookup can use (count at least ``MIN_COUNT``), probabilities in 4 bits.
+
+    ``{kind}_nib`` holds two hand classes a byte, the even class in the low nibble; a
+    nibble ``q`` is the probability ``q / 15`` of the aggressive action."""
+    from strategy.endgame.lookup import MIN_COUNT
+
+    out = {"class_keys": arrays["class_keys"]}
+    for k in ("open", "call", "overcall"):
+        keep = arrays[f"{k}_count"] >= MIN_COUNT
+        q = np.rint(arrays[f"{k}_probs"][keep].astype(np.float64) * (15 / 255)).astype(np.uint8)
+        if q.shape[1] % 2:
+            q = np.concatenate([q, np.zeros((q.shape[0], 1), np.uint8)], axis=1)
+        out[f"{k}_keys"] = arrays[f"{k}_keys"][keep]
+        out[f"{k}_nib"] = q[:, 0::2] | (q[:, 1::2] << 4)
+        out[f"{k}_count"] = arrays[f"{k}_count"][keep]
+    return out
+
+
+FULL_DIR = Path(__file__).resolve().parents[2] / "artifacts" / "antes" / "tables"
+"""Where the full solves (every row, 8-bit probabilities, diagnostics) are kept for analysis."""
+
+
 def rollout_states(posting: str, *, lineups: int, seed: int, jobs: int) -> list[SeatedSnapshot]:
     """In-scope ante hands of ``lineups`` training lineups under the named structure, every rotation."""
     from strategy.value.rollouts import run_lineups, training_lineups
@@ -197,20 +224,36 @@ def main(argv: list[str] | None = None) -> None:
     for k, v in DEFAULTS.items():
         ap.add_argument("--" + k.replace("_", "-"), type=int, default=v)
     ap.add_argument("--jobs", type=int, default=8)
-    ap.add_argument("--out", help="output directory (default: strategy/tables/data)")
+    ap.add_argument("--full-dir", type=Path, default=FULL_DIR, help="directory of the full solve")
+    ap.add_argument("--out", help="directory of the compact table (default: strategy/tables/data)")
+    ap.add_argument("--compact-only", action="store_true", help="recompact an existing full solve")
     a = ap.parse_args(argv)
     params = {k: getattr(a, k) for k in DEFAULTS}
-    started = time.perf_counter()
-    arrays, extra = build(a.posting, jobs=a.jobs, **params)
-    seconds = time.perf_counter() - started
-    path = store.write_arrays(table_name(a.posting), arrays, generator=GENERATOR, inputs=INPUTS,
-                              params={"ruleset_id": "practice_nlhe", "posting": a.posting, **params},
-                              seconds=seconds, extra=extra, directory=Path(a.out) if a.out else None)
-    g = arrays["diag_gain"]
-    rows = sum(len(arrays[f"{k}_keys"]) for k in ("open", "call", "overcall"))
-    print(f"wrote {path} ({path.stat().st_size} bytes, {extra['states']} states, {extra['solved']} solved, "
-          f"{rows} rows, {seconds:.0f}s); deviation gain median {np.median(g):.2e} p99 {np.quantile(g, 0.99):.2e} "
-          f"max {g.max():.2e}")
+    name = table_name(a.posting)
+    if not a.compact_only:
+        started = time.perf_counter()
+        arrays, extra = build(a.posting, jobs=a.jobs, **params)
+        seconds = time.perf_counter() - started
+        path = store.write_arrays(name, arrays, generator=GENERATOR, inputs=INPUTS,
+                                  params={"ruleset_id": "practice_nlhe", "posting": a.posting, **params},
+                                  seconds=seconds, extra=extra, directory=a.full_dir)
+        g = arrays["diag_gain"]
+        rows = sum(len(arrays[f"{k}_keys"]) for k in ("open", "call", "overcall"))
+        print(f"wrote {path} ({path.stat().st_size} bytes, {extra['states']} states, {extra['solved']} solved, "
+              f"{rows} rows, {seconds:.0f}s); deviation gain median {np.median(g):.2e} "
+              f"p99 {np.quantile(g, 0.99):.2e} max {g.max():.2e}")
+    store.load_arrays.cache_clear()
+    full_prov, full = store.load_arrays(name, str(a.full_dir))
+    small = compact(full)
+    keep = ("ruleset_id", "variant_hash", "mode", "utility", "value", "ante_posting", "ante_ratios", "blind_levels",
+            "showdown_sha256", "states", "solved", "payouts", "max_depth_bb", "levels", "model_classes")
+    path = store.write_arrays(compact_name(a.posting), small, generator=GENERATOR, inputs=INPUTS,
+                              params=full_prov["params"], seconds=full_prov["wall_seconds"],
+                              extra={**{k: full_prov[k] for k in keep}, "full_table": name,
+                                     "full_sha256": full_prov["data_sha256"], "probability_bits": 4},
+                              directory=Path(a.out) if a.out else None)
+    rows = sum(len(small[f"{k}_keys"]) for k in ("open", "call", "overcall"))
+    print(f"wrote {path} ({path.stat().st_size} bytes, {rows} rows)")
 
 
 if __name__ == "__main__":

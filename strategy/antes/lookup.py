@@ -130,7 +130,10 @@ def ante_preflop_spot(obs) -> AnteSpot | None:
 
 
 class CompactTable:
-    """:class:`~strategy.endgame.lookup.PushFoldTable` over flat arrays (bisect lookups)."""
+    """:class:`~strategy.endgame.lookup.PushFoldTable` over flat arrays (bisect lookups).
+
+    Reads the compact tables of :func:`strategy.antes.tables.compact`: only rows with at
+    least ``MIN_COUNT`` weight, 4-bit probabilities two classes a byte."""
 
     def __init__(self, provenance: dict, arrays: dict) -> None:
         ruleset_id = provenance["ruleset_id"]
@@ -140,18 +143,20 @@ class CompactTable:
         self.provenance = provenance
         self.ruleset_id = ruleset_id
         self.h = len(hc.keys)
+        self.stride = (self.h + 1) // 2
         self._keys = {k: array("q", arrays[f"{k}_keys"].tolist()) for k in KINDS}
-        self._probs = {k: arrays[f"{k}_probs"].tobytes() for k in KINDS}
-        self._count = {k: array("i", arrays[f"{k}_count"].tolist()) for k in KINDS}
+        self._nib = {k: arrays[f"{k}_nib"].tobytes() for k in KINDS}
 
     def lookup(self, kind: str, keys: tuple[int, ...], cls: int, *,
                min_count: int = MIN_COUNT) -> tuple[float, int] | None:
+        if min_count > MIN_COUNT:
+            raise ValueError(f"compact tables keep rows down to a count of {MIN_COUNT}")
         ks = self._keys[kind]
-        count = self._count[kind]
         for level, key in enumerate(keys):
             r = bisect_left(ks, key)
-            if r < len(ks) and ks[r] == key and count[r] >= min_count:
-                return self._probs[kind][r * self.h + cls] / 255.0, level
+            if r < len(ks) and ks[r] == key:
+                b = self._nib[kind][r * self.stride + (cls >> 1)]
+                return ((b >> 4) if cls & 1 else (b & 15)) / 15.0, level
         return None
 
     def rows(self, kind: str) -> int:
@@ -160,11 +165,11 @@ class CompactTable:
 
 @lru_cache(maxsize=None)
 def load_ante_table(posting: str, ruleset_id: str = "practice_nlhe", directory: str | None = None) -> CompactTable:
-    name = f"endgame-points-{posting}-{ruleset_id}"
+    name = f"antes-pushfold-{posting}-{ruleset_id}"
     loaded = store.load_arrays(name, directory)
     if loaded is None:
         where = Path(directory) if directory else store.table_dir()
-        raise TableMissing(f"{name}.npz not found in {where}; run `python -m strategy.antes.tables`")
+        raise TableMissing(f"{name}.npz not found in {where}; run `python -m strategy.antes.tables --posting {posting}`")
     return CompactTable(*loaded)
 
 

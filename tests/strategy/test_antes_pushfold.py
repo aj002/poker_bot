@@ -139,19 +139,23 @@ def test_ante_spot_from_an_observation_matches_the_dealt_hand(posting):
 
 def test_compact_table_reads_like_the_dict_table():
     from strategy.antes.lookup import CompactTable
+    from strategy.antes.tables import compact
     from strategy.endgame.keys import KINDS
     from strategy.endgame.lookup import PushFoldTable
     from strategy.tables import store
 
     prov, arrays = store.load_arrays("endgame-points-practice_nlhe")
-    full, compact = PushFoldTable(prov, arrays), CompactTable(prov, arrays)
+    full, small = PushFoldTable(prov, arrays), CompactTable(prov, compact(arrays))
     rng = random.Random(7)
     for kind in KINDS:
         keys = arrays[f"{kind}_keys"].tolist()
         for _ in range(300):
             probe = tuple(rng.choice(keys) + rng.choice([0, 0, 1]) for _ in range(4))
-            cls = rng.randrange(compact.h)
-            assert compact.lookup(kind, probe, cls) == full.lookup(kind, probe, cls)
+            cls = rng.randrange(small.h)
+            got, want = small.lookup(kind, probe, cls), full.lookup(kind, probe, cls)
+            assert (got is None) == (want is None)
+            if got is not None:
+                assert got[1] == want[1] and abs(got[0] - want[0]) <= 1 / 30 + 1e-9
 
 
 def test_ante_keys_never_collide_with_ante_free_keys():
