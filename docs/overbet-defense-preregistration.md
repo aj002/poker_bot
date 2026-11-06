@@ -146,4 +146,28 @@ Otherwise the default bundle stays `c3e0fa54…` and the mode stays available be
 
 ## Results
 
-(Appended after the runs.)
+The runs were in-process with 7 jobs, from commit `3653a74` (tag `prereg-overbet-defense`,
+pushed before the first run), with the pre-registered bundles, seeds and block counts
+unchanged. The suite runs record `commit 3653a74`, seed `overbet-defense-suite-v1`, and
+arms `c3e0fa540ee2` (A) and `7ce7e5e5a0b0` (B). The analysis is
+`python -m strategy.exploiters.validate` exactly as written above, saved as
+`artifacts/redteam/overbet-confirm.json`.
+
+| id | B − A (points), 95% CI | one-sided p | Holm p | outcome |
+| --- | --- | --- | --- | --- |
+| H1 | +0.38 [−0.68, +1.44] (exploiter edge −0.11 vs A, −0.49 vs B) | 0.24 | 0.48 | not shown |
+| H2 | −1.62 [−2.89, −0.34] | 0.99 | 0.99 | not shown: B is worse |
+| H3 | +0.02 [−0.06, +0.11] | <0.0001 | <0.0001 | non-inferior |
+| H4 | −0.19 [−0.35, −0.02] | 0.0001 | 0.0003 | non-inferior |
+
+**Decision: fail.** Neither H1 nor H2 is rejected, so the decision rule is not met. The
+gates were not run, as the pre-registration specifies. `translate=pot` is not adopted, the
+default bundle stays `c3e0fa54…`, and the mode stays available behind `--override`.
+
+Descriptive, not part of the test: the suite's attribution rows for `single-pressure`
+show that B lowers the fold rate to pressure-bot overbets from 67% to 54%, against 51% to
+smaller bets, which clears the suite's OVERBET flag. Chips per overbet hand fall from −1.83
+to −2.62 bb, and the hero survives 353 of 800 tables against 379. The per-cell differences
+are negative mainly where the pressure bot sits: `mult-P4E3` −1.08, `mult-A4P3` −0.45,
+`mult-P3E2A2` −0.37. The cells without it are about 0. The equilibrium and adaptive cells are
+exactly 0.00, because neither bot overbets, so the mode never fires there.
