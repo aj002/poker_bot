@@ -19,7 +19,7 @@ def test_final_bot_is_a_public_builtin_seat_with_the_submission_hash():
         spec = next(p for p in body["policies"] if p["id"] == "final_bot")
         bundle = json.loads(FINAL_SUBMISSION.read_text())["submission_bundle_sha256"]
         assert body["operator"] is False
-        assert spec["source"] == "strategy" and spec["artifact_hash"] == bundle and bundle.startswith("59f371c6")
+        assert spec["source"] == "strategy" and spec["artifact_hash"] == bundle and bundle.startswith("bec8892d")
         assert spec["rulesets"] == ["practice_nlhe", "uncertainty_shortdeck", "uncertainty_plo4", "reveal_variant"]
         assert spec["state_mode"] == "explicit" and spec["bot_name"] == "final_bot"
 

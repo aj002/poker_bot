@@ -176,3 +176,43 @@ with new seeds to change a result. If a result prompts a change, the changed bot
 experiment with new specs.
 
 ## Results (added after the runs)
+
+The runs were in-process with 7 jobs, from commit `4231d18` (tag `antes-prereg-v1`, pushed
+before the first run, clean tree), with the pre-registered bundles, specs, seeds and block
+counts unchanged. The spec hashes are `297f2d35…` (classic) and `c12a7eb0…` (big blind). The
+analysis is `python -m strategy.exploit.evaluate confirm` exactly as written above, saved as
+`artifacts/antes/confirm.json`.
+
+| id | B − A, luck-adjusted, 95% CI | one-sided p | Holm p | raw paired t, 95% | outcome |
+| --- | --- | --- | --- | --- | --- |
+| H1 (classic) | +0.92 [+0.50, +1.35] | 9.5e-6 | 9.5e-6 | +1.16 [+0.53, +1.78] | rejected: B is better |
+| H2 (big blind) | +1.23 [+0.81, +1.66] | 9.0e-9 | 1.8e-8 | +1.30 [+0.70, +1.90] | rejected: B is better |
+
+**Side conditions** (run after the statistics passed, on an otherwise idle machine):
+
+- **Ante-free play:** identical, 40 of 40 sandboxed tables (44,155 public actions, 6,216 hero
+  decisions, 0 fallbacks).
+- **Deployed gate:** passed, every check ok, under every structure:
+
+  | structure | decisions | worker p99 / p99.9 / max (µs) | timeouts (bot-caused) | control timeouts |
+  | --- | --- | --- | --- | --- |
+  | none | 50,010 | 330 / 385 / 659 | 2 (0) | 2 / 11,312 |
+  | classic | 50,039 | 374 / 459 / 680 | 19 (1) | 0 / 11,910 |
+  | big blind | 50,087 | 376 / 455 / 693 | 9 (1) | 2 / 12,350 |
+
+  No decision took over 1 ms of worker time, and there were 0 restarts and 0 internal
+  fallbacks.
+- **`package --verify`:** ok. 10,140,021 bytes; worker peak RSS 91,557,888 bytes (NLHE) and
+  91,590,656 (PLO4); numba not loaded.
+
+**Decision: pass.** H1 and H2 are both rejected and every side condition passed. `antes=tables`
+is adopted: the default bundle of `strategy.final.package` is B's, `bec8892d…`.
+
+Secondary, descriptive, not part of the test:
+
+- **Variance factor** of the luck terms with seat-keyed dealing: 2.16 (classic) and 1.97 (big
+  blind) over the raw paired t on the same blocks.
+- **Luck terms:** the largest |t| of a luck-difference mean was 1.81 and 0.53, and the
+  correction was +0.23 ± 0.23 and +0.07 ± 0.21.
+- **Classic phases:** levels 1–2 +0.16 [+0.04, +0.27], levels 3–5 +0.28 [−0.10, +0.67],
+  levels 6–8 +0.71 [+0.34, +1.09]. The gain grows with the ante.

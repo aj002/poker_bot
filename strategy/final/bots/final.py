@@ -1,7 +1,11 @@
-"""The competition bot (exploiting blueprint on NLHE, generic fallback elsewhere). See :mod:`strategy.final.runtime`."""
+"""The competition bot (exploiting blueprint on NLHE with first-class antes, generic fallback elsewhere).
 
-from strategy.final.runtime import FinalBot
+See :mod:`strategy.final.runtime` and :mod:`strategy.antes.runtime`; the default bundle of
+:mod:`strategy.final.package` builds the same bot.
+"""
+
+from strategy.antes.runtime import AnteFinalBot
 
 
 def make_bot():
-    return FinalBot()
+    return AnteFinalBot(overrides={"antes": "tables"})

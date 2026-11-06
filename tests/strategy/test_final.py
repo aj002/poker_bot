@@ -155,7 +155,12 @@ def test_the_default_build_is_the_recorded_submission(tmp_path, monkeypatch):
     assert m["bundle_sha256"] == sub["submission_bundle_sha256"], "rebuild, gate and record a changed bundle"
     assert m["bytes"] == sub["bytes"] and m["py_files"] == sub["py_files"]
     assert not any("translat" in f for f in m["files"])
-    assert not any("antes" in f for f in m["files"])
+    assert "strategy/tables/data/antes-pushfold-classic-practice_nlhe.npz" in m["files"]
+    assert "overrides={'antes': 'tables'}" in (tmp_path / "bundle" / "bot.py").read_text()
+    # antes=off is the ante-free bot it replaced, byte for byte
+    off = package.build(tmp_path / "off", overrides={"antes": "off"})
+    assert off["bundle_sha256"] == sub["previous_submission"]["bundle_sha256"]
+    assert not any("antes" in f for f in off["files"])
 
 
 def test_an_antes_override_bundles_the_ante_bot_and_its_tables(tmp_path):
