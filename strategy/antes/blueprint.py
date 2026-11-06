@@ -15,10 +15,9 @@
   strategy sums are its average strategy in ante hands alone (the checkpoint's float32
   sums, up to ~4e7 a slot, would round such increments away).
 * :func:`overlay` packs those sums for the preflop keys (:mod:`strategy.blueprint.policy`
-  levels and thresholds). :class:`~strategy.blueprint.runtime.BlueprintPolicy` reads an
-  overlay before its pack in hands with an ante; the trainer's preflop contexts leave the
-  antes out of the pot, as the policy's ``ante_view = "stripped"`` does, so both packs
-  share one key space.
+  levels and thresholds). :class:`~strategy.antes.runtime.AntePolicy` reads an overlay
+  before its pack in hands with an ante; the trainer's preflop contexts leave the antes
+  out of the pot, as that policy does, so both packs share one key space.
 
     python -m strategy.antes.blueprint pool --lineups 40 --out artifacts/antes/states-antes.npz
     python -m strategy.antes.blueprint fork --base DIR/final --states POOL --run RUN

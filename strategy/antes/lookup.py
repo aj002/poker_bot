@@ -7,13 +7,13 @@ ante from the posting mode's ante table (:mod:`strategy.antes.tables`), and fall
 to the ante-free leaf (its M-equivalent approximation) where that table has no support.
 Hands without an ante never reach this module's tables.
 
-:class:`CompactTable` holds a table as one sorted key array and one probability blob per
-kind, about ``rows * (classes / 2 + 8)`` bytes, read in place from the store's arrays.
+The ante tables are endgame tables cut to the rows a lookup can use
+(:func:`strategy.antes.tables.compact`), loaded as :class:`~strategy.endgame.lookup.PushFoldTable`
+from :func:`~strategy.tables.store.stream_arrays`.
 """
 
 from __future__ import annotations
 
-from bisect import bisect_left
 from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
@@ -21,9 +21,8 @@ from pathlib import Path
 from arena.agents.sdk import call, check, fold, raise_to
 from strategy.antes.pushfold import POSTINGS, AnteSnapshot, ante_keys_for, ante_seated_snapshot
 from strategy.endgame.bot import BLIND_OPEN_MAX_BB, PushFoldBot, _uniform
-from strategy.endgame.classes import hand_classes
-from strategy.endgame.keys import KINDS, MAX_DEPTH_BB
-from strategy.endgame.lookup import MIN_COUNT, TableMissing, _hand_events
+from strategy.endgame.keys import MAX_DEPTH_BB
+from strategy.endgame.lookup import PushFoldTable, TableMissing, _hand_events
 from strategy.endgame.table_state import SeatedSnapshot
 from strategy.tables import store
 
@@ -127,49 +126,14 @@ def ante_preflop_spot(obs) -> AnteSpot | None:
     return AnteSpot(kind, hero, shover, caller, seated, risk, any(free[p] for p in range(hero + 1, snap.n)))
 
 
-class CompactTable:
-    """:class:`~strategy.endgame.lookup.PushFoldTable` over flat arrays (bisect lookups).
-
-    Reads the compact tables of :func:`strategy.antes.tables.compact`: only rows with at
-    least ``MIN_COUNT`` weight, 4-bit probabilities two classes a byte."""
-
-    def __init__(self, provenance: dict, arrays: dict) -> None:
-        ruleset_id = provenance["ruleset_id"]
-        hc = hand_classes(ruleset_id)
-        if provenance.get("variant_hash") != hc.variant_hash or tuple(arrays["class_keys"].tolist()) != hc.keys:
-            raise store.TableError(f"{provenance['name']}: built for different hand classes than {ruleset_id}")
-        self.provenance = provenance
-        self.ruleset_id = ruleset_id
-        self.h = len(hc.keys)
-        self.stride = (self.h + 1) // 2
-        # Views of the store's cached arrays (no copies): indexing yields Python ints.
-        self._keys = {k: memoryview(arrays[f"{k}_keys"]).cast("B").cast("q") for k in KINDS}
-        self._nib = {k: memoryview(arrays[f"{k}_nib"]).cast("B") for k in KINDS}
-
-    def lookup(self, kind: str, keys: tuple[int, ...], cls: int, *,
-               min_count: int = MIN_COUNT) -> tuple[float, int] | None:
-        if min_count > MIN_COUNT:
-            raise ValueError(f"compact tables keep rows down to a count of {MIN_COUNT}")
-        ks = self._keys[kind]
-        for level, key in enumerate(keys):
-            r = bisect_left(ks, key)
-            if r < len(ks) and ks[r] == key:
-                b = self._nib[kind][r * self.stride + (cls >> 1)]
-                return ((b >> 4) if cls & 1 else (b & 15)) / 15.0, level
-        return None
-
-    def rows(self, kind: str) -> int:
-        return len(self._keys[kind])
-
-
 @lru_cache(maxsize=None)
-def load_ante_table(posting: str, ruleset_id: str = "practice_nlhe", directory: str | None = None) -> CompactTable:
+def load_ante_table(posting: str, ruleset_id: str = "practice_nlhe", directory: str | None = None) -> PushFoldTable:
     name = f"antes-pushfold-{posting}-{ruleset_id}"
-    loaded = store.load_arrays(name, directory)
-    if loaded is None:
+    streamed = store.stream_arrays(name, directory)
+    if streamed is None:
         where = Path(directory) if directory else store.table_dir()
         raise TableMissing(f"{name}.npz not found in {where}; run `python -m strategy.antes.tables --posting {posting}`")
-    return CompactTable(*loaded)
+    return PushFoldTable(*streamed)
 
 
 class AntePushFoldBot(PushFoldBot):

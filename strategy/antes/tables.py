@@ -49,20 +49,16 @@ def compact_name(posting: str, ruleset_id: str = "practice_nlhe") -> str:
 
 
 def compact(arrays: dict) -> dict:
-    """The rows a lookup can use (count at least ``MIN_COUNT``, not stored), probabilities in 4 bits.
-
-    ``{kind}_nib`` holds two hand classes a byte, the even class in the low nibble; a
-    nibble ``q`` is the probability ``q / 15`` of the aggressive action."""
+    """The full solve's table arrays restricted to the rows a lookup can use (count at least
+    ``MIN_COUNT``), in the endgame table format :class:`~strategy.endgame.lookup.PushFoldTable`
+    reads: every lookup at ``min_count >= MIN_COUNT`` returns what the full table returns."""
     from strategy.endgame.lookup import MIN_COUNT
 
     out = {"class_keys": arrays["class_keys"]}
     for k in ("open", "call", "overcall"):
         keep = arrays[f"{k}_count"] >= MIN_COUNT
-        q = np.rint(arrays[f"{k}_probs"][keep].astype(np.float64) * (15 / 255)).astype(np.uint8)
-        if q.shape[1] % 2:
-            q = np.concatenate([q, np.zeros((q.shape[0], 1), np.uint8)], axis=1)
-        out[f"{k}_keys"] = arrays[f"{k}_keys"][keep]
-        out[f"{k}_nib"] = q[:, 0::2] | (q[:, 1::2] << 4)
+        for field in ("keys", "probs", "count"):
+            out[f"{k}_{field}"] = arrays[f"{k}_{field}"][keep]
     return out
 
 
@@ -241,6 +237,8 @@ def main(argv: list[str] | None = None) -> None:
         print(f"wrote {path} ({path.stat().st_size} bytes, {extra['states']} states, {extra['solved']} solved, "
               f"{rows} rows, {seconds:.0f}s); deviation gain median {np.median(g):.2e} "
               f"p99 {np.quantile(g, 0.99):.2e} max {g.max():.2e}")
+    from strategy.endgame.lookup import MIN_COUNT
+
     store.load_arrays.cache_clear()
     full_prov, full = store.load_arrays(name, str(a.full_dir))
     small = compact(full)
@@ -249,7 +247,7 @@ def main(argv: list[str] | None = None) -> None:
     path = store.write_arrays(compact_name(a.posting), small, generator=GENERATOR, inputs=INPUTS,
                               params=full_prov["params"], seconds=full_prov["wall_seconds"],
                               extra={**{k: full_prov[k] for k in keep}, "full_table": name,
-                                     "full_sha256": full_prov["data_sha256"], "probability_bits": 4},
+                                     "full_sha256": full_prov["data_sha256"], "min_count": MIN_COUNT},
                               directory=Path(a.out) if a.out else None)
     rows = sum(len(small[f"{k}_keys"]) for k in ("open", "call", "overcall"))
     print(f"wrote {path} ({path.stat().st_size} bytes, {rows} rows)")

@@ -23,7 +23,7 @@ def _replay(seed: int, posting: str) -> int:
     from arena.table.service import Table
     from strategy.antes.blueprint import ante_state_row
     from strategy.antes.pushfold import ante_seated_snapshot
-    from strategy.blueprint.runtime import BlueprintPolicy
+    from strategy.antes.runtime import AntePolicy
 
     rng = random.Random(f"{posting}-{seed}")
     n = rng.randrange(2, 9)
@@ -55,8 +55,7 @@ def _replay(seed: int, posting: str) -> int:
     k, code = K.trace_hand(seed, row["n"], I, np.array(row["stacks"], np.int64), np.array(row["posts"], np.int64),
                            row["bb"], np.array(row["post_order"], np.int64), np.array(row["pressure"], np.int64), 3,
                            weights, trace)
-    policy = BlueprintPolicy("practice_nlhe", _NoPack())
-    policy.ante_view = "stripped"
+    policy = AntePolicy("practice_nlhe", _NoPack())
     for i in range(k):
         street, p, ctx, mask, a, target, t_min, t_a, t_b, t_all = (int(x) for x in trace[i])
         seat = table.actor_seat

@@ -23,8 +23,8 @@ is a contribution level), then each player's dead chips (a big-blind ante: in th
 paid with the main pot, never a contribution level). Stacks are before both. The start
 stacks of a decision context include both, as the arena's ``stack + hand_committed``
 does; its pot includes them from the flop on, while preflop it leaves the antes out,
-as :class:`~strategy.blueprint.runtime.BlueprintPolicy` does with ``ante_view =
-"stripped"``, so an unopened ante pot keys and sizes as an unopened pot.
+as :class:`~strategy.antes.runtime.AntePolicy` does, so an unopened ante pot keys and
+sizes as an unopened pot.
 
 Betting rights follow the arena adapter: a player may raise when it has not acted this
 street or the bet level rose by at least a full raise since it did (short all-ins
