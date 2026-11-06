@@ -20,7 +20,6 @@ from __future__ import annotations
 
 import gzip
 import json
-import os
 from pathlib import Path
 
 from arena.agents.sdk import Observation
@@ -48,9 +47,6 @@ def ante_warm_observations(ruleset_id: str) -> list[str]:
 
 
 def overlay_path(ruleset_id: str) -> Path:
-    override = os.environ.get("ANTE_OVERLAY")
-    if override:
-        return Path(override)
     return store.table_dir() / f"blueprint-antes-{ruleset_id}.npz"
 
 
@@ -107,6 +103,7 @@ class Antes:
     """Mixin for a :class:`~strategy.blueprint.runtime.BlueprintBot` subclass (set ``antes`` before its constructor)."""
 
     antes = "off"
+    _ante_overlay: str | Path | None = None
 
     def policy(self, ruleset_id: str) -> BlueprintPolicy:
         p = self._policies.get(ruleset_id)
@@ -115,7 +112,8 @@ class Antes:
             if self.antes == "off":
                 p = BlueprintPolicy(ruleset_id, pack)
             else:
-                overlay = PolicyPack(overlay_path(ruleset_id)) if self.antes == "overlay" else None
+                overlay = (PolicyPack(self._ante_overlay or overlay_path(ruleset_id))
+                           if self.antes == "overlay" else None)
                 p = AntePolicy(ruleset_id, pack, overlay)
             self._policies[ruleset_id] = p
         return p
@@ -145,15 +143,19 @@ class AnteExploitBot(Antes, ExploitBot):
     """:class:`ExploitBot` with first-class antes; ``overrides["antes"]`` picks the mode."""
 
     def __init__(self, pack: str | Path | None = None, exploit_pack: str | Path | None = None,
-                 overrides: dict | None = None) -> None:
+                 overrides: dict | None = None, ante_overlay: str | Path | None = None) -> None:
         self.antes = check_mode(str((overrides or {}).get("antes", "off")))
+        self._ante_overlay = ante_overlay
         super().__init__(pack=pack, exploit_pack=exploit_pack, overrides=overrides)
 
 
 class AnteFinalBot(FinalBot):
+    """``ante_overlay``: the overlay pack of ``antes=overlay`` (default: the table directory's)."""
+
     def __init__(self, pack: str | Path | None = None, exploit_pack: str | Path | None = None,
-                 overrides: dict | None = None) -> None:
-        self.teacher = AnteExploitBot(pack=pack, exploit_pack=exploit_pack, overrides=overrides)
+                 overrides: dict | None = None, ante_overlay: str | Path | None = None) -> None:
+        self.teacher = AnteExploitBot(pack=pack, exploit_pack=exploit_pack, overrides=overrides,
+                                      ante_overlay=ante_overlay)
         self.generic = GenericBot(name=NAME)
         for ruleset_id in WARM_GENERIC:
             try:

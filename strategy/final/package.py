@@ -61,7 +61,7 @@ PROBE_BOT = '''from {entry_module} import {entry_class}
 
 
 def make_bot():
-    return {entry_class}(overrides={overrides!r})
+    return {entry_class}(overrides={overrides!r}{extra})
 '''
 
 _PROBE = r'''
@@ -117,14 +117,15 @@ def entry(overrides: dict | None) -> tuple[str, str]:
 
 
 def closure(pack: Path, xpack: Path, rulesets: tuple[str, ...] = PROBE_RULESETS,
-            overrides: dict | None = None) -> dict:
+            overrides: dict | None = None, ante_overlay: Path | None = None) -> dict:
     """Modules, source files and tables the bot touches while playing every ruleset (fresh interpreter)."""
     with tempfile.TemporaryDirectory() as tmp:
         bot = REPO / "strategy" / "final" / "bots" / "final.py"
         if overrides:
             module, cls = entry(overrides)
             bot = Path(tmp) / "bot.py"
-            bot.write_text(PROBE_BOT.format(entry_module=module, entry_class=cls, overrides=overrides))
+            extra = f", ante_overlay={str(ante_overlay)!r}" if ante_overlay else ""
+            bot.write_text(PROBE_BOT.format(entry_module=module, entry_class=cls, overrides=overrides, extra=extra))
         return _probe(pack, xpack, rulesets, bot)
 
 
@@ -155,10 +156,12 @@ def bundle_hash(bundle: Path) -> str:
 
 
 def build(out: Path, *, pack: Path | None = None, xpack: Path | None = None, reveal: Path | None = None,
-          ruleset_id: str = "practice_nlhe", overrides: dict | None = None) -> dict:
+          ruleset_id: str = "practice_nlhe", overrides: dict | None = None, ante_overlay: Path | None = None) -> dict:
     """``overrides``: :class:`~strategy.exploit.runtime.ExploitBot` overrides baked into ``bot.py``
     (none by default, which leaves ``bot.py`` as it was); ``translate`` builds the bundle
-    around :class:`~strategy.final.translated.TranslatingFinalBot` instead."""
+    around :class:`~strategy.final.translated.TranslatingFinalBot` instead, and ``antes``
+    around :class:`~strategy.antes.runtime.AnteFinalBot` (``antes=overlay`` bundles
+    ``ante_overlay``, by default the committed overlay pack)."""
     from strategy.blueprint.policy import PolicyPack
     from strategy.blueprint.runtime import pack_path
     from strategy.exploit.pack import ExploitPack
@@ -167,7 +170,14 @@ def build(out: Path, *, pack: Path | None = None, xpack: Path | None = None, rev
     pack = Path(pack or pack_path(ruleset_id))
     xpack = Path(xpack or exploit_pack_path(ruleset_id))
     pk, xp = PolicyPack(pack), ExploitPack(xpack)
-    info = closure(pack, xpack, overrides=overrides)
+    antes = (overrides or {}).get("antes", "off")
+    data = "strategy/tables/data"
+    overlay = None
+    if antes == "overlay":
+        from strategy.antes.runtime import overlay_path
+
+        overlay = (Path(ante_overlay or overlay_path(ruleset_id)), f"{data}/blueprint-antes-{ruleset_id}.npz")
+    info = closure(pack, xpack, overrides=overrides, ante_overlay=overlay[0] if overlay else None)
     module, cls = entry(overrides)
     bad = [m for m in info["modules"] if any(m == f or m.startswith(f + ".") for f in FORBIDDEN_HERE)]
     bad += [m for m in info["all_modules"] if m in ("numba", "llvmlite")]
@@ -183,19 +193,13 @@ def build(out: Path, *, pack: Path | None = None, xpack: Path | None = None, rev
               if (REPO / Path(*Path(f).parts[:k]) / "__init__.py").exists()}
     files |= {str(f.relative_to(REPO)) for f in (REPO / "strategy" / "blueprint" / "data").glob("*.json.gz")}
     files |= set(_table_files(info["tables"]))
-    antes = (overrides or {}).get("antes", "off")
     if antes != "off":
         files |= {str(f.relative_to(REPO)) for f in (REPO / "strategy" / "antes" / "data").glob("*.json.gz")}
     copies = [(REPO / rel, rel) for rel in sorted(files)]
-    data = "strategy/tables/data"
     pack_file, xpack_file = f"blueprint-{ruleset_id}.npz", f"exploit-{ruleset_id}.npz"
     copies = [c for c in copies if c[1] not in (f"{data}/{pack_file}", f"{data}/{xpack_file}")]
     copies += [(pack, f"{data}/{pack_file}"), (xpack, f"{data}/{xpack_file}")]
-    overlay = None
-    if antes == "overlay":
-        from strategy.antes.runtime import overlay_path
-
-        overlay = (overlay_path(ruleset_id), f"{data}/blueprint-antes-{ruleset_id}.npz")
+    if overlay is not None:
         copies.append(overlay)
     if reveal is not None:
         copies += reveal_files(Path(reveal), tables=False)
@@ -207,8 +211,10 @@ def build(out: Path, *, pack: Path | None = None, xpack: Path | None = None, rev
                                                     xpack_sha=xp.provenance["data_sha256"][:16],
                                                     pack_file=pack_file, xpack_file=xpack_file,
                                                     entry_module=module, entry_class=cls,
-                                                    extra=f", overrides={dict(sorted(overrides.items()))!r}"
-                                                    if overrides else ""), encoding="ascii")
+                                                    extra=(f", overrides={dict(sorted(overrides.items()))!r}"
+                                                           if overrides else "")
+                                                    + (f", ante_overlay=DATA / {Path(overlay[1]).name!r}"
+                                                       if overlay else "")), encoding="ascii")
     hashed = bundle_files(tmp)
     size = sum(p.stat().st_size for p in hashed)
     if size > SIZE_LIMIT:
@@ -364,6 +370,7 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--out", type=Path, required=True)
     ap.add_argument("--pack", type=Path)
     ap.add_argument("--exploit-pack", type=Path)
+    ap.add_argument("--ante-overlay", type=Path, help="with --override antes=overlay: the overlay pack to bundle")
     ap.add_argument("--reveal", type=Path, help="reveal directory (variant.json) for the generic path")
     ap.add_argument("--verify", action="store_true",
                     help="only check an existing bundle: hashes, smoke and the size / memory limits")
@@ -389,7 +396,8 @@ def main(argv: list[str] | None = None) -> int:
             rep["tarball"] = submit(a.out, a.submit)
         print(json.dumps(rep, indent=1))
         return 0 if lim["ok"] else 1
-    manifest = build(a.out, pack=a.pack, xpack=a.exploit_pack, reveal=a.reveal, overrides=overrides or None)
+    manifest = build(a.out, pack=a.pack, xpack=a.exploit_pack, reveal=a.reveal, overrides=overrides or None,
+                     ante_overlay=a.ante_overlay)
     smoke(a.out)
     verify(a.out)
     print(json.dumps({k: v for k, v in manifest.items() if k != "files"}, indent=1, sort_keys=True))
