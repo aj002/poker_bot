@@ -1,0 +1,53 @@
+{
+  "experiment_id": "antes-validation-big-blind",
+  "title": "H2: antes=tables vs the final bot, big-blind antes, on sampled pop-v1+handhq-v1 validation lineups",
+  "description": "Confirmation H2 of docs/antes-preregistration.md: superiority, H0 mean(B - A) <= 0, on the luck-adjusted estimate with seat-keyed dealing.",
+  "stage": "confirmation",
+  "min_effect": 0.0,
+  "interval": "paired_t",
+  "arms": {
+    "A": {
+      "policy": "artifacts/antes/bundle-final"
+    },
+    "B": {
+      "policy": "artifacts/antes/bundle-candidate"
+    }
+  },
+  "variants": [
+    "practice_nlhe"
+  ],
+  "table": {
+    "players": 8,
+    "starting_stack": 2000,
+    "hand_cap": 200,
+    "antes": [
+      0,
+      30,
+      50,
+      100,
+      150,
+      200,
+      300,
+      400
+    ],
+    "ante_posting": "big_blind",
+    "deal": "seat_keyed"
+  },
+  "population": {
+    "source": "strategy.population.handhq:HandhqPopulationSource",
+    "partition": "validation",
+    "lineups_per_variant": 16
+  },
+  "blocks_per_lineup": 60,
+  "base_seed": "antes-validation-big-blind-v1",
+  "isolation": "in_process",
+  "bootstrap_resamples": 2000,
+  "variance_reduction": {
+    "terms": [
+      "allin",
+      "flop_pot",
+      "turn_pot",
+      "river_pot"
+    ]
+  }
+}
