@@ -1,0 +1,15 @@
+{
+ "initial_player_count": 8,
+ "hand_cap": 200,
+ "antes": [
+  0,
+  30,
+  50,
+  100,
+  150,
+  200,
+  300,
+  400
+ ],
+ "ante_posting": "big_blind"
+}

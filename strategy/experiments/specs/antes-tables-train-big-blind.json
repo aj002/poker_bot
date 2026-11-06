@@ -1,0 +1,44 @@
+{
+  "experiment_id": "antes-tables-train-big-blind",
+  "title": "Antes discovery (big_blind antes): antes=tables vs the final bot on HandHQ training lineups",
+  "description": "Train-partition discovery run for docs/antes-report.md (no claims): checks the runner with antes and sizes the validation blocks.",
+  "stage": "discovery",
+  "min_effect": 0.0,
+  "interval": "paired_t",
+  "arms": {
+    "A": {
+      "policy": "artifacts/antes/bundle-final"
+    },
+    "B": {
+      "policy": "artifacts/antes/bundle-tables"
+    }
+  },
+  "variants": [
+    "practice_nlhe"
+  ],
+  "table": {
+    "players": 8,
+    "starting_stack": 2000,
+    "hand_cap": 200,
+    "antes": [
+      0,
+      30,
+      50,
+      100,
+      150,
+      200,
+      300,
+      400
+    ],
+    "ante_posting": "big_blind"
+  },
+  "population": {
+    "source": "strategy.population.handhq:HandhqPopulationSource",
+    "partition": "train",
+    "lineups_per_variant": 8
+  },
+  "blocks_per_lineup": 10,
+  "base_seed": "antes-tables-train-big_blind-v1",
+  "isolation": "in_process",
+  "bootstrap_resamples": 2000
+}
