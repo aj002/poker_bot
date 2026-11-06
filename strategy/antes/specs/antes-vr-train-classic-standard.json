@@ -1,0 +1,52 @@
+{
+  "experiment_id": "antes-vr-train-classic-standard",
+  "title": "Antes variance check (classic antes, standard deal): antes=tables vs the final bot on HandHQ training lineups",
+  "description": "Train-partition discovery run for docs/antes-report.md (no claims): checks the luck-adjusted estimator and seat-keyed dealing with antes and sizes the validation blocks. The standard and seat-keyed runs share lineups and table seeds.",
+  "stage": "discovery",
+  "min_effect": 0.0,
+  "interval": "paired_t",
+  "arms": {
+    "A": {
+      "policy": "artifacts/antes/bundle-final"
+    },
+    "B": {
+      "policy": "artifacts/antes/bundle-tables"
+    }
+  },
+  "variants": [
+    "practice_nlhe"
+  ],
+  "table": {
+    "players": 8,
+    "starting_stack": 2000,
+    "hand_cap": 200,
+    "antes": [
+      0,
+      3,
+      5,
+      10,
+      15,
+      25,
+      40,
+      50
+    ],
+    "ante_posting": "classic"
+  },
+  "population": {
+    "source": "strategy.population.handhq:HandhqPopulationSource",
+    "partition": "train",
+    "lineups_per_variant": 16
+  },
+  "blocks_per_lineup": 15,
+  "base_seed": "antes-vr-train-classic-v1",
+  "isolation": "in_process",
+  "bootstrap_resamples": 2000,
+  "variance_reduction": {
+    "terms": [
+      "allin",
+      "flop_pot",
+      "turn_pot",
+      "river_pot"
+    ]
+  }
+}
