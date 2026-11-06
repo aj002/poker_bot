@@ -22,9 +22,14 @@ abstraction.
 from __future__ import annotations
 
 import dataclasses
+from array import array
+from bisect import bisect_left
+from collections.abc import Mapping
 from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
+
+import numpy as np
 
 from strategy.endgame.classes import hand_classes
 from strategy.endgame.keys import MAX_DEPTH_BB, Snapshot, keys_for
@@ -157,49 +162,115 @@ def preflop_spot(obs) -> Spot | None:
 class PushFoldTable:
     """One generated ``endgame-<mode>-<ruleset>`` table, checked against the variant's classes."""
 
-    def __init__(self, provenance: dict, arrays: dict) -> None:
+    def __init__(self, provenance: dict, arrays) -> None:
+        """``arrays``: the table's arrays as a mapping, or an iterable of ``(name, array)`` pairs
+        (:func:`~strategy.tables.store.stream_arrays`), each read once and not kept."""
         from strategy.endgame.keys import KINDS
 
         ruleset_id = provenance["ruleset_id"]
         hc = hand_classes(ruleset_id)
-        if provenance.get("variant_hash") != hc.variant_hash or tuple(arrays["class_keys"].tolist()) != hc.keys:
+        if provenance.get("variant_hash") != hc.variant_hash:
             raise store.TableError(f"{provenance['name']}: built for different hand classes than {ruleset_id}")
         self.provenance = provenance
         self.ruleset_id = ruleset_id
         self.mode = provenance["mode"]
-        self._rows: dict[str, dict[int, int]] = {}
-        self._probs: dict[str, list[bytes]] = {}
-        self._count: dict[str, list[int]] = {}
-        for kind in KINDS:
-            keys = arrays[f"{kind}_keys"].tolist()
-            self._rows[kind] = {k: r for r, k in enumerate(keys)}
-            self._probs[kind] = [bytes(row) for row in arrays[f"{kind}_probs"]]
-            self._count[kind] = arrays[f"{kind}_count"].tolist()
+        # Compact arrays instead of dicts and per-row bytes objects: sorted keys searched with
+        # bisect, one shared copy of each distinct probability row, and a row index per key.
+        self._keys: dict[str, array] = {}
+        self._row: dict[str, array] = {}
+        self._probs: dict[str, memoryview] = {}
+        self._count: dict[str, array] = {}
+        self._width = len(hc.keys)
+        late: dict[str, np.ndarray] = {}
+        class_keys = None
+        for name, a in (arrays.items() if isinstance(arrays, Mapping) else arrays):
+            if name == "class_keys":
+                class_keys = a
+                continue
+            kind, _, field = name.rpartition("_")
+            if kind not in KINDS:
+                continue
+            if field == "keys":
+                keys = np.ascontiguousarray(a, dtype=np.int64)
+                if keys.size > 1 and not bool((keys[1:] > keys[:-1]).all()):
+                    raise store.TableError(f"{provenance['name']}: {kind} keys are not strictly increasing")
+                self._keys[kind] = _typed("q", keys)
+            elif field == "count":
+                self._count[kind] = _typed("i", np.ascontiguousarray(a, dtype=np.int32))
+            elif field == "probs":
+                late[kind] = a
+            else:
+                continue
+            if kind in late and kind in self._keys:
+                self._pack(kind, late.pop(kind))
+        if class_keys is None or tuple(class_keys.tolist()) != hc.keys:
+            raise store.TableError(f"{provenance['name']}: built for different hand classes than {ruleset_id}")
+        if late or any(k not in self._keys or k not in self._count or k not in self._probs for k in KINDS):
+            raise store.TableError(f"{provenance['name']}: incomplete table")
+
+    def _pack(self, kind: str, probs: np.ndarray) -> None:
+        probs = np.ascontiguousarray(probs, dtype=np.uint8)
+        if probs.shape != (len(self._keys[kind]), self._width):
+            raise store.TableError(f"{self.provenance['name']}: {kind} probabilities have shape {probs.shape}")
+        distinct, inverse = _distinct_rows(probs)
+        self._row[kind] = _typed("i", inverse)
+        self._probs[kind] = memoryview(np.ascontiguousarray(distinct).reshape(-1))
 
     def lookup(self, kind: str, keys: tuple[int, ...], cls: int, *, min_count: int = MIN_COUNT,
                levels: tuple[int, ...] | None = None) -> tuple[float, int] | None:
         """``(probability of the aggressive action, key level used)`` or None without support."""
-        rows = self._rows[kind]
+        table = self._keys[kind]
+        n = len(table)
+        counts = self._count[kind]
         for level, key in enumerate(keys):
             if levels is not None and level not in levels:
                 continue
-            r = rows.get(key)
-            if r is not None and self._count[kind][r] >= min_count:
-                return self._probs[kind][r][cls] / 255.0, level
+            r = bisect_left(table, key)
+            if r < n and table[r] == key and counts[r] >= min_count:
+                return self._probs[kind][self._row[kind][r] * self._width + cls] / 255.0, level
         return None
 
     def rows(self, kind: str) -> int:
-        return len(self._rows[kind])
+        return len(self._keys[kind])
+
+
+_CHUNK = 64
+
+
+def _distinct_rows(rows: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    """``(distinct rows, int32 index of each row into them)``, found by a position-weighted 64-bit
+    hash in small chunks (``np.unique(axis=0)`` would transiently hold several copies of the table).
+    The grouping is verified row by row; on a hash collision every row is kept as it is."""
+    n, width = rows.shape
+    x = np.arange(1, width + 1, dtype=np.uint64) * np.uint64(0x9E3779B97F4A7C15)
+    x = (x ^ (x >> np.uint64(30))) * np.uint64(0xBF58476D1CE4E5B9)
+    x = (x ^ (x >> np.uint64(27))) * np.uint64(0x94D049BB133111EB)
+    weights = (x ^ (x >> np.uint64(31))) | np.uint64(1)
+    hashes = np.empty(n, dtype=np.uint64)
+    for s in range(0, n, _CHUNK):
+        hashes[s:s + _CHUNK] = (rows[s:s + _CHUNK].astype(np.uint64) * weights).sum(axis=1, dtype=np.uint64)
+    _, first, inverse = np.unique(hashes, return_index=True, return_inverse=True)
+    inverse = inverse.reshape(-1).astype(np.int32)
+    distinct = rows[first]
+    if all(np.array_equal(distinct[inverse[s:s + _CHUNK]], rows[s:s + _CHUNK]) for s in range(0, n, _CHUNK)):
+        return distinct, inverse
+    return rows, np.arange(n, dtype=np.int32)
+
+
+def _typed(code: str, values) -> array:
+    out = array(code)
+    out.frombytes(values.tobytes())
+    return out
 
 
 @lru_cache(maxsize=None)
 def load_table(mode: str, ruleset_id: str, directory: str | None = None) -> PushFoldTable:
     name = f"endgame-{mode}-{ruleset_id}"
-    loaded = store.load_arrays(name, directory)
-    if loaded is None:
+    streamed = store.stream_arrays(name, directory)
+    if streamed is None:
         where = Path(directory) if directory else store.table_dir()
         raise TableMissing(f"{name}.npz not found in {where}; run `make tables-endgame`")
-    return PushFoldTable(*loaded)
+    return PushFoldTable(*streamed)
 
 
 def in_table_range(spot: Spot) -> bool:

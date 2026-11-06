@@ -56,7 +56,7 @@ trusting them.
     llvmlite are absent;
   - artifact bytes at most 100 MB;
   - the peak resident memory of one sandboxed worker process playing a table, at most
-    100 MB, on NLHE and on PLO4. The value is about 93 MB, of which about 38 MB is the
+    100 MB, on NLHE and on PLO4. The value is about 78 MB, of which about 38 MB is the
     interpreter and arena worker.
 - [ ] `artifacts/final/submission/final-bot-<hash12>.tar.gz` and `SHA256SUMS` are written.
       The tarball is deterministic: sorted entries, zero mtimes and owners.

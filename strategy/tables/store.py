@@ -16,6 +16,7 @@ import os
 import platform
 import subprocess
 import sys
+from collections.abc import Iterator
 from datetime import UTC, datetime
 from functools import lru_cache
 from pathlib import Path
@@ -125,16 +126,20 @@ def array_path(name: str, directory: Path | None = None) -> Path:
     return (directory or table_dir()) / f"{name}.npz"
 
 
-def arrays_sha256(arrays: dict[str, Any]) -> str:
+def _hash_array(h: Any, key: str, array: Any) -> None:
     import numpy as np
 
+    a = np.ascontiguousarray(array)
+    h.update(key.encode())
+    h.update(str(a.dtype).encode())
+    h.update(repr(a.shape).encode())
+    h.update(a.tobytes())
+
+
+def arrays_sha256(arrays: dict[str, Any]) -> str:
     h = hashlib.sha256()
     for key in sorted(arrays):
-        a = np.ascontiguousarray(arrays[key])
-        h.update(key.encode())
-        h.update(str(a.dtype).encode())
-        h.update(repr(a.shape).encode())
-        h.update(a.tobytes())
+        _hash_array(h, key, arrays[key])
     return h.hexdigest()
 
 
@@ -171,9 +176,7 @@ def write_arrays(name: str, arrays: dict[str, Any], *, generator: str, inputs: l
     return path
 
 
-@lru_cache(maxsize=None)
-def load_arrays(name: str, directory: str | None = None) -> tuple[dict[str, Any], dict[str, Any]] | None:
-    """``(provenance, arrays)`` or None when the table has not been generated. Arrays are read-only."""
+def _read_arrays(name: str, directory: str | None) -> tuple[dict[str, Any], dict[str, Any]] | None:
     import numpy as np
 
     path = array_path(name, Path(directory) if directory else None)
@@ -189,6 +192,60 @@ def load_arrays(name: str, directory: str | None = None) -> tuple[dict[str, Any]
     for a in arrays.values():
         a.setflags(write=False)
     return prov, arrays
+
+
+@lru_cache(maxsize=None)
+def _load_arrays_cached(name: str, directory: str | None) -> tuple[dict[str, Any], dict[str, Any]] | None:
+    return _read_arrays(name, directory)
+
+
+def load_arrays(name: str, directory: str | None = None, *, cache: bool = True
+                ) -> tuple[dict[str, Any], dict[str, Any]] | None:
+    """``(provenance, arrays)`` or None when the table has not been generated. Arrays are read-only.
+
+    ``cache=False`` reads the file afresh and keeps no reference, for a caller that holds its own
+    (smaller) form of the arrays and should not pin the raw ones in memory as well."""
+    return _load_arrays_cached(name, directory) if cache else _read_arrays(name, directory)
+
+
+load_arrays.cache_clear = _load_arrays_cached.cache_clear  # type: ignore[attr-defined]
+
+
+def stream_arrays(name: str, directory: str | None = None) -> tuple[dict[str, Any], Iterator[tuple[str, Any]]] | None:
+    """``(provenance, iterator of (name, array))`` or None when the table has not been generated.
+
+    The arrays come one at a time in name order, so a caller that keeps a smaller form of each
+    never holds the whole table's raw arrays at once. The data hash is checked as the arrays go
+    by: exhausting the iterator raises :class:`TableError` on a mismatch. Arrays are read-only."""
+    import numpy as np
+
+    path = array_path(name, Path(directory) if directory else None)
+    if not path.exists():
+        return None
+    z = np.load(path, allow_pickle=False)
+    try:
+        prov = json.loads(bytes(z["__provenance__"]).decode())
+        if prov.get("format_version") != FORMAT_VERSION:
+            raise TableError(f"{path}: unsupported table format {prov.get('format_version')!r}")
+    except BaseException:
+        z.close()
+        raise
+
+    def items() -> Iterator[tuple[str, Any]]:
+        h = hashlib.sha256()
+        try:
+            for key in sorted(k for k in z.files if k != "__provenance__"):
+                a = z[key]
+                _hash_array(h, key, a)
+                a.setflags(write=False)
+                yield key, a
+                del a
+        finally:
+            z.close()
+        if h.hexdigest() != prov["data_sha256"]:
+            raise TableError(f"{path}: data hash mismatch")
+
+    return prov, items()
 
 
 def stale_arrays(name: str) -> bool | None:

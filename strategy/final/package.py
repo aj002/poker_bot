@@ -69,7 +69,7 @@ import json, os, sys
 os.environ["BLUEPRINT_PACK"], os.environ["EXPLOIT_PACK"] = sys.argv[1], sys.argv[2]
 from strategy.tables import store
 loaded = set()
-for name in ("load", "load_arrays"):
+for name in ("load", "load_arrays", "stream_arrays"):
     orig = getattr(store, name)
     def wrap(n, *a, _orig=orig, _kind=name, **k):
         loaded.add((_kind, n))

@@ -96,7 +96,7 @@ make cli-demo      # one seeded 6-player NLHE tournament
 **Advisor mode.** `make party` builds the web app once and serves it on every network interface (port 5317; the
 API stays on loopback behind it). It prints the Mac's address; open `http://<address>:5317/#/advisor` on a phone
 on the same Wi-Fi. You type a real-life hand in as it happens (your cards, each player's action, the board) and the
-final bot (competition bundle `c3e0fa54`, run in the server process with no 1 ms deadline and no numba) shows what it
+final bot (competition bundle `59f371c6`, run in the server process with no 1 ms deadline and no numba) shows what it
 would play, with its mix and a one-line reason. It remembers each seat across hands like the arena does. Sessions
 are saved under `artifacts/advisor`. The `final_bot` is also a normal opponent in the bot list. Set `ARENA_PUBLIC_URL` if the printed address is wrong, and `ARENA_NO_OPEN=1` to stop it opening a browser.
 

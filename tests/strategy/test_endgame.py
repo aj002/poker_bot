@@ -341,6 +341,89 @@ def test_tables_are_per_variant_and_plo_is_rejected():
         build("uncertainty_plo4", "points", rollout_lineups=0, synthetic=1, max_states=1, seed=1, jobs=1)
 
 
+class _DictTable:
+    """The original dict-and-bytes implementation, as the reference for the array layout."""
+
+    def __init__(self, arrays):
+        self.rows = {k: {key: r for r, key in enumerate(arrays[f"{k}_keys"].tolist())} for k in KINDS}
+        self.probs = {k: [bytes(row) for row in arrays[f"{k}_probs"]] for k in KINDS}
+        self.count = {k: arrays[f"{k}_count"].tolist() for k in KINDS}
+
+    def lookup(self, kind, keys, cls, min_count=3, levels=None):
+        for level, key in enumerate(keys):
+            if levels is not None and level not in levels:
+                continue
+            r = self.rows[kind].get(key)
+            if r is not None and self.count[kind][r] >= min_count:
+                return self.probs[kind][r][cls] / 255.0, level
+        return None
+
+
+@pytest.mark.parametrize("name", ["endgame-points-practice_nlhe", "endgame-capped-uncertainty_shortdeck"])
+def test_array_lookup_returns_exactly_what_the_dict_lookup_did(name):
+    import random
+
+    from strategy.endgame.lookup import PushFoldTable
+
+    prov, arrays = store.load_arrays(name)
+    table, ref = PushFoldTable(prov, arrays), _DictTable(arrays)
+    streamed = PushFoldTable(*store.stream_arrays(name))
+    rng = random.Random(11)
+    n_classes = len(arrays["class_keys"])
+    for kind in KINDS:
+        keys = arrays[f"{kind}_keys"].tolist()
+        assert table.rows(kind) == len(keys) == streamed.rows(kind)
+        # every stored key at every class for the support levels in use, as a one-level chain
+        for key in keys:
+            for cls in (0, n_classes // 2, n_classes - 1, rng.randrange(n_classes)):
+                for mc in (0, 3):
+                    want = ref.lookup(kind, (key,), cls, mc)
+                    assert table.lookup(kind, (key,), cls, min_count=mc) == want
+        for key in rng.sample(keys, 300):
+            for cls in range(n_classes):
+                assert table.lookup(kind, (key,), cls) == ref.lookup(kind, (key,), cls)
+                assert streamed.lookup(kind, (key,), cls) == ref.lookup(kind, (key,), cls)
+        # back-off chains with absent keys, out-of-range keys and level filters
+        for _ in range(4000):
+            chain = tuple(rng.choice([rng.choice(keys), rng.choice(keys) + rng.choice([-1, 1]), rng.randrange(1 << 40),
+                                      -3, 1 << 62, 1 << 70]) for _ in range(rng.randint(1, 5)))
+            cls, mc = rng.randrange(n_classes), rng.choice([0, 1, 3, 10])
+            levels = rng.choice([None, (0,), (1, 3), (0, 1, 2, 3)])
+            want = ref.lookup(kind, chain, cls, mc, levels)
+            assert table.lookup(kind, chain, cls, min_count=mc, levels=levels) == want
+
+
+def test_array_lookup_keeps_every_row_when_probability_rows_collide(monkeypatch):
+    from strategy.endgame import lookup
+
+    prov, arrays = store.load_arrays("endgame-chart-practice_nlhe")
+    monkeypatch.setattr(lookup, "_CHUNK", 7)
+    rows = arrays["open_probs"]
+    distinct, inverse = lookup._distinct_rows(rows)
+    assert np.array_equal(distinct[inverse], rows) and len(distinct) <= len(rows)
+    doubled = np.concatenate([rows, rows[::-1]])
+    distinct, inverse = lookup._distinct_rows(doubled)
+    assert len(distinct) == len(np.unique(rows, axis=0)) and np.array_equal(distinct[inverse], doubled)
+
+
+def test_stream_arrays_checks_the_data_hash_and_leaves_no_raw_copy(tmp_path):
+    arrays = {"b": np.arange(12, dtype=np.int32).reshape(3, 4), "a": np.array([1.5, 2.5])}
+    store.write_arrays("t", arrays, generator="tests", inputs=["tables/store.py"], params={}, seconds=0.0,
+                       directory=tmp_path)
+    prov, items = store.stream_arrays("t", str(tmp_path))
+    got = list(items)
+    assert [k for k, _ in got] == ["a", "b"] and all(not a.flags.writeable for _, a in got)
+    assert np.array_equal(got[1][1], arrays["b"]) and prov["data_sha256"] == store.arrays_sha256(arrays)
+    assert store.stream_arrays("missing", str(tmp_path)) is None
+    assert store.load_arrays("t", str(tmp_path), cache=False)[1]["b"].tolist() == arrays["b"].tolist()
+    z = dict(np.load(tmp_path / "t.npz"))
+    z["a"] = np.array([9.0, 2.5])
+    np.savez(tmp_path / "t.npz", **z)
+    _, items = store.stream_arrays("t", str(tmp_path))
+    with pytest.raises(store.TableError, match="hash"):
+        list(items)
+
+
 FIELDS_PER_LEVEL = {"open": (6, 4, 3, 2), "call": (7, 6, 5, 3), "overcall": (5, 4, 3, 2)}
 
 

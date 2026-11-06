@@ -13,12 +13,15 @@ One entry point, `bot.py:make_bot` in the bundle (`runtime.FinalBot`):
 
 The bot never reads the clock, so the same seeds give the same actions.
 
-**Submission bundle.** `c3e0fa540ee27a66873c3e53608f2f0b8d1d9f10c1ddf6b3869b6c90aef09ab3`
-(7,875,285 bytes; tarball `final-bot-c3e0fa540ee2.tar.gz`, sha256
-`894d25c405f36d5649b8e4110d90d016c79601ade7eaaee86c5d94a380970710`; worker peak RSS 97.28 MB
-NLHE, 97.15 MB PLO4). It is the previous final bot `8f4fd15e` with the HandHQ exploit pack
-(`human_regular` and `human_recreational` classes and experts; see
-`docs/handhq-population-preregistration.md`). Details are in `submission.json`.
+**Submission bundle.** `59f371c60f15d98c03539af8431eaf23b6749cceff4048407018686904593395`
+(7,882,011 bytes; tarball `final-bot-59f371c60f15.tar.gz`, sha256
+`2a5c44f9ffde250dd5a359e8865efc338adac92c41c43a21e97defb8a1784160`; worker peak RSS 77.8 MB
+NLHE, 77.9 MB PLO4). It plays exactly like the previous submission `c3e0fa54` (the HandHQ
+exploit pack on the final bot `8f4fd15e`; see `docs/handhq-population-preregistration.md`),
+with the large lookup structures held as compact arrays to free about 19.5 MB: the push/fold
+tables are sorted key arrays with shared probability rows, the exploit pack keeps its action
+bytes as bytes, and the belief likelihoods are flat double arrays. `submission.json`
+(`memory_repack`) records the sandbox equivalence to `c3e0fa54` and the gate runs.
 
 The report is in `docs/final-bot-report.md` in the agent store.
 The holdout pre-registration is in `docs/final-holdout-preregistration.md`, and the
