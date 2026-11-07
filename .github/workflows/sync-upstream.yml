@@ -1,0 +1,126 @@
+name: Sync upstream
+
+on:
+  schedule:
+    - cron: '17 * * * *'
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/sync-upstream.yml']
+
+permissions:
+  contents: write
+
+concurrency:
+  group: sync-upstream
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    if: github.repository == 'aj002/poker_bot'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      GH_TOKEN: ${{ github.token }}
+      TARGET_REPOSITORY: ${{ github.repository }}
+    steps:
+      # Uses GitHub's API only: upstream project code is never executed.
+      # Branches merge without force; existing tags are never overwritten.
+      - name: Sync all upstream branches and tags
+        shell: python
+        run: |
+          import datetime as dt
+          import json
+          import os
+          import subprocess
+          from urllib.parse import quote
+
+          UPSTREAM = "aj002fr/poker_bot"
+          TARGET = os.environ["TARGET_REPOSITORY"]
+          notes = []
+          failures = []
+
+          def api(path, method="GET", data=None, paginate=False):
+              command = ["gh", "api", "--method", method, path,
+                         "-H", "Accept: application/vnd.github+json"]
+              if paginate:
+                  command += ["--paginate", "--slurp"]
+              if data is not None:
+                  command += ["--input", "-"]
+              result = subprocess.run(command, input=json.dumps(data) if data is not None else None,
+                                      text=True, capture_output=True, timeout=120)
+              if result.returncode:
+                  raise RuntimeError(result.stderr.strip() or "GitHub API request failed")
+              value = json.loads(result.stdout) if result.stdout.strip() else None
+              return [item for page in value for item in page] if paginate else value
+
+          def sync():
+              if TARGET != "aj002/poker_bot":
+                  raise RuntimeError("Unexpected destination repository")
+              metadata = api(f"repos/{TARGET}")
+              if metadata.get("parent", {}).get("full_name") != UPSTREAM:
+                  raise RuntimeError("The fork's parent is not the expected upstream")
+
+              source = api(f"repos/{UPSTREAM}/branches?per_page=100", paginate=True)
+              destination = {b["name"]: b["commit"]["sha"] for b in
+                             api(f"repos/{TARGET}/branches?per_page=100", paginate=True)}
+              for branch in source:
+                  name, sha = branch["name"], branch["commit"]["sha"]
+                  try:
+                      if name not in destination:
+                          api(f"repos/{TARGET}/git/refs", "POST",
+                              {"ref": f"refs/heads/{name}", "sha": sha})
+                          notes.append(f"Created branch {name!r}.")
+                      elif destination[name] == sha:
+                          notes.append(f"Branch {name!r} is current.")
+                      else:
+                          result = api(f"repos/{TARGET}/merge-upstream", "POST", {"branch": name})
+                          notes.append(f"Branch {name!r}: {result['message']}")
+                  except RuntimeError as error:
+                      failures.append(f"Branch {name!r}: {error}")
+
+              source_tags = api(f"repos/{UPSTREAM}/git/matching-refs/tags/", paginate=True)
+              target_tags = {t["ref"]: t["object"]["sha"] for t in
+                             api(f"repos/{TARGET}/git/matching-refs/tags/", paginate=True)}
+              for tag in source_tags:
+                  ref, sha = tag["ref"], tag["object"]["sha"]
+                  try:
+                      if ref not in target_tags:
+                          api(f"repos/{TARGET}/git/refs", "POST", {"ref": ref, "sha": sha})
+                          notes.append(f"Created tag {ref!r}.")
+                      elif target_tags[ref] != sha:
+                          raise RuntimeError("Tag differs; refusing to overwrite it")
+                  except RuntimeError as error:
+                      failures.append(f"Tag {ref!r}: {error}")
+              notes.append(f"Checked {len(source)} upstream branches and {len(source_tags)} tags.")
+
+              # Public-repository schedules stop after 60 inactive days. An empty
+              # commit after 30 days without a new default-branch commit keeps this
+              # repository active without changing any project files.
+              if not failures:
+                  default = metadata["default_branch"]
+                  ref_path = f"repos/{TARGET}/git/ref/heads/{quote(default, safe='')}"
+                  head = api(ref_path)["object"]["sha"]
+                  commit = api(f"repos/{TARGET}/git/commits/{head}")
+                  last_commit = dt.datetime.fromisoformat(commit["committer"]["date"].replace("Z", "+00:00"))
+                  if dt.datetime.now(dt.timezone.utc) - last_commit > dt.timedelta(days=30):
+                      heartbeat = api(f"repos/{TARGET}/git/commits", "POST", {
+                          "message": "chore: keep upstream sync active [skip ci]",
+                          "tree": commit["tree"]["sha"], "parents": [head]})
+                      api(f"repos/{TARGET}/git/refs/heads/{quote(default, safe='')}", "PATCH",
+                          {"sha": heartbeat["sha"], "force": False})
+                      notes.append("Added an empty keepalive commit; project files are unchanged.")
+
+          try:
+              sync()
+          except Exception as error:
+              failures.append(str(error))
+          finally:
+              report = "\n".join(["## Upstream sync", f"Source: {UPSTREAM}",
+                                  f"Destination: {TARGET}", ""] + notes +
+                                 (["", "### Needs attention"] + failures if failures else []))
+              print(report)
+              with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as summary:
+                  summary.write(report + "\n")
+          if failures:
+              raise SystemExit(1)
