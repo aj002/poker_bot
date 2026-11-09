@@ -421,3 +421,30 @@ def test_one_sided_overbet_reads(tmp_path, mode):
         assert (m[1] < m[0]) if mode == "pot" else (m[1] > m[0])
         assert pol.features(obs) == (pol.plain_features(read_as(obs, *m))[0], *f[1:])
     assert mapped > 0
+
+
+def test_reused_bot_does_not_read_another_tables_pressure(tmp_path, monkeypatch):
+    """Hand ids repeat across tables; a bot instance reused for a new table starts with no cached pressure."""
+    from types import SimpleNamespace
+
+    from strategy.blueprint import runtime
+
+    monkeypatch.setenv("BLUEPRINT_PACK", str(uniform_pack(tmp_path / "u.npz")))
+    bot = runtime.BlueprintBot("points")
+    policy = bot.policy("practice_nlhe")
+
+    def obs(table_id):
+        return SimpleNamespace(table_id=table_id, hand_id="h_001", hero_seat=0, payouts=[50, 30, 20])
+
+    short = {0: 500, 1: 3000, 2: 100}
+    deep = {0: 1000, 1: 1000, 2: 1000}
+    fresh_deep = runtime.BlueprintBot("points").policy("practice_nlhe").pressure_bucket(obs("t1"), deep)
+    first = policy.pressure_bucket(obs("t1"), short)
+    assert first != fresh_deep, "stacks must give different buckets for the test to bite"
+
+    # same table id and hand id, as the advisor and repeated tournaments produce
+    bot.initial_state(SimpleNamespace(ruleset_id="practice_nlhe", policy_seed="s", table_id="t1"))
+    assert policy.pressure_bucket(obs("t1"), deep) == fresh_deep
+
+    # different table ids never collide even without initial_state
+    assert policy.pressure_bucket(obs("t2"), short) == first

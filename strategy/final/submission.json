@@ -1,12 +1,12 @@
 {
  "bundle": "artifacts/final/bundle",
- "submission_bundle_sha256": "bec8892d62329e6f66ce137ffe55862383306a2c851eff9a6082ae83228e15f7",
- "bytes": 10140021,
+ "submission_bundle_sha256": "fd6b00cab4ccf309850a60725c0c5ab8bd5cf40cff7a95887beb5f3e0cf7cd46",
+ "bytes": 10140058,
  "py_files": 45,
- "tarball": {"name": "final-bot-bec8892d6232.tar.gz", "bytes": 9156101,
-             "sha256": "2ea706517550e18b2a39ff53faed15f62e68e471fb0b4bc192be7a0f95191dfd"},
- "worker_peak_rss_bytes": {"practice_nlhe": 91557888, "uncertainty_plo4": 91590656},
- "worker_peak_rss_note": "final-verify of the shipped bundle: 91.56 / 91.59 MB, under the 100,000,000-byte limit (59f371c6: 77.68-77.88 MB; the two ante push/fold tables add the difference)",
+ "tarball": {"name": "final-bot-fd6b00cab4cc.tar.gz", "bytes": 9156156,
+             "sha256": "53476f0b687c186913ade7c567617d7b7ee69aa03dddf87aa5e6a29dda8a7301"},
+ "worker_peak_rss_bytes": {"practice_nlhe": 92700672, "uncertainty_plo4": 92532736},
+ "worker_peak_rss_note": "final-verify of the shipped bundle on the VM of the pressure-cache fix: 92.70 / 92.53 MB, under the 100,000,000-byte limit (bec8892d recorded 91.56 / 91.59 MB on another host; the fix adds no data)",
  "built_on": "the antes adoption over 59f371c6 (main at 510124f): the default build of strategy.final.package is antes=tables (DEFAULT_OVERRIDES); --override antes=off rebuilds 59f371c6 byte for byte",
  "antes": {
   "mode": "tables",
@@ -29,6 +29,18 @@
                          "tarball_sha256": "2a5c44f9ffde250dd5a359e8865efc338adac92c41c43a21e97defb8a1784160",
                          "worker_peak_rss_bytes": {"practice_nlhe": 77819904, "uncertainty_plo4": 77881344},
                          "built_on": "main at 1bd4056 (compact push/fold, exploit-action and belief tables over the HandHQ adoption c3e0fa54)"},
+ "pressure_cache_fix": {
+  "from_bundle_sha256": "bec8892d62329e6f66ce137ffe55862383306a2c851eff9a6082ae83228e15f7",
+  "change": "no strategy change: BlueprintPolicy._pressure is keyed on (table_id, hand_id, hero_seat) and cleared in BlueprintBot.initial_state, so a bot instance reused for another table or tournament (the advisor keeps one global bot, hand ids repeat across tables) cannot read a stale pressure bucket; a fresh instance plays as before",
+  "equivalence": {
+   "note": "bec8892d (a) vs this bundle (b) through the sandbox worker, train partition, seed final-equivalence-v1, fresh worker per table",
+   "practice_nlhe": {"tables": 160, "identical_tables": 160, "hero_decisions": 24734, "public_actions": 175647, "fallbacks": 0, "identical": true},
+   "uncertainty_plo4": {"tables": 40, "identical_tables": 40, "hero_decisions": 6473, "public_actions": 40820, "fallbacks": 0, "identical": true}
+  },
+  "antes_off_bundle_sha256": "f14f39f187b0c0d9ab8c87a55308b591dc73b5495f3add469fa927a4b06199ad",
+  "antes_off_note": "--override antes=off now builds the ante-free bot with the fix; before it, 59f371c6 byte for byte",
+  "regression_test": "tests/strategy/test_blueprint.py::test_reused_bot_does_not_read_another_tables_pressure (fails on bec8892d)"
+ },
  "memory_repack": {
   "from_bundle_sha256": "c3e0fa540ee27a66873c3e53608f2f0b8d1d9f10c1ddf6b3869b6c90aef09ab3",
   "change": "no strategy change: the push/fold tables are searched as sorted int64 key arrays with one shared copy of each distinct probability row (was 135,901 dict and bytes objects, 13.75 MiB, plus the raw npz arrays held a second time); the exploit pack keeps its action bytes as bytes (was Python lists, 5 MiB); the belief likelihood tables are flat double arrays (was 92,293 tuples, 3 MiB)",
@@ -60,6 +72,11 @@
   "uncertainty_plo4": {"tables": 40, "identical_tables": 40, "hero_decisions": 6473, "public_actions": 40820, "fallbacks": 0, "identical": true}
  },
  "gate_runs": [
+  {"run": "pressure-fix-nlhe", "bundle_sha256": "fd6b00ca", "ruleset": "practice_nlhe", "structure": "none", "classifier": "burst-aware (main)", "passed": true,
+   "decisions": 50250, "p99_us": 362.7, "p999_us": 435.2, "timeouts": 18, "bot_caused": 3, "control_bot_caused": 1, "restarts": 0, "internal_fallbacks": 0,
+   "points_cost_per_table": {"1x": [0.15, -0.04, 0.35], "10x": [-0.01, -0.56, 0.55]}},
+  {"run": "pressure-fix-plo4", "bundle_sha256": "fd6b00ca", "ruleset": "uncertainty_plo4", "structure": "none", "classifier": "burst-aware (main)", "passed": true,
+   "decisions": 50054, "p99_us": 103.2, "p999_us": 160.5, "timeouts": 41, "bot_caused": 1, "control_bot_caused": 0, "restarts": 0, "internal_fallbacks": 0},
   {"run": "antes-1", "bundle_sha256": "bec8892d", "ruleset": "practice_nlhe", "structure": "none", "classifier": "burst-aware (main)", "passed": true, "decisions": 50010, "p99_us": 330.5, "p999_us": 384.7, "timeouts": 2, "bot_caused": 0, "control_bot_caused": "2/11312", "restarts": 0, "internal_fallbacks": 0, "points_cost_per_table": {"1x": [0.02, -0.02, 0.06], "10x": [0.05, -0.2, 0.3]}},
   {"run": "antes-classic", "bundle_sha256": "bec8892d", "ruleset": "practice_nlhe", "structure": "strategy/antes/specs/structure-classic.json", "classifier": "burst-aware (main)", "passed": true, "decisions": 50039, "p99_us": 374.4, "p999_us": 458.9, "timeouts": 19, "bot_caused": 1, "control_bot_caused": "0/11910", "restarts": 0, "internal_fallbacks": 0, "points_cost_per_table": {"1x": [-0.12, -0.32, 0.07], "10x": [-0.14, -0.74, 0.47]}},
   {"run": "antes-big_blind", "bundle_sha256": "bec8892d", "ruleset": "practice_nlhe", "structure": "strategy/antes/specs/structure-big_blind.json", "classifier": "burst-aware (main)", "passed": true, "decisions": 50087, "p99_us": 375.8, "p999_us": 455.1, "timeouts": 9, "bot_caused": 1, "control_bot_caused": "2/12350", "restarts": 0, "internal_fallbacks": 0, "points_cost_per_table": {"1x": [0.02, -0.14, 0.18], "10x": [0.07, -0.35, 0.49]}},

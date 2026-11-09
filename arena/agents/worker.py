@@ -47,7 +47,6 @@ and scripted channels.
 
 from __future__ import annotations
 
-import fcntl
 import gc
 import hashlib
 import json
@@ -88,6 +87,13 @@ DEFAULT_MAX_RESTARTS = 25
 LOG_KEEP_BYTES = 4096
 WAKE_FRAME = encode_frame({"t": "wake"})
 _F_SETPIPE_SZ = 1031
+
+
+def _require_posix() -> None:
+    if not sys.platform.startswith("linux"):
+        raise sandbox.SandboxError(
+            "sandboxed agents need Linux (Landlock, seccomp, unshare); on Windows run the sandboxed "
+            "paths inside WSL2, or use in-process isolation")
 
 # Reason codes recorded with ActionFallback. Public: the code. Private: the payload.
 FALLBACK_REASONS = (
@@ -370,6 +376,9 @@ class WorkerPool:
         to_r, to_w = os.pipe()
         from_r, from_w = os.pipe()
         log_r, log_w = os.pipe()
+        _require_posix()
+        import fcntl
+
         for fd in (to_w, from_w):
             try:
                 fcntl.fcntl(fd, _F_SETPIPE_SZ, 1 << 20)
