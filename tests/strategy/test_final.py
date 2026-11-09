@@ -156,7 +156,12 @@ def test_the_default_build_is_the_recorded_submission(tmp_path, monkeypatch):
     assert m["bytes"] == sub["bytes"] and m["py_files"] == sub["py_files"]
     assert not any("translat" in f for f in m["files"])
     assert "strategy/tables/data/antes-pushfold-classic-practice_nlhe.npz" in m["files"]
-    assert "overrides={'antes': 'tables'}" in (tmp_path / "bundle" / "bot.py").read_text()
+    assert "strategy/exploit/station.py" in m["files"]
+    bot = (tmp_path / "bundle" / "bot.py").read_text()
+    assert "StationFinalBot(" in bot and "overrides={'antes': 'tables', 'station': 'value'}" in bot
+    # antes=tables alone is the previous submission, the bot the station response was validated against
+    prev = package.build(tmp_path / "prev", overrides={"antes": "tables"})
+    assert prev["bundle_sha256"] == sub["station"]["against_bundle_sha256"]
     # antes=off is the ante-free bot with the pressure-cache fix; before the fix it was 59f371c6 byte for byte
     off = package.build(tmp_path / "off", overrides={"antes": "off"})
     assert off["bundle_sha256"] == sub["pressure_cache_fix"]["antes_off_bundle_sha256"]
