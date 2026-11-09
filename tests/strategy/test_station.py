@@ -74,11 +74,16 @@ def test_no_bluff_bets_and_no_light_stack_offs_against_a_station():
     assert r.reshape(obs, f, [0.2, 0.4, 0.1, 0.1, 0.1, 0.1], {1})[A.CALL] > 0.4
 
 
-def test_preflop_jams_and_raises_need_strong_hands():
+def test_preflop_jams_need_strong_hands_and_isolation_raises_stand():
+    from strategy.exploit.station import StationConfig, StationResponse
+
     r = _response()
     flat = [0.2, 0.2, 0.15, 0.15, 0.15, 0.15]
     obs, f = _decision(0, 3, to_call=20, pot=30)
-    p = r.reshape(obs, f, flat, {1})
+    # a weak hand's jam raises the smallest size instead; the blueprint's own raises stand
+    assert r.reshape(obs, f, flat, {1}) == pytest.approx([0.2, 0.2, 0.15, 0.3, 0.15, 0.0])
+    strict = StationResponse(StationConfig(pre_raise=8), ["station", "blueprint"])
+    p = strict.reshape(obs, f, flat, {1})
     assert p[A.ALL_IN] == 0 and p[A.MIN_RAISE] == p[A.RAISE_A] == p[A.RAISE_B] == 0
     obs, f = _decision(0, 14, to_call=20, pot=30)
     assert r.reshape(obs, f, flat, {1}) == flat
@@ -97,6 +102,21 @@ def test_detection_needs_posterior_evidence_and_no_cooldown():
     assert not detected(b, 3, 0, 0.8, 6.0)
     assert not detected(b, 4, 0, 0.8, 6.0)
     assert not detected(b, 1, 0, 0.95, 6.0)
+
+
+def test_the_depth_gate_ignores_stations_while_the_stacks_are_deep():
+    from strategy.exploit.station import StationConfig, StationResponse
+
+    b = SimpleNamespace(seats={1: [[0.0], 8.0, [0.0], 0]}, raw={}, posterior=lambda seat: [0.9, 0.1])
+    gated = StationResponse(StationConfig(max_bb=40), ["station", "blueprint"])
+    deep, _ = _decision(1, 20, stack=2000)
+    short, _ = _decision(1, 20, stack=600)
+    assert _response().stations(deep, b) == {1}
+    assert gated.stations(deep, b) == set()
+    assert gated.stations(short, b) == {1}
+    # the hero's own short stack caps the depth against a deep station
+    short.players[1].stack = 5000
+    assert gated.stations(short, b) == {1}
 
 
 def test_the_station_bot_plays_the_ante_bot_wherever_no_station_is_detected():
