@@ -162,13 +162,13 @@ class BlueprintPolicy:
         self.cards = CardAbstraction(self.caps)
         self.pack = pack or PolicyPack(pack_path(ruleset_id))
         self.offsets = A.OFFSETS
-        self._pressure: dict[tuple[str, int], int] = {}
+        self._pressure: dict[tuple[str, str, int], int] = {}
         for i, a in enumerate(self.caps.deck):
             for b in self.caps.deck[i + 1:]:
                 self.cards.preflop((a, b))
 
     def pressure_bucket(self, obs, start: dict[int, int]) -> int:
-        k = (obs.hand_id, obs.hero_seat)
+        k = (obs.table_id, obs.hand_id, obs.hero_seat)
         b = self._pressure.get(k)
         if b is None:
             seats = sorted(s for s, c in start.items() if c > 0)
@@ -305,7 +305,7 @@ class BlueprintBot(ExplicitStateBot):
         return p
 
     def initial_state(self, table):
-        self.policy(table.ruleset_id)
+        self.policy(table.ruleset_id)._pressure.clear()
         self._leaf.initial_state(table)
         return {"seed": table.policy_seed}
 

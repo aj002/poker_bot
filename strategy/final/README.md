@@ -16,10 +16,13 @@ One entry point, `bot.py:make_bot` in the bundle (`strategy.antes.runtime.AnteFi
 
 The bot never reads the clock, so the same seeds give the same actions.
 
-**Submission bundle.** `bec8892d62329e6f66ce137ffe55862383306a2c851eff9a6082ae83228e15f7`
-(10,140,021 bytes; tarball `final-bot-bec8892d6232.tar.gz`, sha256
-`2ea706517550e18b2a39ff53faed15f62e68e471fb0b4bc192be7a0f95191dfd`; worker peak RSS 91.6 MB
-NLHE, 91.6 MB PLO4). It is the previous submission `59f371c6` with first-class antes,
+**Submission bundle.** `fd6b00cab4ccf309850a60725c0c5ab8bd5cf40cff7a95887beb5f3e0cf7cd46`
+(10,140,058 bytes; tarball `final-bot-fd6b00cab4cc.tar.gz`, sha256
+`53476f0b687c186913ade7c567617d7b7ee69aa03dddf87aa5e6a29dda8a7301`; worker peak RSS 92.7 MB
+NLHE, 92.5 MB PLO4). It is `bec8892d` with one fix: the blueprint's pressure cache is keyed on the
+table and cleared in `initial_state`, so a reused bot instance cannot read another table's state
+(`pressure_cache_fix`; fresh-instance play is identical on 160 NLHE and 40 PLO4 sandbox tables).
+`bec8892d` is the previous submission `59f371c6` with first-class antes,
 adopted by `docs/antes-preregistration.md` (tag `antes-prereg-v1`). On HandHQ validation
 lineups it gains +0.92 [+0.50, +1.35] points per tournament with classic antes and +1.23
 [+0.81, +1.66] with a big-blind ante (luck-adjusted, 960 blocks each). The ante structure is
@@ -27,8 +30,8 @@ assumed, because no official schedule has been given. The tables are parameteris
 ante-to-BB ratio and the posting mode. Without antes it plays identically to `59f371c6`,
 which plays exactly like `c3e0fa54` (the HandHQ exploit pack on the final bot `8f4fd15e`,
 with compact lookup arrays; `memory_repack`). The default build is `antes=tables`
-(`package.DEFAULT_OVERRIDES`), and `--override antes=off` rebuilds `59f371c6` byte for
-byte. `submission.json` records the tests, the equivalence and the gate runs.
+(`package.DEFAULT_OVERRIDES`), and `--override antes=off` rebuilds the ante-free bot (`59f371c6` plus the cache fix; byte for
+byte `59f371c6` before it). `submission.json` records the tests, the equivalence and the gate runs.
 
 The report is in `docs/final-bot-report.md` in the agent store.
 The holdout pre-registration is in `docs/final-holdout-preregistration.md`, and the

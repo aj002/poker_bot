@@ -157,9 +157,9 @@ def test_the_default_build_is_the_recorded_submission(tmp_path, monkeypatch):
     assert not any("translat" in f for f in m["files"])
     assert "strategy/tables/data/antes-pushfold-classic-practice_nlhe.npz" in m["files"]
     assert "overrides={'antes': 'tables'}" in (tmp_path / "bundle" / "bot.py").read_text()
-    # antes=off is the ante-free bot it replaced, byte for byte
+    # antes=off is the ante-free bot with the pressure-cache fix; before the fix it was 59f371c6 byte for byte
     off = package.build(tmp_path / "off", overrides={"antes": "off"})
-    assert off["bundle_sha256"] == sub["previous_submission"]["bundle_sha256"]
+    assert off["bundle_sha256"] == sub["pressure_cache_fix"]["antes_off_bundle_sha256"]
     assert not any("antes" in f for f in off["files"])
 
 
