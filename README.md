@@ -93,10 +93,18 @@ make verify-release-status  # shard states per gate
 make cli-demo      # one seeded 6-player NLHE tournament
 ```
 
+**Windows.** Native Windows (without WSL2) runs everything that stays in one process: the API and web table
+(`make dev` equivalents, using `uv run` directly since `make` and the shell scripts are POSIX), the advisor and
+`make party`, and `arena.cli` with `--in-process`. The sandbox needs Linux (Landlock, seccomp, `unshare`), so
+sandboxed `arena.cli match`/`benchmark` runs, browser batch runs that use the sandbox, and the 1 ms harness
+need WSL2; they stop with a clear message on native Windows. The sandbox enforces a 1 ms deadline, and a late
+decision is played as check or fold: `arena.cli` prints the timeout share at the end of a run and warns above 1%.
+Do not run it on a loaded machine; use fewer `--jobs` or close other programs first.
+
 **Advisor mode.** `make party` builds the web app once and serves it on every network interface (port 5317; the
 API stays on loopback behind it). It prints the Mac's address; open `http://<address>:5317/#/advisor` on a phone
 on the same Wi-Fi. You type a real-life hand in as it happens (your cards, each player's action, the board) and the
-final bot (competition bundle `bec8892d`, run in the server process with no 1 ms deadline and no numba) shows what it
+final bot (competition bundle `fd6b00ca`, run in the server process with no 1 ms deadline and no numba) shows what it
 would play, with its mix and a one-line reason. It remembers each seat across hands like the arena does. Sessions
 are saved under `artifacts/advisor`. The `final_bot` is also a normal opponent in the bot list. Set `ARENA_PUBLIC_URL` if the printed address is wrong, and `ARENA_NO_OPEN=1` to stop it opening a browser.
 

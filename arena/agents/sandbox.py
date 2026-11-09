@@ -28,18 +28,36 @@ import ctypes
 import errno
 import os
 import platform
-import resource
 import struct
+import sys
 from collections.abc import Iterable
 from dataclasses import dataclass, field
 
-_libc = ctypes.CDLL(None, use_errno=True)
-_libc.syscall.restype = ctypes.c_long
-_libc.prctl.restype = ctypes.c_int
 
 
 class SandboxError(RuntimeError):
     pass
+
+
+class _LazyLibc:
+    """libc, loaded on first use so importing this module works where there is none (native Windows)."""
+
+    _lib: ctypes.CDLL | None = None
+
+    def __getattr__(self, name: str):
+        if self._lib is None:
+            if not sys.platform.startswith("linux"):
+                raise SandboxError(
+                    "the sandbox needs Linux (Landlock and seccomp); on Windows run the sandboxed "
+                    "paths inside WSL2")
+            lib = ctypes.CDLL(None, use_errno=True)
+            lib.syscall.restype = ctypes.c_long
+            lib.prctl.restype = ctypes.c_int
+            self._lib = lib
+        return getattr(self._lib, name)
+
+
+_libc = _LazyLibc()
 
 
 # --------------------------------------------------------------------- limits
@@ -67,6 +85,8 @@ class Limits:
 
 
 def apply_rlimits(limits: Limits) -> None:
+    import resource
+
     pairs = [
         (resource.RLIMIT_AS, limits.address_space_bytes),
         (resource.RLIMIT_CPU, limits.cpu_seconds),

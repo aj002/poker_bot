@@ -246,6 +246,43 @@ def _print_benchmark(run, focus: list[int]) -> None:
     print("practice assumptions; not official Sequoia rules. Results against baselines say little about strength.")
 
 
+TIMEOUT_WARN_SHARE = 0.01
+
+
+def _timeout_report(summary: dict, focus: list[int]) -> tuple[list[str], bool]:
+    """Timeout and fallback share of the run, and whether timeouts exceed 1% anywhere."""
+    lines: list[str] = []
+    warn = False
+    rows = [(e["name"], e["decisions"], e["fallback_total"], e["fallbacks"].get("timeout", 0))
+            for e in summary["entrants"] if e["entrant"] in focus]
+    b = summary["baselines_combined"]
+    if b["decisions"]:
+        rows.append(("baselines combined", b["decisions"], b["timeout_fallbacks"], b["timeout_fallbacks"]))
+    for name, decisions, fallbacks, timeouts in rows:
+        if not decisions:
+            continue
+        t, f = timeouts / decisions, fallbacks / decisions
+        over = t > TIMEOUT_WARN_SHARE
+        warn = warn or over
+        lines.append(f"   {name:<22} timeouts {timeouts}/{decisions} ({t:.2%})  all fallbacks {fallbacks} ({f:.2%})"
+                     + ("   <-- above 1%" if over else ""))
+    return lines, warn
+
+
+def _print_timeout_report(summary: dict, focus: list[int], *, file) -> None:
+    lines, warn = _timeout_report(summary, focus)
+    if not lines:
+        return
+    print("\ntimeout / fallback share (a timed-out decision is played as check or fold)", file=file)
+    print("\n".join(lines), file=file)
+    if warn:
+        bar = "!" * 78
+        print(f"\n{bar}\nWARNING: more than 1% of decisions timed out. The 1 ms deadline was missed because the "
+              "machine\nwas busy, not because the bot was slow, and results are biased against the late bot. Re-run "
+              "with\nfewer parallel jobs (--jobs) or on an otherwise idle machine before trusting these numbers.\n"
+              f"{bar}", file=file)
+
+
 def _default_jobs(isolation: str) -> int:
     """One sandboxed table per four physical cores, one core kept for this process
     (:mod:`arena.benchmark.capacity`): oversubscription shows up as timeouts."""
@@ -289,6 +326,7 @@ def _run_benchmark_cli(args: argparse.Namespace, entrants, focus: list[int]) -> 
     else:
         _print_benchmark(run, focus)
     s = run.manifest.summary
+    _print_timeout_report(s, focus, file=sys.stderr if args.json else sys.stdout)
     return 0 if not (s["tables_failed"] or s["tables_invalid"]) else 1
 
 
