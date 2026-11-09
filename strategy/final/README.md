@@ -1,13 +1,17 @@
 # Final competition bot (Stage 8 / M8)
 
-One entry point, `bot.py:make_bot` in the bundle (`strategy.antes.runtime.AnteFinalBot`, a
-`runtime.FinalBot` with first-class antes):
+One entry point, `bot.py:make_bot` in the bundle (`strategy.exploit.station.StationFinalBot`,
+the `strategy.antes.runtime.AnteFinalBot` with the calling-station response):
 
 * `practice_nlhe` is played by the exploiting blueprint (`strategy.exploit.runtime.ExploitBot`):
   the MCCFR blueprint, its point-aware push/fold leaf and the confidence-capped exploitation
   layer. In a hand with an ante (`antes=tables`), the blueprint reads the preflop pot without
   the antes, and preflop push/fold spots play from the posting mode's ICM table solved with
   the antes posted (`strategy/antes/`). Hands without an ante play exactly as `59f371c6`.
+  While a live opponent is a detected calling station (`station=value`), the row plays for
+  value only: no bluffs into the station, no stacking off light, thinner value bets, and
+  preflop jams only with strong hands (`strategy/exploit/station.py`). Every other decision
+  plays exactly as `fd6b00ca`.
 * Every other ruleset is played by the variant-agnostic fallback
   (`strategy.policy.generic.GenericBot`): short deck, PLO4, and a build-day `reveal_variant`
   bundled with `--reveal`.
@@ -16,22 +20,32 @@ One entry point, `bot.py:make_bot` in the bundle (`strategy.antes.runtime.AnteFi
 
 The bot never reads the clock, so the same seeds give the same actions.
 
-**Submission bundle.** `fd6b00cab4ccf309850a60725c0c5ab8bd5cf40cff7a95887beb5f3e0cf7cd46`
-(10,140,058 bytes; tarball `final-bot-fd6b00cab4cc.tar.gz`, sha256
-`53476f0b687c186913ade7c567617d7b7ee69aa03dddf87aa5e6a29dda8a7301`; worker peak RSS 92.7 MB
-NLHE, 92.5 MB PLO4). It is `bec8892d` with one fix: the blueprint's pressure cache is keyed on the
-table and cleared in `initial_state`, so a reused bot instance cannot read another table's state
+**Submission bundle.** `e19be8ff1beec6a34a30ec3c3d674b5de152f40004e4f8ac6213274f7760e8f1`
+(10,155,546 bytes; tarball `final-bot-e19be8ff1bee.tar.gz`, sha256
+`bd79209905c45e59a2d22f23fcb13919aa18ecf683d8919a4f67d77e80a17d05`; worker peak RSS 91.7 MB
+NLHE, 91.6 MB PLO4). It is the previous submission `fd6b00ca` with the calling-station
+response, adopted by `docs/station-response-preregistration.md` (tag `station-prereg-v1`). On
+HandHQ validation lineups with classic antes, it is non-inferior on the population field at
+−0.07 [−0.20, +0.07] points per tournament (margin 0.5; raw paired −0.22 [−0.41, −0.04]). On
+lineups with the three `loose_passive` members it gains +0.85 [+0.54, +1.16] (luck-adjusted,
+960 and 1,440 blocks). Until its first station-mode decision it plays action for action as
+`fd6b00ca` (40 of 40 sandbox tables, with and without antes).
+
+`fd6b00ca` is `bec8892d` with one fix: the blueprint's pressure cache is keyed on the table and
+cleared in `initial_state`, so a reused bot instance cannot read another table's state
 (`pressure_cache_fix`; fresh-instance play is identical on 160 NLHE and 40 PLO4 sandbox tables).
-`bec8892d` is the previous submission `59f371c6` with first-class antes,
-adopted by `docs/antes-preregistration.md` (tag `antes-prereg-v1`). On HandHQ validation
-lineups it gains +0.92 [+0.50, +1.35] points per tournament with classic antes and +1.23
-[+0.81, +1.66] with a big-blind ante (luck-adjusted, 960 blocks each). The ante structure is
-assumed, because no official schedule has been given. The tables are parameterised by the
-ante-to-BB ratio and the posting mode. Without antes it plays identically to `59f371c6`,
-which plays exactly like `c3e0fa54` (the HandHQ exploit pack on the final bot `8f4fd15e`,
-with compact lookup arrays; `memory_repack`). The default build is `antes=tables`
-(`package.DEFAULT_OVERRIDES`), and `--override antes=off` rebuilds the ante-free bot (`59f371c6` plus the cache fix; byte for
-byte `59f371c6` before it). `submission.json` records the tests, the equivalence and the gate runs.
+`bec8892d` is `59f371c6` with first-class antes, adopted by `docs/antes-preregistration.md`
+(tag `antes-prereg-v1`). On HandHQ validation lineups it gains +0.92 [+0.50, +1.35] points per
+tournament with classic antes and +1.23 [+0.81, +1.66] with a big-blind ante (luck-adjusted,
+960 blocks each). The ante structure is assumed, because no official schedule has been given.
+The tables are parameterised by the ante-to-BB ratio and the posting mode. Without antes it
+plays identically to `59f371c6`, which plays exactly like `c3e0fa54` (the HandHQ exploit pack
+on the final bot `8f4fd15e`, with compact lookup arrays; `memory_repack`).
+
+The default build is `antes=tables, station=value` (`package.DEFAULT_OVERRIDES`). Overrides
+replace the defaults: `--override antes=tables` rebuilds `fd6b00ca` byte for byte, and
+`--override antes=off` builds the ante-free bot (`59f371c6` plus the cache fix).
+`submission.json` records the tests, the equivalence and the gate runs.
 
 The report is in `docs/final-bot-report.md` in the agent store.
 The holdout pre-registration is in `docs/final-holdout-preregistration.md`, and the

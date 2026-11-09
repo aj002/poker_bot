@@ -174,3 +174,51 @@ against A′. Any other change to the base stops the adoption, and a new experim
 All results are reported with intervals, including nulls and failures. No spec is re-run with
 new seeds to change a result. If a result prompts a change, the changed bot is a new
 experiment with new specs.
+
+## Results (added after the runs)
+
+The runs were in-process with 7 jobs, from commit `8d5fdb0` (tag `station-prereg-v1`, pushed
+before the first run, clean tree), with the pre-registered bundles, specs, seeds and block
+counts unchanged. The spec hashes are `d42128ca…` (population) and `cbcd9e62…` (station-heavy).
+The analysis is `python -m strategy.exploit.evaluate confirm` exactly as written above, saved
+as `artifacts/station/confirm.json`.
+
+| id | B − A, luck-adjusted, 95% CI | one-sided p | Holm p | raw paired t, 95% | outcome |
+| --- | --- | --- | --- | --- | --- |
+| H1 (population, NI −0.5) | −0.07 [−0.20, +0.07] | 2.0e-10 | 4.0e-10 | −0.22 [−0.41, −0.04] | rejected: B is non-inferior |
+| H2 (station-heavy) | +0.85 [+0.54, +1.16] | 5.3e-8 | 5.3e-8 | +0.72 [+0.32, +1.11] | rejected: B is better |
+
+**Side conditions** (run after the statistics passed, on an otherwise idle machine):
+
+- **Identical play without a detected station:** 40 of 40 tables identical up to B's first
+  station-mode decision, with no structure and with classic antes (6,216 hero decisions,
+  0 fallbacks). Station mode fired on 16 tables in each run, and 31 tables were fully identical.
+- **Deployed gate:** passed, every check ok, under every structure:
+
+  | structure | decisions | worker p99 / p99.9 / max (µs) | timeouts (bot-caused) | control bot-caused |
+  | --- | --- | --- | --- | --- |
+  | none | 50,081 | 353 / 443 / 752 | 54 (5) | 3 / 11,384 |
+  | classic | 50,003 | 390 / 489 / 794 | 44 (3) | 2 / 12,141 |
+  | big blind | 50,194 | 388 / 469 / 686 | 26 (4) | 1 / 12,519 |
+
+  No decision took 1 ms of worker time, and there were 0 restarts and 0 internal fallbacks.
+  The PLO4 path of the same bundle (needed for the submission record) also passed: 50,095
+  decisions, p99 90 µs, 0 bot-caused timeouts.
+- **`package --verify`:** ok. 10,155,546 bytes; worker peak RSS 91,684,864 bytes (NLHE) and
+  91,725,824 (PLO4); numba not loaded.
+
+**Decision: pass.** H1 and H2 are both rejected and every side condition passed.
+`station=value` is adopted: the default bundle of `strategy.final.package` is B's, `e19be8ff…`.
+Origin `main` had not moved from `f192a61`, so A was still the submission at adoption.
+
+Secondary, descriptive, not part of the test:
+
+- **The population effect is small and probably slightly negative.** The raw paired estimate
+  excludes zero: −0.22 [−0.41, −0.04]. By family, the luck-adjusted point estimates are mostly
+  below zero. `smooth_switcher` is −0.53 [−0.89, −0.18] (Holm p 0.059), and `loose_passive`
+  seated in the population lineups is −0.85 [−1.55, −0.14] (Holm p 0.29). No family is
+  significant after Holm. By level: −0.04, −0.09 and −0.09.
+- **Station-heavy by level:** levels 1–2 +0.19 [+0.06, +0.33], levels 3–5 +0.25 [−0.01, +0.51],
+  levels 6–8 +0.27 [+0.06, +0.48].
+- **Variance factor** of the luck terms with seat-keyed dealing: 1.90 (population) and 1.59
+  (station-heavy).
