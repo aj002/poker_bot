@@ -109,13 +109,17 @@ print(json.dumps({"modules": mods, "files": files, "tables": sorted(loaded),
 
 def entry(overrides: dict | None) -> tuple[str, str]:
     """``(module, class)`` of the bundle's bot: the final bot, or the translating one when an
-    override turns translation on (so the shipped bundle never contains translation code)."""
+    override turns translation on (so the shipped bundle never contains translation code); a
+    ``station`` override builds :class:`~strategy.exploit.station.StationFinalBot` (with antes)."""
     translate = (overrides or {}).get("translate", "off") != "off"
     antes = (overrides or {}).get("antes", "off") != "off"
-    if translate and antes:
-        raise ValueError("translate and antes overrides build different bots; pick one")
+    station = (overrides or {}).get("station", "off") != "off"
+    if translate and (antes or station):
+        raise ValueError("translate and antes or station overrides build different bots; pick one")
     if translate:
         return "strategy.final.translated", "TranslatingFinalBot"
+    if station:
+        return "strategy.exploit.station", "StationFinalBot"
     if antes:
         return "strategy.antes.runtime", "AnteFinalBot"
     return "strategy.final.runtime", "FinalBot"
